@@ -1,0 +1,57 @@
+# Message DB Docker Compose Configuration
+# Development and testing setup with Postgres
+
+services:
+  # Message DB Server
+  messagedb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Note: Currently using in-memory SQLite
+      # Postgres support planned for future versions
+      - MESSAGEDB_PORT=8080
+      # Optional: Set a specific token for the default namespace
+      # - MESSAGEDB_TOKEN=your-token-here
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - messagedb-network
+
+  # Postgres Database (for future use with Postgres backend)
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_DB: message_store
+      POSTGRES_USER: message_store
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Initialize with Message DB schema
+      - ./database:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Use 5433 to avoid conflict with local Postgres on 5432
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U message_store -d message_store"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - messagedb-network
+
+networks:
+  messagedb-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local

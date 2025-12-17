@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Documentation and metadata
+README.md
+CHANGES.md
+MIT-License.txt
+@meta
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Test files and data
+test/
+test_external/
+golang/test_unit/
+golang/test_integration/
+tmp/
+
+# Database files (original Postgres)
+database/
+
+# Built binaries (we build fresh in Docker)
+golang/messagedb
+
+# Node modules (from external tests)
+node_modules/
+bun.lockb
+
+# Docker files (avoid including in context)
+Dockerfile*
+docker-compose*.yml
+.docker
+
+# CI/CD
+.github/
+
+# Temporary and cache files
+*.log
+*.tmp
+*.cache
+
+# Shell scripts (not needed in container)
+*.sh
+bin/
