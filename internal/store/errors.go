@@ -55,3 +55,11 @@ func NewVersionConflictError(streamName string, expected, actual int64) error {
 		ActualVersion:   actual,
 	}
 }
+
+// IsVersionConflict checks if an error is a version conflict error
+func IsVersionConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, ErrVersionConflict)
+}
