@@ -69,8 +69,8 @@ func (s *PostgresStore) WriteMessage(ctx context.Context, namespace, streamName 
 
 	if err != nil {
 		// Check for version conflict error
-		if err.Error() == "pq: Wrong expected version" || 
-		   (err != nil && len(err.Error()) > 20 && err.Error()[:20] == "pq: Wrong expected v") {
+		if err.Error() == "pq: Wrong expected version" ||
+			(err != nil && len(err.Error()) > 20 && err.Error()[:20] == "pq: Wrong expected v") {
 			return nil, store.ErrVersionConflict
 		}
 		return nil, fmt.Errorf("failed to write message: %w", err)

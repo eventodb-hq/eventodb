@@ -59,7 +59,7 @@ func TestMDB002_2A_T5_ValidTokenAllowsRequest(t *testing.T) {
 	called := false
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		
+
 		// Verify namespace is in context
 		namespace, ok := api.GetNamespaceFromContext(r.Context())
 		if !ok {
@@ -68,7 +68,7 @@ func TestMDB002_2A_T5_ValidTokenAllowsRequest(t *testing.T) {
 		if namespace != "test-ns" {
 			t.Errorf("Expected namespace 'test-ns', got '%s'", namespace)
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -164,7 +164,7 @@ func TestMDB002_2A_T7_InvalidTokenReturnsAuthInvalidToken(t *testing.T) {
 // Test MDB002_2A_T8: Test wrong namespace token returns AUTH_UNAUTHORIZED
 func TestMDB002_2A_T8_WrongNamespaceTokenReturnsUnauthorized(t *testing.T) {
 	ms := newMockStore()
-	
+
 	// Create namespace with one token
 	correctToken, _ := auth.GenerateToken("test-ns")
 	correctHash := auth.HashToken(correctToken)
@@ -275,12 +275,12 @@ func TestMDB002_2A_TestModeBypassesAuth(t *testing.T) {
 	called := false
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		
+
 		// Verify test mode is set in context
 		if !api.IsTestMode(r.Context()) {
 			t.Error("Test mode should be set in context")
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 	})
 

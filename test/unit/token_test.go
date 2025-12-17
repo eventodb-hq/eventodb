@@ -10,7 +10,7 @@ import (
 // Test MDB002_2A_T1: Test token generation creates valid format
 func TestMDB002_2A_T1_TokenGenerationCreatesValidFormat(t *testing.T) {
 	namespace := "tenant-a"
-	
+
 	token, err := auth.GenerateToken(namespace)
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
@@ -43,7 +43,7 @@ func TestMDB002_2A_T1_TokenGenerationCreatesValidFormat(t *testing.T) {
 // Test MDB002_2A_T2: Test token parsing extracts correct namespace
 func TestMDB002_2A_T2_TokenParsingExtractsNamespace(t *testing.T) {
 	originalNamespace := "tenant-a"
-	
+
 	token, err := auth.GenerateToken(originalNamespace)
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
@@ -62,7 +62,7 @@ func TestMDB002_2A_T2_TokenParsingExtractsNamespace(t *testing.T) {
 // Test MDB002_2A_T3: Test token hash is deterministic
 func TestMDB002_2A_T3_TokenHashIsDeterministic(t *testing.T) {
 	token := "ns_dGVzdA_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-	
+
 	hash1 := auth.HashToken(token)
 	hash2 := auth.HashToken(token)
 

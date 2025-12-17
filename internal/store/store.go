@@ -217,7 +217,7 @@ type Namespace struct {
 	Description string                 // Human-readable description
 	CreatedAt   time.Time              // When the namespace was created
 	Metadata    map[string]interface{} // Additional metadata (JSON)
-	
+
 	// Backend-specific fields (not exposed in interface)
 	SchemaName string // Postgres: schema name
 	DBPath     string // SQLite: database file path

@@ -330,10 +330,10 @@ func TestMDB001_5A_T5_WriteMessage_SerializesJSON(t *testing.T) {
 			},
 		},
 		Metadata: map[string]interface{}{
-			"userId":                 "user-123",
-			"correlationStreamName":  "user-123",
-			"timestamp":              time.Now().Unix(),
-			"version":                1,
+			"userId":                "user-123",
+			"correlationStreamName": "user-123",
+			"timestamp":             time.Now().Unix(),
+			"version":               1,
 		},
 	}
 

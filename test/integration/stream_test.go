@@ -51,7 +51,7 @@ func setupTestServer(t *testing.T) (port int, token string, cleanup func()) {
 
 	// Set up HTTP routes
 	mux := http.NewServeMux()
-	
+
 	// RPC endpoint with auth middleware (in test mode, auth is optional)
 	rpcWithAuth := api.AuthMiddleware(st, true)(rpcHandler)
 	mux.Handle("/rpc", api.LoggingMiddleware(rpcWithAuth))
@@ -503,7 +503,7 @@ func TestMDB002_3A_T10_LastMessageReturnsLatest(t *testing.T) {
 
 	msg := result.([]interface{})
 	position := int(msg[2].(float64))
-	
+
 	// Last message should be at position 4 (5th message, 0-indexed)
 	if position != 4 {
 		t.Errorf("Expected last message at position 4, got %d", position)
@@ -551,7 +551,7 @@ func TestMDB002_3A_T11_LastWithTypeFilter(t *testing.T) {
 
 	msg := result.([]interface{})
 	msgType := msg[1].(string)
-	
+
 	if msgType != "TypeA" {
 		t.Errorf("Expected type TypeA, got %s", msgType)
 	}

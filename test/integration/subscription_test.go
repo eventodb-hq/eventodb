@@ -29,7 +29,7 @@ type Poke struct {
 // setupSSETestServer creates a test server for SSE
 func setupSSETestServer(t *testing.T) (*httptest.Server, *sqlite.SQLiteStore, func()) {
 	t.Helper()
-	
+
 	// Create in-memory SQLite database
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
@@ -41,24 +41,24 @@ func setupSSETestServer(t *testing.T) (*httptest.Server, *sqlite.SQLiteStore, fu
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	
+
 	// Create default namespace
 	ctx := context.Background()
 	token, _ := auth.GenerateToken("default")
 	tokenHash := auth.HashToken(token)
 	_ = st.CreateNamespace(ctx, "default", tokenHash, "Default namespace")
-	
+
 	// Create handlers
 	rpcHandler := api.NewRPCHandler("1.3.0", st)
 	sseHandler := api.NewSSEHandler(st, true) // test mode
-	
+
 	// Create mux
 	mux := http.NewServeMux()
 	mux.Handle("/rpc", api.AuthMiddleware(st, true)(rpcHandler))
 	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
-	
+
 	server := httptest.NewServer(mux)
-	
+
 	return server, st, func() {
 		server.Close()
 		st.Close()
@@ -82,13 +82,13 @@ func createSSENamespace(ctx context.Context, st *sqlite.SQLiteStore, namespace s
 	if err != nil {
 		return "", err
 	}
-	
+
 	tokenHash := auth.HashToken(token)
 	err = st.CreateNamespace(ctx, namespace, tokenHash, "Test namespace")
 	if err != nil {
 		return "", err
 	}
-	
+
 	return token, nil
 }
 
@@ -126,7 +126,7 @@ func TestMDB002_6A_T1_SSEConnectionEstablished(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil {
 		defer resp.Body.Close()
-		
+
 		// Check headers
 		if resp.Header.Get("Content-Type") != "text/event-stream" {
 			t.Errorf("Expected Content-Type: text/event-stream, got: %s", resp.Header.Get("Content-Type"))
@@ -162,7 +162,7 @@ func TestMDB002_6A_T2_SSEHeadersSetCorrectly(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil {
 		defer resp.Body.Close()
-		
+
 		requiredHeaders := map[string]string{
 			"Content-Type":  "text/event-stream",
 			"Cache-Control": "no-cache",
@@ -213,7 +213,7 @@ func TestMDB002_6A_T3_ConnectionWithAuth(t *testing.T) {
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
-			
+
 			resp, err := http.DefaultClient.Do(req)
 			if tt.shouldWork {
 				if err == nil {
@@ -267,7 +267,7 @@ func TestMDB002_6A_T4_StreamSubscriptionReceivesPoke(t *testing.T) {
 	// Start reading events
 	reader := bufio.NewReader(resp.Body)
 	pokeChan := make(chan *Poke, 1)
-	
+
 	go func() {
 		for {
 			line, err := reader.ReadString('\n')
@@ -348,13 +348,13 @@ func TestMDB002_6A_T5_PokeContainsCorrectPosition(t *testing.T) {
 	defer resp.Body.Close()
 
 	reader := bufio.NewReader(resp.Body)
-	
+
 	// Should receive poke for existing message at position 2
 	poke, err := readNextPoke(reader, 1*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to receive poke: %v", err)
 	}
-	
+
 	if poke.Position != 2 {
 		t.Errorf("Expected position 2, got %d", poke.Position)
 	}
@@ -458,13 +458,13 @@ func TestMDB002_6A_T7_SubscriptionFromSpecificPosition(t *testing.T) {
 	defer resp.Body.Close()
 
 	reader := bufio.NewReader(resp.Body)
-	
+
 	// Should receive pokes for positions 3 and 4
 	poke, err := readNextPoke(reader, 1*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to receive poke: %v", err)
 	}
-	
+
 	if poke.Position < 3 {
 		t.Errorf("Expected position >= 3, got %d", poke.Position)
 	}
@@ -661,7 +661,7 @@ func TestMDB002_6A_T11_ConnectionCleanupOnDisconnect(t *testing.T) {
 // Helper function to read next poke from SSE stream
 func readNextPoke(reader *bufio.Reader, timeout time.Duration) (*Poke, error) {
 	deadline := time.Now().Add(timeout)
-	
+
 	for time.Now().Before(deadline) {
 		reader.ReadString('\n') // Skip any initial comments or empty lines
 		line, err := reader.ReadString('\n')
@@ -669,9 +669,9 @@ func readNextPoke(reader *bufio.Reader, timeout time.Duration) (*Poke, error) {
 			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-		
+
 		line = strings.TrimSpace(line)
-		
+
 		// Look for "data: " line
 		if strings.HasPrefix(line, "data: ") {
 			jsonData := strings.TrimPrefix(line, "data: ")
@@ -681,6 +681,6 @@ func readNextPoke(reader *bufio.Reader, timeout time.Duration) (*Poke, error) {
 			}
 		}
 	}
-	
+
 	return nil, fmt.Errorf("timeout waiting for poke")
 }

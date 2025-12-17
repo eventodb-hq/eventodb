@@ -8,9 +8,10 @@ import (
 
 // Category extracts the category name from a stream name
 // Examples:
-//   Category("account-123") → "account"
-//   Category("account-123+456") → "account"
-//   Category("account") → "account"
+//
+//	Category("account-123") → "account"
+//	Category("account-123+456") → "account"
+//	Category("account") → "account"
 func Category(streamName string) string {
 	parts := strings.SplitN(streamName, "-", 2)
 	return parts[0]
@@ -18,9 +19,10 @@ func Category(streamName string) string {
 
 // ID extracts the ID portion from a stream name
 // Examples:
-//   ID("account-123") → "123"
-//   ID("account-123+456") → "123+456"
-//   ID("account") → ""
+//
+//	ID("account-123") → "123"
+//	ID("account-123+456") → "123+456"
+//	ID("account") → ""
 func ID(streamName string) string {
 	parts := strings.SplitN(streamName, "-", 2)
 	if len(parts) < 2 {
@@ -32,9 +34,10 @@ func ID(streamName string) string {
 // CardinalID extracts the cardinal ID (before '+') from a stream name
 // Used for consumer group partitioning with compound IDs
 // Examples:
-//   CardinalID("account-123") → "123"
-//   CardinalID("account-123+456") → "123"
-//   CardinalID("account") → ""
+//
+//	CardinalID("account-123") → "123"
+//	CardinalID("account-123+456") → "123"
+//	CardinalID("account") → ""
 func CardinalID(streamName string) string {
 	id := ID(streamName)
 	if id == "" {
@@ -47,8 +50,9 @@ func CardinalID(streamName string) string {
 
 // IsCategory determines if a name represents a category (no ID part)
 // Examples:
-//   IsCategory("account") → true
-//   IsCategory("account-123") → false
+//
+//	IsCategory("account") → true
+//	IsCategory("account-123") → false
 func IsCategory(name string) bool {
 	return !strings.Contains(name, "-")
 }
@@ -69,17 +73,17 @@ func IsAssignedToConsumerMember(streamName string, member, size int64) bool {
 	if size <= 0 || member < 0 || member >= size {
 		return false
 	}
-	
+
 	cardinalID := CardinalID(streamName)
 	if cardinalID == "" {
 		return false
 	}
-	
+
 	hash := Hash64(cardinalID)
 	// Use absolute value to handle negative hashes
 	if hash < 0 {
 		hash = -hash
 	}
-	
+
 	return (hash % size) == member
 }

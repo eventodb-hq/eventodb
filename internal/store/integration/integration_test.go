@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/message-db/message-db/internal/store"
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
-	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 )
 

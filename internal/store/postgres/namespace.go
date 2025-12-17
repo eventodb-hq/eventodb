@@ -200,7 +200,7 @@ func (s *PostgresStore) ListNamespaces(ctx context.Context) ([]*store.Namespace,
 func applyNamespaceMigrations(ctx context.Context, tx *sql.Tx, schemaName string) error {
 	// The embed.FS includes the full path, so we need to use the correct directory
 	baseDir := "namespace/postgres"
-	
+
 	// Load migration content from embedded FS
 	migrationFiles, err := migrations.NamespacePostgresFS.ReadDir(baseDir)
 	if err != nil {

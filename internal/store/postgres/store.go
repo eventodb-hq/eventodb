@@ -58,7 +58,7 @@ func (s *PostgresStore) WithContext(ctx context.Context) *PostgresStore {
 func (s *PostgresStore) getSchemaName(namespace string) (string, error) {
 	var schemaName string
 	query := `SELECT schema_name FROM message_store.namespaces WHERE id = $1`
-	
+
 	err := s.db.QueryRowContext(s.ctx, query, namespace).Scan(&schemaName)
 	if err == sql.ErrNoRows {
 		return "", store.ErrNamespaceNotFound
@@ -66,7 +66,7 @@ func (s *PostgresStore) getSchemaName(namespace string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get schema name: %w", err)
 	}
-	
+
 	return schemaName, nil
 }
 

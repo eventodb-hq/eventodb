@@ -88,7 +88,7 @@ func (m *Migrator) ApplyNamespaceMigration(schemaName string) error {
 	// Apply each migration with template substitution
 	for _, migration := range migrations {
 		sql := strings.ReplaceAll(migration.content, "{{SCHEMA_NAME}}", schemaName)
-		
+
 		if _, err := m.db.ExecContext(m.ctx, sql); err != nil {
 			return fmt.Errorf("failed to apply namespace migration %s: %w", migration.name, err)
 		}
@@ -131,14 +131,14 @@ func (m *Migrator) ensureMigrationsTable() error {
 func (m *Migrator) loadMigrations() ([]migration, error) {
 	// Try different possible paths
 	paths := []string{".", "testdata", "metadata/postgres", "metadata/sqlite", "namespace/postgres", "namespace/sqlite"}
-	
+
 	for _, dir := range paths {
 		migs, err := m.loadMigrationsFromDir(dir)
 		if err == nil && len(migs) > 0 {
 			return migs, nil
 		}
 	}
-	
+
 	// No migrations found
 	return nil, nil
 }
@@ -268,7 +268,7 @@ func GetSubFS(fs embed.FS, dir string) (embed.FS, error) {
 	if err != nil {
 		return embed.FS{}, err
 	}
-	
+
 	// For simplicity, we'll work with the full FS and adjust paths
 	// This is a limitation of embed.FS - it doesn't support Sub() method
 	_ = entries

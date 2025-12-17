@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -18,7 +19,7 @@ type RPCHandler struct {
 }
 
 // RPCMethod is a function that handles an RPC method call
-type RPCMethod func(args []interface{}) (interface{}, *RPCError)
+type RPCMethod func(ctx context.Context, args []interface{}) (interface{}, *RPCError)
 
 // RPCError represents an RPC error response
 type RPCError struct {
@@ -115,7 +116,7 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route to handler
-	result, err := h.route(method, args)
+	result, err := h.route(r.Context(), method, args)
 	if err != nil {
 		// Determine HTTP status code based on error code
 		statusCode := http.StatusInternalServerError
@@ -142,7 +143,7 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // route dispatches the request to the appropriate method handler
-func (h *RPCHandler) route(method string, args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) route(ctx context.Context, method string, args []interface{}) (interface{}, *RPCError) {
 	handler, exists := h.methods[method]
 	if !exists {
 		return nil, &RPCError{
@@ -151,16 +152,16 @@ func (h *RPCHandler) route(method string, args []interface{}) (interface{}, *RPC
 		}
 	}
 
-	return handler(args)
+	return handler(ctx, args)
 }
 
 // handleSysVersion returns the server version
-func (h *RPCHandler) handleSysVersion(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleSysVersion(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	return h.version, nil
 }
 
 // handleSysHealth returns server health status
-func (h *RPCHandler) handleSysHealth(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleSysHealth(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	backend := "none"
 	if h.store != nil {
 		// Determine backend type - this is a simple heuristic

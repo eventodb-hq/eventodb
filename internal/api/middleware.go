@@ -61,16 +61,19 @@ type NamespaceGetter interface {
 func AuthMiddleware(st NamespaceGetter, testMode bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// In test mode, auth is optional
+			ctx := r.Context()
 			if testMode {
-				ctx := context.WithValue(r.Context(), ContextKeyTestMode, true)
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
+				ctx = context.WithValue(ctx, ContextKeyTestMode, true)
 			}
 
 			// Extract Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
+				// In test mode, missing auth is allowed
+				if testMode {
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
 				writeAuthError(w, http.StatusUnauthorized, &RPCError{
 					Code:    "AUTH_REQUIRED",
 					Message: "Authorization header required",
@@ -80,6 +83,11 @@ func AuthMiddleware(st NamespaceGetter, testMode bool) func(http.Handler) http.H
 
 			// Validate Bearer token format
 			if !strings.HasPrefix(authHeader, "Bearer ") {
+				if testMode {
+					// In test mode, ignore invalid format
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
 				writeAuthError(w, http.StatusUnauthorized, &RPCError{
 					Code:    "AUTH_REQUIRED",
 					Message: "Authorization header must use Bearer scheme",
@@ -93,6 +101,11 @@ func AuthMiddleware(st NamespaceGetter, testMode bool) func(http.Handler) http.H
 			// Parse token to extract namespace
 			namespace, err := auth.ParseToken(token)
 			if err != nil {
+				if testMode {
+					// In test mode, ignore parse errors
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
 				writeAuthError(w, http.StatusUnauthorized, &RPCError{
 					Code:    "AUTH_INVALID_TOKEN",
 					Message: "Invalid token format",
@@ -101,10 +114,16 @@ func AuthMiddleware(st NamespaceGetter, testMode bool) func(http.Handler) http.H
 				return
 			}
 
-			// Validate token against database
+			// Validate token against database (skip in test mode if namespace doesn't exist)
 			tokenHash := auth.HashToken(token)
 			ns, err := st.GetNamespace(r.Context(), namespace)
 			if err != nil {
+				if testMode {
+					// In test mode, allow non-existent namespaces - they'll be auto-created
+					ctx = context.WithValue(ctx, ContextKeyNamespace, namespace)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
 				writeAuthError(w, http.StatusForbidden, &RPCError{
 					Code:    "AUTH_UNAUTHORIZED",
 					Message: "Token not authorized for namespace",
@@ -113,8 +132,8 @@ func AuthMiddleware(st NamespaceGetter, testMode bool) func(http.Handler) http.H
 				return
 			}
 
-			// Verify token hash matches
-			if ns.TokenHash != tokenHash {
+			// Verify token hash matches (skip in test mode)
+			if !testMode && ns.TokenHash != tokenHash {
 				writeAuthError(w, http.StatusForbidden, &RPCError{
 					Code:    "AUTH_UNAUTHORIZED",
 					Message: "Token not authorized for namespace",
@@ -124,7 +143,7 @@ func AuthMiddleware(st NamespaceGetter, testMode bool) func(http.Handler) http.H
 			}
 
 			// Add namespace to context
-			ctx := context.WithValue(r.Context(), ContextKeyNamespace, namespace)
+			ctx = context.WithValue(ctx, ContextKeyNamespace, namespace)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

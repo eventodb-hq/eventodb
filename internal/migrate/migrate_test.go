@@ -17,7 +17,7 @@ func TestMDB001_1A_T1_AutoMigrateCreatesMigrationsTable(t *testing.T) {
 	defer db.Close()
 
 	migrator := New(db, "sqlite", testFS)
-	
+
 	// First, verify table doesn't exist
 	var tableName string
 	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").Scan(&tableName)
@@ -57,16 +57,16 @@ func TestMDB001_1A_T2_AutoMigrateAppliesPendingMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to query migrations: %v", err)
 	}
-	
+
 	t.Logf("Migration count: %d", count)
-	
+
 	// List all migrations
 	rows, err := db.Query("SELECT version FROM schema_migrations")
 	if err != nil {
 		t.Fatalf("failed to list migrations: %v", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var version string
 		if err := rows.Scan(&version); err != nil {
@@ -74,7 +74,7 @@ func TestMDB001_1A_T2_AutoMigrateAppliesPendingMigrations(t *testing.T) {
 		}
 		t.Logf("Applied migration: %s", version)
 	}
-	
+
 	if count == 0 {
 		t.Fatal("expected migrations to be recorded")
 	}
@@ -127,11 +127,11 @@ func TestMDB001_1A_T4_ApplyNamespaceMigrationSubstitutesTemplate(t *testing.T) {
 	// For now, test the template substitution logic
 	content := "CREATE SCHEMA {{SCHEMA_NAME}}; CREATE TABLE {{SCHEMA_NAME}}.test (id INT);"
 	expected := "CREATE SCHEMA test_schema; CREATE TABLE test_schema.test (id INT);"
-	
+
 	vars := map[string]string{
 		"SCHEMA_NAME": "test_schema",
 	}
-	
+
 	result := ApplyTemplate(content, vars)
 	if result != expected {
 		t.Fatalf("template substitution failed:\nexpected: %s\ngot: %s", expected, result)

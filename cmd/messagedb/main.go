@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	version           = "1.3.0"
-	defaultPort       = 8080
-	defaultNamespace  = "default"
-	shutdownTimeout   = 10 * time.Second
+	version          = "1.3.0"
+	defaultPort      = 8080
+	defaultNamespace = "default"
+	shutdownTimeout  = 10 * time.Second
 )
 
 func main() {
@@ -66,7 +66,7 @@ func main() {
 
 	// Set up HTTP routes
 	mux := http.NewServeMux()
-	
+
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -139,23 +139,23 @@ func ensureDefaultNamespace(ctx context.Context, st interface {
 }) (string, error) {
 	// Try to get existing namespace
 	_, err := st.GetNamespace(ctx, defaultNamespace)
-	
+
 	var token string
-	
+
 	if err != nil {
 		// Namespace doesn't exist, create it
 		token, err = auth.GenerateToken(defaultNamespace)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate token: %w", err)
 		}
-		
+
 		tokenHash := auth.HashToken(token)
-		
+
 		err = st.CreateNamespace(ctx, defaultNamespace, tokenHash, "Default namespace")
 		if err != nil {
 			return "", fmt.Errorf("failed to create namespace: %w", err)
 		}
-		
+
 		log.Printf("Created default namespace: %s", defaultNamespace)
 	} else {
 		// Namespace exists, generate a new token for it
@@ -167,6 +167,6 @@ func ensureDefaultNamespace(ctx context.Context, st interface {
 		}
 		log.Printf("Default namespace already exists: %s", defaultNamespace)
 	}
-	
+
 	return token, nil
 }

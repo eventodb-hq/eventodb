@@ -14,7 +14,7 @@ import (
 // handleStreamWrite writes a message to a stream
 // Request: ["stream.write", "streamName", {msg}, {opts}]
 // Response: {"position": 6, "globalPosition": 1234}
-func (h *RPCHandler) handleStreamWrite(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleStreamWrite(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 2 {
 		return nil, &RPCError{
@@ -131,24 +131,32 @@ func (h *RPCHandler) handleStreamWrite(args []interface{}) (interface{}, *RPCErr
 		ExpectedVersion: expectedVersion,
 	}
 
-	// Get namespace from context (this will be set by auth middleware)
-	// For now, we'll use a placeholder - this needs to be implemented
-	namespace := "default"
-	// TODO: Extract from context once auth middleware is properly integrated
+	// Get namespace from context
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
 
 	// Write message
-	result, err := h.store.WriteMessage(context.Background(), namespace, streamName, msg)
+	result, err := h.store.WriteMessage(ctx, namespace, streamName, msg)
 	if err != nil {
-		// Check for specific error types
-		if err.Error() == "version conflict" || err.Error() == "stream version conflict" {
-			actualVersion, _ := h.store.GetStreamVersion(context.Background(), namespace, streamName)
+		// Check for version conflict error
+		if store.IsVersionConflict(err) {
+			// Extract details from VersionConflictError if available
+			if vcErr, ok := err.(*store.VersionConflictError); ok {
+				return nil, &RPCError{
+					Code:    "STREAM_VERSION_CONFLICT",
+					Message: fmt.Sprintf("Expected version %d, stream is at version %d", vcErr.ExpectedVersion, vcErr.ActualVersion),
+					Details: map[string]interface{}{
+						"expected": vcErr.ExpectedVersion,
+						"actual":   vcErr.ActualVersion,
+					},
+				}
+			}
+			// Fallback if we can't get details
 			return nil, &RPCError{
 				Code:    "STREAM_VERSION_CONFLICT",
-				Message: fmt.Sprintf("Expected version %d, stream is at version %d", *expectedVersion, actualVersion),
-				Details: map[string]interface{}{
-					"expected": *expectedVersion,
-					"actual":   actualVersion,
-				},
+				Message: err.Error(),
 			}
 		}
 
@@ -168,7 +176,7 @@ func (h *RPCHandler) handleStreamWrite(args []interface{}) (interface{}, *RPCErr
 // handleStreamGet retrieves messages from a stream
 // Request: ["stream.get", "streamName", {opts}]
 // Response: [[id, type, position, globalPosition, data, metadata, time], ...]
-func (h *RPCHandler) handleStreamGet(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleStreamGet(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -261,11 +269,13 @@ func (h *RPCHandler) handleStreamGet(args []interface{}) (interface{}, *RPCError
 	}
 
 	// Get namespace from context
-	namespace := "default"
-	// TODO: Extract from context once auth middleware is properly integrated
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
 
 	// Get messages
-	messages, err := h.store.GetStreamMessages(context.Background(), namespace, streamName, opts)
+	messages, err := h.store.GetStreamMessages(ctx, namespace, streamName, opts)
 	if err != nil {
 		return nil, &RPCError{
 			Code:    "BACKEND_ERROR",
@@ -293,7 +303,7 @@ func (h *RPCHandler) handleStreamGet(args []interface{}) (interface{}, *RPCError
 // handleStreamLast retrieves the last message from a stream
 // Request: ["stream.last", "streamName", {opts}]
 // Response: [id, type, position, globalPosition, data, metadata, time] or null
-func (h *RPCHandler) handleStreamLast(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleStreamLast(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -336,11 +346,13 @@ func (h *RPCHandler) handleStreamLast(args []interface{}) (interface{}, *RPCErro
 	}
 
 	// Get namespace from context
-	namespace := "default"
-	// TODO: Extract from context once auth middleware is properly integrated
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
 
 	// Get last message
-	msg, err := h.store.GetLastStreamMessage(context.Background(), namespace, streamName, msgType)
+	msg, err := h.store.GetLastStreamMessage(ctx, namespace, streamName, msgType)
 	if err != nil {
 		// If stream not found, return null
 		if err.Error() == "stream not found" {
@@ -372,7 +384,7 @@ func (h *RPCHandler) handleStreamLast(args []interface{}) (interface{}, *RPCErro
 // handleStreamVersion returns the current version of a stream
 // Request: ["stream.version", "streamName"]
 // Response: 5 or null
-func (h *RPCHandler) handleStreamVersion(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleStreamVersion(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -391,11 +403,13 @@ func (h *RPCHandler) handleStreamVersion(args []interface{}) (interface{}, *RPCE
 	}
 
 	// Get namespace from context
-	namespace := "default"
-	// TODO: Extract from context once auth middleware is properly integrated
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
 
 	// Get stream version
-	version, err := h.store.GetStreamVersion(context.Background(), namespace, streamName)
+	version, err := h.store.GetStreamVersion(ctx, namespace, streamName)
 	if err != nil {
 		return nil, &RPCError{
 			Code:    "BACKEND_ERROR",
@@ -414,7 +428,7 @@ func (h *RPCHandler) handleStreamVersion(args []interface{}) (interface{}, *RPCE
 // handleCategoryGet retrieves messages from all streams in a category
 // Request: ["category.get", "categoryName", {opts}]
 // Response: [[id, streamName, type, position, globalPosition, data, metadata, time], ...]
-func (h *RPCHandler) handleCategoryGet(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleCategoryGet(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -595,11 +609,13 @@ func (h *RPCHandler) handleCategoryGet(args []interface{}) (interface{}, *RPCErr
 	}
 
 	// Get namespace from context
-	namespace := "default"
-	// TODO: Extract from context once auth middleware is properly integrated
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
 
 	// Get category messages
-	messages, err := h.store.GetCategoryMessages(context.Background(), namespace, categoryName, opts)
+	messages, err := h.store.GetCategoryMessages(ctx, namespace, categoryName, opts)
 	if err != nil {
 		return nil, &RPCError{
 			Code:    "BACKEND_ERROR",
@@ -629,7 +645,7 @@ func (h *RPCHandler) handleCategoryGet(args []interface{}) (interface{}, *RPCErr
 // handleNamespaceCreate creates a new namespace
 // Request: ["ns.create", "namespace-id", {opts}]
 // Response: {"namespace": "tenant-a", "token": "ns_...", "createdAt": "..."}
-func (h *RPCHandler) handleNamespaceCreate(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleNamespaceCreate(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -696,7 +712,7 @@ func (h *RPCHandler) handleNamespaceCreate(args []interface{}) (interface{}, *RP
 	tokenHash := auth.HashToken(token)
 
 	// Create namespace
-	if err := h.store.CreateNamespace(context.Background(), namespaceID, tokenHash, description); err != nil {
+	if err := h.store.CreateNamespace(ctx, namespaceID, tokenHash, description); err != nil {
 		// Check for specific error types
 		if err.Error() == "namespace already exists" {
 			return nil, &RPCError{
@@ -722,7 +738,7 @@ func (h *RPCHandler) handleNamespaceCreate(args []interface{}) (interface{}, *RP
 // handleNamespaceDelete deletes a namespace and all its data
 // Request: ["ns.delete", "namespace-id"]
 // Response: {"namespace": "tenant-a", "deletedAt": "...", "messagesDeleted": 1543}
-func (h *RPCHandler) handleNamespaceDelete(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleNamespaceDelete(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -752,7 +768,7 @@ func (h *RPCHandler) handleNamespaceDelete(args []interface{}) (interface{}, *RP
 	messagesDeleted := int64(0)
 
 	// Delete namespace
-	if err := h.store.DeleteNamespace(context.Background(), namespaceID); err != nil {
+	if err := h.store.DeleteNamespace(ctx, namespaceID); err != nil {
 		// Check for specific error types
 		if err.Error() == "namespace not found" {
 			return nil, &RPCError{
@@ -778,12 +794,12 @@ func (h *RPCHandler) handleNamespaceDelete(args []interface{}) (interface{}, *RP
 // handleNamespaceList lists all namespaces
 // Request: ["ns.list", {opts}]
 // Response: [{"namespace": "default", "description": "...", "createdAt": "...", "messageCount": 1234}, ...]
-func (h *RPCHandler) handleNamespaceList(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleNamespaceList(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Parse optional options (limit, offset - not implemented yet)
 	// For now, we ignore options and return all namespaces
 
 	// Get all namespaces
-	namespaces, err := h.store.ListNamespaces(context.Background())
+	namespaces, err := h.store.ListNamespaces(ctx)
 	if err != nil {
 		return nil, &RPCError{
 			Code:    "BACKEND_ERROR",
@@ -808,7 +824,7 @@ func (h *RPCHandler) handleNamespaceList(args []interface{}) (interface{}, *RPCE
 // handleNamespaceInfo returns information about a namespace
 // Request: ["ns.info", "namespace-id"]
 // Response: {"namespace": "tenant-a", "description": "...", "createdAt": "...", "messageCount": 567, "streamCount": 12, "lastActivity": "..."}
-func (h *RPCHandler) handleNamespaceInfo(args []interface{}) (interface{}, *RPCError) {
+func (h *RPCHandler) handleNamespaceInfo(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
 	if len(args) < 1 {
 		return nil, &RPCError{
@@ -827,7 +843,7 @@ func (h *RPCHandler) handleNamespaceInfo(args []interface{}) (interface{}, *RPCE
 	}
 
 	// Get namespace
-	ns, err := h.store.GetNamespace(context.Background(), namespaceID)
+	ns, err := h.store.GetNamespace(ctx, namespaceID)
 	if err != nil {
 		// Check for specific error types
 		if err.Error() == "namespace not found" {
@@ -853,4 +869,46 @@ func (h *RPCHandler) handleNamespaceInfo(args []interface{}) (interface{}, *RPCE
 		"streamCount":  0,
 		"lastActivity": nil,
 	}, nil
+}
+
+// getNamespace extracts namespace from context, with auto-creation support in test mode
+func (h *RPCHandler) getNamespace(ctx context.Context) (string, *RPCError) {
+	// Try to get namespace from context (set by auth middleware)
+	namespace, ok := GetNamespaceFromContext(ctx)
+	if ok {
+		return namespace, nil
+	}
+
+	// In test mode, use default namespace
+	if IsTestMode(ctx) {
+		namespace = "default"
+		// Auto-create namespace if it doesn't exist
+		if err := h.ensureNamespaceInTestMode(ctx, namespace); err != nil {
+			return "", &RPCError{
+				Code:    "BACKEND_ERROR",
+				Message: fmt.Sprintf("Failed to create default namespace: %v", err),
+			}
+		}
+		return namespace, nil
+	}
+
+	// No namespace found and not in test mode
+	return "", &RPCError{
+		Code:    "AUTH_REQUIRED",
+		Message: "No namespace found in context",
+	}
+}
+
+// ensureNamespaceInTestMode creates a namespace if it doesn't exist (test mode only)
+func (h *RPCHandler) ensureNamespaceInTestMode(ctx context.Context, namespace string) error {
+	// Check if namespace exists
+	_, err := h.store.GetNamespace(ctx, namespace)
+	if err == nil {
+		// Namespace exists
+		return nil
+	}
+
+	// Create namespace with a test token hash
+	tokenHash := "test-mode-hash-" + namespace
+	return h.store.CreateNamespace(ctx, namespace, tokenHash, "Auto-created in test mode")
 }
