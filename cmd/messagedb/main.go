@@ -61,6 +61,9 @@ func main() {
 	// Create RPC handler
 	rpcHandler := api.NewRPCHandler(version, st)
 
+	// Create SSE handler
+	sseHandler := api.NewSSEHandler(st, *testMode)
+
 	// Set up HTTP routes
 	mux := http.NewServeMux()
 	
@@ -81,6 +84,9 @@ func main() {
 	// RPC endpoint with auth middleware
 	rpcWithAuth := api.AuthMiddleware(st, *testMode)(rpcHandler)
 	mux.Handle("/rpc", api.LoggingMiddleware(rpcWithAuth))
+
+	// SSE subscription endpoint
+	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
 
 	// Create server
 	addr := fmt.Sprintf(":%d", *port)
