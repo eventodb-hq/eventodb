@@ -129,8 +129,19 @@ func (m *Migrator) ensureMigrationsTable() error {
 
 // loadMigrations loads all migration files from the embedded filesystem
 func (m *Migrator) loadMigrations() ([]migration, error) {
-	// Try different possible paths
-	paths := []string{".", "testdata", "metadata/postgres", "metadata/sqlite", "namespace/postgres", "namespace/sqlite"}
+	// Try different possible paths based on dialect
+	var paths []string
+	
+	switch m.dialect {
+	case "postgres":
+		paths = []string{"metadata/postgres", "namespace/postgres", "."}
+	case "sqlite":
+		paths = []string{"metadata/sqlite", "namespace/sqlite", "."}
+	case "timescale":
+		paths = []string{"metadata/timescale", "namespace/timescale", "."}
+	default:
+		paths = []string{".", "testdata", "metadata/postgres", "metadata/sqlite", "metadata/timescale", "namespace/postgres", "namespace/sqlite", "namespace/timescale"}
+	}
 
 	for _, dir := range paths {
 		migs, err := m.loadMigrationsFromDir(dir)

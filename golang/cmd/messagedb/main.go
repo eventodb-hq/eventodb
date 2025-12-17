@@ -22,6 +22,7 @@ import (
 	"github.com/message-db/message-db/internal/store"
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
+	"github.com/message-db/message-db/internal/store/timescale"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
@@ -36,14 +37,14 @@ const (
 
 // Database configuration
 type dbConfig struct {
-	dbType   string // "postgres" or "sqlite"
+	dbType   string // "postgres", "timescale", or "sqlite"
 	connStr  string // Connection string for the database
 	dataDir  string // Data directory for SQLite namespace databases
 	testMode bool   // In-memory mode for testing
 }
 
 // parseDBConfig parses the database URL and returns configuration
-func parseDBConfig(dbURL, dataDir string, testMode bool) (*dbConfig, error) {
+func parseDBConfig(dbURL, dataDir, dbTypeOverride string, testMode bool) (*dbConfig, error) {
 	// Test mode: use in-memory SQLite
 	if testMode {
 		return &dbConfig{
@@ -67,11 +68,16 @@ func parseDBConfig(dbURL, dataDir string, testMode bool) (*dbConfig, error) {
 
 	switch u.Scheme {
 	case "postgres", "postgresql":
-		// PostgreSQL: use the URL as-is (lib/pq accepts postgres:// URLs)
+		// Check for explicit TimescaleDB override
+		dbType := "postgres"
+		if dbTypeOverride == "timescale" {
+			dbType = "timescale"
+		}
+
 		return &dbConfig{
-			dbType:   "postgres",
+			dbType:   dbType,
 			connStr:  dbURL,
-			dataDir:  "", // Not used for Postgres
+			dataDir:  "", // Not used for Postgres/TimescaleDB
 			testMode: false,
 		}, nil
 
@@ -140,6 +146,35 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 		}
 		return st, cleanup, nil
 
+	case "timescale":
+		db, err := sql.Open("postgres", cfg.connStr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to open TimescaleDB connection: %w", err)
+		}
+
+		// Configure connection pool for production
+		db.SetMaxOpenConns(25)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(5 * time.Minute)
+
+		// Verify connection
+		if err := db.Ping(); err != nil {
+			db.Close()
+			return nil, nil, fmt.Errorf("failed to connect to TimescaleDB: %w", err)
+		}
+
+		st, err := timescale.New(db)
+		if err != nil {
+			db.Close()
+			return nil, nil, fmt.Errorf("failed to create TimescaleDB store: %w", err)
+		}
+
+		log.Printf("Connected to TimescaleDB database")
+		cleanup := func() {
+			st.Close()
+		}
+		return st, cleanup, nil
+
 	case "sqlite":
 		var db *sql.DB
 		var err error
@@ -189,10 +224,11 @@ func main() {
 	defaultToken := flag.String("token", "", "Token for default namespace (if empty, one is generated)")
 	dbURL := flag.String("db-url", "", "Database URL (postgres://... or sqlite://filename.db)")
 	dataDir := flag.String("data-dir", "", "Data directory for SQLite namespace databases (required for sqlite)")
+	dbType := flag.String("db-type", "", "Database type override (use 'timescale' for TimescaleDB with postgres:// URL)")
 	flag.Parse()
 
 	// Parse database configuration
-	cfg, err := parseDBConfig(*dbURL, *dataDir, *testMode)
+	cfg, err := parseDBConfig(*dbURL, *dataDir, *dbType, *testMode)
 	if err != nil {
 		log.Fatalf("Invalid database configuration: %v", err)
 	}
