@@ -4,8 +4,9 @@
   "description": "External black-box tests for MessageDB server",
   "type": "module",
   "scripts": {
-    "test": "bun test",
-    "bench": "bun test benchmarks/*.bench.ts"
+    "test": "bun test tests/",
+    "bench": "bun test benchmarks/",
+    "test:all": "bun test"
   },
   "devDependencies": {
     "@types/bun": "^1.3.4"

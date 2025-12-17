@@ -56,6 +56,8 @@ echo -e "${YELLOW}Waiting for server...${NC}"
 for i in {1..30}; do
     if curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
         echo -e "${GREEN}Server ready!${NC}"
+        # Give the server a moment to fully initialize
+        sleep 0.5
         break
     fi
     if [ $i -eq 30 ]; then
@@ -65,10 +67,10 @@ for i in {1..30}; do
     sleep 0.1
 done
 
-# Run tests
+# Run tests (with concurrency limited to avoid overwhelming the server)
 echo -e "${YELLOW}Running tests...${NC}"
 cd $TEST_DIR
-MESSAGEDB_URL="http://localhost:$PORT" bun test
+MESSAGEDB_URL="http://localhost:$PORT" bun test --max-concurrency=1
 TEST_EXIT_CODE=$?
 
 if [ $TEST_EXIT_CODE -eq 0 ]; then

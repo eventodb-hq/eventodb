@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "description": "MessageDB Performance Baseline Metrics",
+  "timestamp": "2024-12-17T00:00:00Z",
+  "hardware": {
+    "description": "Reference development machine",
+    "cpu": "Apple M1/Intel i7 or equivalent",
+    "memory": "8GB+",
+    "storage": "SSD"
+  },
+  "targets": {
+    "streamWriteP95Ms": {
+      "target": 10,
+      "acceptable": 20,
+      "description": "p95 latency for single stream write"
+    },
+    "streamRead100P95Ms": {
+      "target": 20,
+      "acceptable": 40,
+      "description": "p95 latency for reading 100 messages from stream"
+    },
+    "categoryReadP95Ms": {
+      "target": 30,
+      "acceptable": 60,
+      "description": "p95 latency for category read operation"
+    },
+    "ssePokePMs": {
+      "target": 5,
+      "acceptable": 10,
+      "description": "p95 latency for SSE poke delivery"
+    },
+    "writesPerSec": {
+      "target": 1000,
+      "acceptable": 500,
+      "description": "Minimum write throughput"
+    }
+  },
+  "tolerancePercent": 20,
+  "notes": [
+    "Baselines measured with SQLite in-memory backend (test mode)",
+    "Production with PostgreSQL may have different characteristics",
+    "Network latency not included in these measurements"
+  ]
+}

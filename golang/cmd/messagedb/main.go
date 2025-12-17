@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -96,18 +97,28 @@ func main() {
 	// SSE subscription endpoint
 	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
 
-	// Create server
+	// Create server with proper timeouts and limits for high concurrency
 	addr := fmt.Sprintf(":%d", *port)
 	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Handler:           mux,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
+	}
+
+	// Create TCP listener with custom configuration for high concurrency
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("Failed to create listener: %v", err)
 	}
 
 	// Start server in a goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Printf("Message DB server starting on %s (version %s)", addr, version)
-		serverErrors <- server.ListenAndServe()
+		serverErrors <- server.Serve(listener)
 	}()
 
 	// Wait for interrupt signal or server error
