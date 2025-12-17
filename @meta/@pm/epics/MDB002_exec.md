@@ -4,5 +4,5 @@
 - [X] Phase MDB002_3A: Stream Operations
 - [X] Phase MDB002_4A: Category Operations
 - [X] Phase MDB002_5A: Namespace Management
-- [ ] Phase MDB002_6A: SSE Subscriptions
+- [X] Phase MDB002_6A: SSE Subscriptions
 - [ ] Phase MDB002_7A: Test Mode & Integration
