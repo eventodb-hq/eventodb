@@ -1,0 +1,14 @@
+{
+  "name": "@message-db/external-tests",
+  "version": "1.0.0",
+  "description": "External black-box tests for MessageDB server",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "bench": "bun test benchmarks/*.bench.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {}
+}
