@@ -44,6 +44,12 @@ func NewRPCHandler(version string, st store.Store) *RPCHandler {
 	h.registerMethod("sys.version", h.handleSysVersion)
 	h.registerMethod("sys.health", h.handleSysHealth)
 
+	// Register stream methods
+	h.registerMethod("stream.write", h.handleStreamWrite)
+	h.registerMethod("stream.get", h.handleStreamGet)
+	h.registerMethod("stream.last", h.handleStreamLast)
+	h.registerMethod("stream.version", h.handleStreamVersion)
+
 	return h
 }
 
