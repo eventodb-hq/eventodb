@@ -131,14 +131,14 @@ func (m *Migrator) ensureMigrationsTable() error {
 func (m *Migrator) loadMigrations() ([]migration, error) {
 	// Try different possible paths based on dialect
 	var paths []string
-	
+
 	switch m.dialect {
 	case "postgres":
-		paths = []string{"metadata/postgres", "namespace/postgres", "."}
+		paths = []string{"metadata/postgres", "namespace/postgres", ".", "testdata"}
 	case "sqlite":
-		paths = []string{"metadata/sqlite", "namespace/sqlite", "."}
+		paths = []string{"metadata/sqlite", "namespace/sqlite", ".", "testdata"}
 	case "timescale":
-		paths = []string{"metadata/timescale", "namespace/timescale", "."}
+		paths = []string{"metadata/timescale", "namespace/timescale", ".", "testdata"}
 	default:
 		paths = []string{".", "testdata", "metadata/postgres", "metadata/sqlite", "metadata/timescale", "namespace/postgres", "namespace/sqlite", "namespace/timescale"}
 	}
@@ -226,23 +226,17 @@ func (m *Migrator) applyMigration(mig migration) error {
 		return err
 	}
 
-	// Record migration
+	// Record migration - use correct placeholder for dialect
 	timestamp := time.Now().Unix()
-	if _, err := tx.ExecContext(m.ctx,
-		"INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)",
-		mig.name, timestamp,
-	); err != nil {
-		// For SQLite, use ? placeholder
-		if m.dialect == "sqlite" {
-			if _, err := tx.ExecContext(m.ctx,
-				"INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-				mig.name, timestamp,
-			); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
+	var insertSQL string
+	if m.dialect == "sqlite" {
+		insertSQL = "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+	} else {
+		insertSQL = "INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)"
+	}
+
+	if _, err := tx.ExecContext(m.ctx, insertSQL, mig.name, timestamp); err != nil {
+		return err
 	}
 
 	return tx.Commit()
