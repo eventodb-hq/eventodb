@@ -432,8 +432,8 @@ func TestMDB001_5A_T11_GetLastStreamMessage_ReturnsLast(t *testing.T) {
 
 	// Test with non-existent stream
 	emptyMsg, err := store.GetLastStreamMessage(ctx, "test_ns_r6", "nonexistent-stream", nil)
-	if err != nil {
-		t.Fatalf("Failed to get last message from empty stream: %v", err)
+	if err != storepkg.ErrStreamNotFound {
+		t.Fatalf("Expected ErrStreamNotFound for non-existent stream, got: %v", err)
 	}
 
 	if emptyMsg != nil {
@@ -532,8 +532,8 @@ func TestMDB001_5A_T12_GetLastStreamMessage_WithTypeFilter(t *testing.T) {
 	// Try to get non-existent type
 	nonexistentType := "NonExistent"
 	noMsg, err := store.GetLastStreamMessage(ctx, "test_ns_r7", streamName, &nonexistentType)
-	if err != nil {
-		t.Fatalf("Failed to get last message with non-existent type: %v", err)
+	if err != storepkg.ErrStreamNotFound {
+		t.Fatalf("Expected ErrStreamNotFound for non-existent type, got: %v", err)
 	}
 
 	if noMsg != nil {

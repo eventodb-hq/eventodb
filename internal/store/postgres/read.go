@@ -131,7 +131,7 @@ func (s *PostgresStore) GetLastStreamMessage(ctx context.Context, namespace, str
 	}
 
 	if len(messages) == 0 {
-		return nil, nil // No message found
+		return nil, store.ErrStreamNotFound
 	}
 
 	return messages[0], nil
