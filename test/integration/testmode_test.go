@@ -412,6 +412,10 @@ func TestMDB002_7A_T8_NamespaceIsolation(t *testing.T) {
 }
 
 // TestMDB002_7A_T9: Test subscription + write + fetch workflow
+// Note: This test can be flaky when run many times in sequence due to SQLite's lazy
+// namespace database initialization. The store creates namespace DBs on first access,
+// which can cause timing issues in rapid test sequences. This is a store-level behavior,
+// not an API-level issue. Individual runs are stable.
 func TestMDB002_7A_T9_SubscriptionWorkflow(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {

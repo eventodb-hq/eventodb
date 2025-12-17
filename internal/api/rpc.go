@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/message-db/message-db/internal/store"
 )
@@ -16,6 +17,7 @@ type RPCHandler struct {
 	version string
 	store   store.Store
 	methods map[string]RPCMethod
+	nsMu    sync.Mutex // Protects namespace auto-creation in test mode
 }
 
 // RPCMethod is a function that handles an RPC method call

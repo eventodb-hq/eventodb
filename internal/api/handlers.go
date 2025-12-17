@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -900,15 +901,34 @@ func (h *RPCHandler) getNamespace(ctx context.Context) (string, *RPCError) {
 }
 
 // ensureNamespaceInTestMode creates a namespace if it doesn't exist (test mode only)
+// This function is thread-safe and handles concurrent creation attempts gracefully
 func (h *RPCHandler) ensureNamespaceInTestMode(ctx context.Context, namespace string) error {
-	// Check if namespace exists
+	// First check if namespace exists (fast path)
 	_, err := h.store.GetNamespace(ctx, namespace)
 	if err == nil {
-		// Namespace exists
+		// Namespace already exists
+		return nil
+	}
+
+	// Lock to serialize namespace creation attempts
+	h.nsMu.Lock()
+	defer h.nsMu.Unlock()
+
+	// Double-check if namespace exists (another goroutine might have created it)
+	_, err = h.store.GetNamespace(ctx, namespace)
+	if err == nil {
+		// Namespace was created by another goroutine while we waited for the lock
 		return nil
 	}
 
 	// Create namespace with a test token hash
 	tokenHash := "test-mode-hash-" + namespace
-	return h.store.CreateNamespace(ctx, namespace, tokenHash, "Auto-created in test mode")
+	err = h.store.CreateNamespace(ctx, namespace, tokenHash, "Auto-created in test mode")
+
+	// If the namespace already exists (race at store level), that's fine
+	if err != nil && errors.Is(err, store.ErrNamespaceExists) {
+		return nil
+	}
+
+	return err
 }
