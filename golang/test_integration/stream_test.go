@@ -47,7 +47,7 @@ func setupTestServer(t *testing.T) (port int, token string, cleanup func()) {
 	}
 
 	// Create RPC handler
-	rpcHandler := api.NewRPCHandler(testVersion, st)
+	rpcHandler := api.NewRPCHandler(testVersion, st, nil)
 
 	// Set up HTTP routes
 	mux := http.NewServeMux()

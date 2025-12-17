@@ -167,6 +167,18 @@ func (h *RPCHandler) handleStreamWrite(ctx context.Context, args []interface{}) 
 		}
 	}
 
+	// Publish event to subscribers (real-time notification)
+	if h.pubsub != nil {
+		category := store.Category(streamName)
+		h.pubsub.Publish(WriteEvent{
+			Namespace:      namespace,
+			Stream:         streamName,
+			Category:       category,
+			Position:       result.Position,
+			GlobalPosition: result.GlobalPosition,
+		})
+	}
+
 	// Return result
 	return map[string]interface{}{
 		"position":       result.Position,

@@ -12,7 +12,7 @@ import (
 
 // Helper to create RPC handler with nil store for testing
 func newTestRPCHandler() *api.RPCHandler {
-	return api.NewRPCHandler("1.3.0", nil)
+	return api.NewRPCHandler("1.3.0", nil, nil)
 }
 
 // Test MDB002_1A_T5: Test valid RPC request parsed correctly

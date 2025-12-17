@@ -67,7 +67,7 @@ func TestMDB002_5A_T1_CreateNamespaceReturnsToken(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Test
 	result, errResult := makeDirectRPCCall(t, handler, "ns.create", "tenant-a")
@@ -121,7 +121,7 @@ func TestMDB002_5A_T2_NamespaceSchemaCreated(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Create namespace
 	result, errResult := makeDirectRPCCall(t, handler, "ns.create", "tenant-b")
@@ -165,7 +165,7 @@ func TestMDB002_5A_T3_DuplicateNamespaceReturnsError(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Create namespace
 	_, errResult := makeDirectRPCCall(t, handler, "ns.create", "duplicate-test")
@@ -200,7 +200,7 @@ func TestMDB002_5A_T4_DeleteNamespaceRemovesAllData(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 	ctx := context.Background()
 
 	// Create namespace
@@ -271,7 +271,7 @@ func TestMDB002_5A_T5_DeleteInvalidatesToken(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 	ctx := context.Background()
 
 	// Create namespace
@@ -328,7 +328,7 @@ func TestMDB002_5A_T6_DeleteNonexistentNamespaceFails(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Try to delete non-existent namespace
 	_, errResult := makeDirectRPCCall(t, handler, "ns.delete", "nonexistent")
@@ -357,7 +357,7 @@ func TestMDB002_5A_T7_ListReturnsAllNamespaces(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Create multiple namespaces
 	namespaces := []string{"ns-1", "ns-2", "ns-3"}
@@ -425,7 +425,7 @@ func TestMDB002_5A_T8_ListIncludesMessageCounts(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Create namespace
 	_, errResult := makeDirectRPCCall(t, handler, "ns.create", "count-test")
@@ -464,7 +464,7 @@ func TestMDB002_5A_T9_ListRequiresAdminToken(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// For now, just verify the method works
 	// TODO: Add proper auth middleware checking in Phase 7
@@ -494,7 +494,7 @@ func TestMDB002_5A_T10_InfoReturnsNamespaceStats(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Create namespace with description
 	opts := map[string]interface{}{
@@ -551,7 +551,7 @@ func TestMDB002_5A_CreateNamespaceWithOptions(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 	ctx := context.Background()
 
 	// Create namespace with options
@@ -599,7 +599,7 @@ func TestMDB002_5A_InfoNonexistentNamespace(t *testing.T) {
 	}
 	defer st.Close()
 
-	handler := api.NewRPCHandler("1.0.0", st)
+	handler := api.NewRPCHandler("1.0.0", st, nil)
 
 	// Get info for non-existent namespace
 	_, errResult := makeDirectRPCCall(t, handler, "ns.info", "nonexistent")

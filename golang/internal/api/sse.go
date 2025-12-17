@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/store"
@@ -24,13 +23,15 @@ type Poke struct {
 // SSEHandler manages Server-Sent Events subscriptions
 type SSEHandler struct {
 	store    store.Store
+	pubsub   *PubSub
 	testMode bool
 }
 
 // NewSSEHandler creates a new SSE handler
-func NewSSEHandler(st store.Store, testMode bool) *SSEHandler {
+func NewSSEHandler(st store.Store, pubsub *PubSub, testMode bool) *SSEHandler {
 	return &SSEHandler{
 		store:    st,
+		pubsub:   pubsub,
 		testMode: testMode,
 	}
 }
@@ -106,13 +107,12 @@ func (h *SSEHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	// Get context for this request
 	ctx := r.Context()
 
-	// Send initial connection established event (optional)
-	fmt.Fprintf(w, ": connected\n\n")
+	// Flush headers immediately
 	if flusher, ok := w.(http.Flusher); ok {
 		flusher.Flush()
 	}
 
-	// Start subscription loop
+	// Start subscription
 	if streamName != "" {
 		h.subscribeToStream(ctx, w, namespace, streamName, position)
 	} else {
@@ -122,38 +122,57 @@ func (h *SSEHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 // subscribeToStream handles stream-specific subscriptions
 func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWriter, namespace, streamName string, startPosition int64) {
-	ticker := time.NewTicker(500 * time.Millisecond) // Poll every 500ms
-	defer ticker.Stop()
+	// First, send any existing messages from startPosition
+	messages, err := h.store.GetStreamMessages(ctx, namespace, streamName, &store.GetOpts{
+		Position:  startPosition,
+		BatchSize: 1000,
+	})
+	if err != nil {
+		log.Printf("Error fetching initial stream messages: %v", err)
+	}
 
 	lastPosition := startPosition
+	for _, msg := range messages {
+		poke := Poke{
+			Stream:         streamName,
+			Position:       msg.Position,
+			GlobalPosition: msg.GlobalPosition,
+		}
+		if err := h.sendPoke(w, poke); err != nil {
+			return
+		}
+		lastPosition = msg.Position + 1
+	}
+
+	// Subscribe to real-time updates (if pubsub is available)
+	if h.pubsub == nil {
+		// No pubsub, just wait for context cancellation
+		<-ctx.Done()
+		return
+	}
+
+	sub := h.pubsub.SubscribeStream(namespace, streamName)
+	defer h.pubsub.UnsubscribeStream(namespace, streamName, sub)
 
 	for {
 		select {
 		case <-ctx.Done():
-			// Client disconnected
 			return
-		case <-ticker.C:
-			// Check for new messages
-			messages, err := h.store.GetStreamMessages(ctx, namespace, streamName, &store.GetOpts{
-				Position:  lastPosition,
-				BatchSize: 100, // Check up to 100 new messages
-			})
-			if err != nil {
-				log.Printf("Error fetching stream messages for subscription: %v", err)
-				continue
+		case event, ok := <-sub:
+			if !ok {
+				return
 			}
-
-			// Send pokes for each new message
-			for _, msg := range messages {
+			// Only send if position >= our tracking position
+			if event.Position >= lastPosition {
 				poke := Poke{
-					Stream:         streamName,
-					Position:       msg.Position,
-					GlobalPosition: msg.GlobalPosition,
+					Stream:         event.Stream,
+					Position:       event.Position,
+					GlobalPosition: event.GlobalPosition,
 				}
 				if err := h.sendPoke(w, poke); err != nil {
-					return // Connection closed
+					return
 				}
-				lastPosition = msg.Position + 1
+				lastPosition = event.Position + 1
 			}
 		}
 	}
@@ -161,48 +180,85 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 
 // subscribeToCategory handles category-specific subscriptions
 func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWriter, namespace, categoryName string, startPosition int64, consumerMember, consumerSize int64) {
-	ticker := time.NewTicker(500 * time.Millisecond) // Poll every 500ms
-	defer ticker.Stop()
+	// Build options for category query
+	opts := &store.CategoryOpts{
+		Position:  startPosition,
+		BatchSize: 1000,
+	}
+	if consumerSize > 0 {
+		opts.ConsumerMember = &consumerMember
+		opts.ConsumerSize = &consumerSize
+	}
+
+	// First, send any existing messages from startPosition
+	messages, err := h.store.GetCategoryMessages(ctx, namespace, categoryName, opts)
+	if err != nil {
+		log.Printf("Error fetching initial category messages: %v", err)
+	}
 
 	lastGlobalPosition := startPosition
+	for _, msg := range messages {
+		// Apply consumer group filter if needed
+		if consumerSize > 0 && !h.matchesConsumerGroup(msg.StreamName, consumerMember, consumerSize) {
+			continue
+		}
+		poke := Poke{
+			Stream:         msg.StreamName,
+			Position:       msg.Position,
+			GlobalPosition: msg.GlobalPosition,
+		}
+		if err := h.sendPoke(w, poke); err != nil {
+			return
+		}
+		lastGlobalPosition = msg.GlobalPosition + 1
+	}
+
+	// Subscribe to real-time updates (if pubsub is available)
+	if h.pubsub == nil {
+		// No pubsub, just wait for context cancellation
+		<-ctx.Done()
+		return
+	}
+
+	sub := h.pubsub.SubscribeCategory(namespace, categoryName)
+	defer h.pubsub.UnsubscribeCategory(namespace, categoryName, sub)
 
 	for {
 		select {
 		case <-ctx.Done():
-			// Client disconnected
 			return
-		case <-ticker.C:
-			// Build options for category query
-			opts := &store.CategoryOpts{
-				Position:  lastGlobalPosition,
-				BatchSize: 100, // Check up to 100 new messages
+		case event, ok := <-sub:
+			if !ok {
+				return
 			}
-			if consumerSize > 0 {
-				opts.ConsumerMember = &consumerMember
-				opts.ConsumerSize = &consumerSize
-			}
-
-			// Check for new messages
-			messages, err := h.store.GetCategoryMessages(ctx, namespace, categoryName, opts)
-			if err != nil {
-				log.Printf("Error fetching category messages for subscription: %v", err)
-				continue
-			}
-
-			// Send pokes for each new message
-			for _, msg := range messages {
+			// Only send if globalPosition >= our tracking position
+			if event.GlobalPosition >= lastGlobalPosition {
+				// Apply consumer group filter if needed
+				if consumerSize > 0 && !h.matchesConsumerGroup(event.Stream, consumerMember, consumerSize) {
+					continue
+				}
 				poke := Poke{
-					Stream:         msg.StreamName,
-					Position:       msg.Position,
-					GlobalPosition: msg.GlobalPosition,
+					Stream:         event.Stream,
+					Position:       event.Position,
+					GlobalPosition: event.GlobalPosition,
 				}
 				if err := h.sendPoke(w, poke); err != nil {
-					return // Connection closed
+					return
 				}
-				lastGlobalPosition = msg.GlobalPosition + 1
+				lastGlobalPosition = event.GlobalPosition + 1
 			}
 		}
 	}
+}
+
+// matchesConsumerGroup checks if a stream belongs to a consumer group member
+func (h *SSEHandler) matchesConsumerGroup(streamName string, member, size int64) bool {
+	// Hash the stream name to determine which consumer it belongs to
+	hash := uint64(0)
+	for _, c := range streamName {
+		hash = hash*31 + uint64(c)
+	}
+	return int64(hash%uint64(size)) == member
 }
 
 // sendPoke sends a poke event via SSE
@@ -227,12 +283,30 @@ func (h *SSEHandler) sendPoke(w http.ResponseWriter, poke Poke) error {
 
 // extractNamespace extracts and validates the namespace from the request
 func (h *SSEHandler) extractNamespace(r *http.Request) (string, error) {
+	// Check query parameter first (for SSE which can't set headers easily)
+	if token := r.URL.Query().Get("token"); token != "" {
+		namespace, err := auth.ParseToken(token)
+		if err != nil {
+			if h.testMode {
+				return "default", nil
+			}
+			return "", fmt.Errorf("invalid token in query parameter")
+		}
+		if !h.testMode {
+			// Validate namespace exists in database
+			ctx := r.Context()
+			_, err = h.store.GetNamespace(ctx, namespace)
+			if err != nil {
+				return "", fmt.Errorf("unauthorized: namespace not found")
+			}
+		}
+		return namespace, nil
+	}
+
 	// In test mode, auth is optional
 	if h.testMode {
-		// Try to get namespace from token, but don't require it
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			// No auth header, use default namespace
 			return "default", nil
 		}
 		if !strings.HasPrefix(authHeader, "Bearer ") {
@@ -249,20 +323,6 @@ func (h *SSEHandler) extractNamespace(r *http.Request) (string, error) {
 	// In production mode, require authentication
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		// Check query parameter as fallback
-		if token := r.URL.Query().Get("token"); token != "" {
-			namespace, err := auth.ParseToken(token)
-			if err != nil {
-				return "", fmt.Errorf("invalid token in query parameter")
-			}
-			// Validate namespace exists in database
-			ctx := r.Context()
-			_, err = h.store.GetNamespace(ctx, namespace)
-			if err != nil {
-				return "", fmt.Errorf("unauthorized: namespace not found")
-			}
-			return namespace, nil
-		}
 		return "", fmt.Errorf("authorization required")
 	}
 

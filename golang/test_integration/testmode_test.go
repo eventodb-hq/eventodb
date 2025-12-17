@@ -39,7 +39,7 @@ func TestMDB002_7A_T2_AutoNamespaceCreation(t *testing.T) {
 	st, _, _, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler) // Test mode = true
 
 	// Write to a stream without auth (test mode allows this, uses default namespace)
@@ -70,7 +70,7 @@ func TestMDB002_7A_T3_TokenInResponseHeader(t *testing.T) {
 	defer cleanup()
 
 	// Create a namespace via RPC
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	reqBody := []interface{}{
@@ -116,7 +116,7 @@ func TestMDB002_7A_T4_AuthNotRequiredInTestMode(t *testing.T) {
 	st, _, _, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler) // Test mode = true
 
 	// Make request WITHOUT Authorization header
@@ -148,7 +148,7 @@ func TestMDB002_7A_T5_SysVersion(t *testing.T) {
 	st, _, _, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	reqBody := []interface{}{"sys.version"}
@@ -178,7 +178,7 @@ func TestMDB002_7A_T6_SysHealth(t *testing.T) {
 	st, _, _, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	reqBody := []interface{}{"sys.health"}
@@ -212,7 +212,7 @@ func TestMDB002_7A_T7_CompleteWorkflow(t *testing.T) {
 	st, _, token, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	// Step 1: Write a message using the token
@@ -287,7 +287,7 @@ func TestMDB002_7A_T8_NamespaceIsolation(t *testing.T) {
 		t.Fatalf("Failed to initialize namespace 2: %v", err)
 	}
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	// Write to same stream in both namespaces
@@ -325,7 +325,7 @@ func TestMDB002_7A_T9_SubscriptionWorkflow(t *testing.T) {
 	st, _, token, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	// Write an initial message - namespace is already eagerly initialized
@@ -358,7 +358,7 @@ func TestMDB002_7A_T10_OptimisticLocking(t *testing.T) {
 	st, _, _, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	// Write first message
@@ -439,7 +439,7 @@ func TestMDB002_7A_T11_Performance(t *testing.T) {
 	st, _, _, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	// Perform 100 write operations and measure times
@@ -501,7 +501,7 @@ func TestMDB002_7A_T12_ConcurrentWrites(t *testing.T) {
 	st, _, token, cleanup := setupIsolatedTest(t)
 	defer cleanup()
 
-	rpcHandler := api.NewRPCHandler("1.3.0", st)
+	rpcHandler := api.NewRPCHandler("1.3.0", st, nil)
 	handler := api.AuthMiddleware(st, true)(rpcHandler)
 
 	// Write to multiple different streams sequentially (avoiding SQLite concurrency issues)

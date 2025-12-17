@@ -16,6 +16,7 @@ import (
 type RPCHandler struct {
 	version string
 	store   store.Store
+	pubsub  *PubSub
 	methods map[string]RPCMethod
 	nsMu    sync.Mutex // Protects namespace auto-creation in test mode
 }
@@ -36,10 +37,11 @@ type ErrorResponse struct {
 }
 
 // NewRPCHandler creates a new RPC handler
-func NewRPCHandler(version string, st store.Store) *RPCHandler {
+func NewRPCHandler(version string, st store.Store, pubsub *PubSub) *RPCHandler {
 	h := &RPCHandler{
 		version: version,
 		store:   st,
+		pubsub:  pubsub,
 		methods: make(map[string]RPCMethod),
 	}
 

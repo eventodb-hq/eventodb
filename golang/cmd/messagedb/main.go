@@ -63,11 +63,14 @@ func main() {
 	log.Printf("%s", token)
 	log.Printf("═══════════════════════════════════════════════════════")
 
+	// Create pubsub for real-time notifications
+	pubsub := api.NewPubSub()
+
 	// Create RPC handler
-	rpcHandler := api.NewRPCHandler(version, st)
+	rpcHandler := api.NewRPCHandler(version, st, pubsub)
 
 	// Create SSE handler
-	sseHandler := api.NewSSEHandler(st, *testMode)
+	sseHandler := api.NewSSEHandler(st, pubsub, *testMode)
 
 	// Set up HTTP routes
 	mux := http.NewServeMux()
