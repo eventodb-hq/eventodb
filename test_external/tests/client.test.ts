@@ -96,20 +96,20 @@ describe('MDB003_1A: Test Client Infrastructure', () => {
     }
   });
 
-  // test('MDB003_1A_T5: startTestServer spawns server', async () => {
-  //   // This test uses a different port to avoid conflicts
-  //   const server = await startTestServer({ port: 6790 });
-  //   try {
-  //     // Verify server is responding
-  //     const response = await fetch(`${server.url}/health`);
-  //     expect(response.ok).toBe(true);
+  test('MDB003_1A_T5: startTestServer spawns server', async () => {
+    // This test uses a different port to avoid conflicts
+    const server = await startTestServer({ port: 6790 });
+    try {
+      // Verify server is responding
+      const response = await fetch(`${server.url}/health`);
+      expect(response.ok).toBe(true);
 
-  //     const health = await response.json();
-  //     expect(health.status).toBe('ok');
-  //   } finally {
-  //     await server.close();
-  //   }
-  // });
+      const health = await response.json();
+      expect(health.status).toBe('ok');
+    } finally {
+      await server.close();
+    }
+  });
 
   test('MDB003_1A_T6: health endpoint is accessible', async () => {
     const t = await setupTest('T6 health');
