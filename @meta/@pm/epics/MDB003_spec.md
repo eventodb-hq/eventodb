@@ -257,6 +257,80 @@ test('consumer groups partition streams', async () => {
   await client.deleteNamespace();
   server.close();
 });
+
+test('compound IDs route to same consumer', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  // Write to streams with compound IDs (same cardinal ID)
+  await client.writeMessage('account-123+alice', { type: 'Opened', data: {} });
+  await client.writeMessage('account-123+bob', { type: 'Opened', data: {} });
+  await client.writeMessage('account-456+charlie', { type: 'Opened', data: {} });
+  
+  // Consumer group 0 of 2
+  const messages1 = await client.getCategory('account', {
+    consumerGroup: { member: 0, size: 2 }
+  });
+  
+  // Consumer group 1 of 2
+  const messages2 = await client.getCategory('account', {
+    consumerGroup: { member: 1, size: 2 }
+  });
+  
+  const streams1 = messages1.map(m => m[1]);
+  const streams2 = messages2.map(m => m[1]);
+  
+  // Streams with cardinal ID 123 should be in same consumer group
+  const has123Alice1 = streams1.includes('account-123+alice');
+  const has123Bob1 = streams1.includes('account-123+bob');
+  const has123Alice2 = streams2.includes('account-123+alice');
+  const has123Bob2 = streams2.includes('account-123+bob');
+  
+  // Both alice and bob should be in same consumer (both have cardinal_id=123)
+  expect(has123Alice1).toBe(has123Bob1);
+  expect(has123Alice2).toBe(has123Bob2);
+  
+  await client.deleteNamespace();
+  server.close();
+});
+
+test('correlation filtering works', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  // Write messages with correlation metadata
+  await client.writeMessage('account-1', {
+    type: 'Opened',
+    data: {},
+    metadata: { correlationStreamName: 'workflow-123' }
+  });
+  
+  await client.writeMessage('account-2', {
+    type: 'Opened',
+    data: {},
+    metadata: { correlationStreamName: 'workflow-456' }
+  });
+  
+  await client.writeMessage('account-3', {
+    type: 'Opened',
+    data: {},
+    metadata: { correlationStreamName: 'process-789' }
+  });
+  
+  // Query with correlation filter
+  const messages = await client.getCategory('account', {
+    correlation: 'workflow'
+  });
+  
+  expect(messages).toHaveLength(2);
+  const streamNames = messages.map(m => m[1]);
+  expect(streamNames).toContain('account-1');
+  expect(streamNames).toContain('account-2');
+  expect(streamNames).not.toContain('account-3');
+  
+  await client.deleteNamespace();
+  server.close();
+});
 ```
 
 #### SSE Subscription Tests
@@ -287,6 +361,66 @@ test('stream subscription receives pokes', async () => {
   
   subscription.close();
   await client.deleteNamespace();
+  server.close();
+});
+```
+
+#### Utility Function Tests
+```typescript
+// test/tests/util.test.ts
+test('category extraction', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  expect(await client.rpc('util.category', 'account-123')).toBe('account');
+  expect(await client.rpc('util.category', 'account-123+456')).toBe('account');
+  expect(await client.rpc('util.category', 'account')).toBe('account');
+  
+  server.close();
+});
+
+test('id extraction', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  expect(await client.rpc('util.id', 'account-123')).toBe('123');
+  expect(await client.rpc('util.id', 'account-123+456')).toBe('123+456');
+  expect(await client.rpc('util.id', 'account')).toBeNull();
+  
+  server.close();
+});
+
+test('cardinal id extraction', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  expect(await client.rpc('util.cardinalId', 'account-123')).toBe('123');
+  expect(await client.rpc('util.cardinalId', 'account-123+456')).toBe('123');
+  expect(await client.rpc('util.cardinalId', 'account')).toBeNull();
+  
+  server.close();
+});
+
+test('category check', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  expect(await client.rpc('util.isCategory', 'account')).toBe(true);
+  expect(await client.rpc('util.isCategory', 'account-123')).toBe(false);
+  
+  server.close();
+});
+
+test('hash64 consistency', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  const hash1 = await client.rpc('util.hash64', 'account-123');
+  const hash2 = await client.rpc('util.hash64', 'account-123');
+  
+  expect(hash1).toBe(hash2); // Deterministic
+  expect(typeof hash1).toBe('number');
+  
   server.close();
 });
 ```
@@ -336,6 +470,85 @@ test('concurrent writes to different streams', async () => {
   const results = await Promise.all(writes);
   expect(results).toHaveLength(100);
   results.forEach(r => expect(r.position).toBe(0));
+  
+  await client.deleteNamespace();
+  server.close();
+});
+```
+
+#### Message DB Compatibility Tests
+```typescript
+// test/tests/compatibility.test.ts
+// These tests verify compatibility with Message DB reference implementation
+
+test('hash64 matches Message DB', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  // Test vectors from Message DB
+  const testCases = [
+    { input: 'account-123', expected: 'EXPECTED_HASH_FROM_MESSAGE_DB' },
+    { input: 'order-456', expected: 'EXPECTED_HASH_FROM_MESSAGE_DB' },
+    // Add reference hashes from actual Message DB instance
+  ];
+  
+  for (const tc of testCases) {
+    const hash = await client.rpc('util.hash64', tc.input);
+    expect(hash).toBe(tc.expected);
+  }
+  
+  server.close();
+});
+
+test('consumer group assignment matches Message DB', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  // Write test data matching Message DB test suite
+  const streams = [
+    'account-123', 'account-456', 'account-789',
+    'account-123+alice', 'account-123+bob'
+  ];
+  
+  for (const stream of streams) {
+    await client.writeMessage(stream, { type: 'Test', data: {} });
+  }
+  
+  // Verify consumer 0 of 2 gets same streams as Message DB
+  const messages = await client.getCategory('account', {
+    consumerGroup: { member: 0, size: 2 }
+  });
+  
+  const streamNames = messages.map(m => m[1]);
+  
+  // Verify against known Message DB behavior
+  // Streams with cardinal_id 123 should be together
+  const has123 = streamNames.includes('account-123');
+  const has123Alice = streamNames.includes('account-123+alice');
+  const has123Bob = streamNames.includes('account-123+bob');
+  
+  expect(has123).toBe(has123Alice);
+  expect(has123).toBe(has123Bob);
+  
+  await client.deleteNamespace();
+  server.close();
+});
+
+test('time format matches ISO 8601', async () => {
+  const server = await startTestServer();
+  const client = new MessageDBClient(server.url);
+  
+  await client.writeMessage('test-1', { type: 'Test', data: {} });
+  const messages = await client.getStream('test-1');
+  
+  const time = messages[0][6]; // time at index 6
+  
+  // Verify ISO 8601 format with Z suffix
+  expect(time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+  
+  // Verify parseable as date
+  const date = new Date(time);
+  expect(date.toISOString()).toBe(time);
   
   await client.deleteNamespace();
   server.close();
@@ -607,10 +820,26 @@ docs/
 - **WHEN** Tests run in parallel
 - **THEN** No data leakage between namespaces
 
-### AC-7: Migration Compatibility
-- **GIVEN** Existing Message DB instance
-- **WHEN** Following migration guide
-- **THEN** Can successfully migrate to MessageDB Go
+### AC-7: Message DB Compatibility Verified
+- **GIVEN** Reference data from Message DB
+- **WHEN** Running compatibility tests
+- **THEN** Hash function produces identical results
+- **AND** Consumer group assignments match exactly
+
+### AC-8: Utility Functions Work
+- **GIVEN** Stream name "account-123+alice"
+- **WHEN** Calling utility functions
+- **THEN** Correct parsing (category="account", cardinalId="123", id="123+alice")
+
+### AC-9: Compound IDs Tested
+- **GIVEN** Streams with compound IDs
+- **WHEN** Consumer group query executed
+- **THEN** Streams with same cardinal ID route to same consumer
+
+### AC-10: Time Format Standardized
+- **GIVEN** Message written and retrieved
+- **WHEN** Checking time field
+- **THEN** Returns ISO 8601 UTC string with Z suffix
 
 ## Definition of Done
 
@@ -618,19 +847,26 @@ docs/
 - [ ] TypeScript MessageDB client working
 - [ ] All stream operation tests passing
 - [ ] All category operation tests passing
+- [ ] Consumer group tests with compound IDs passing
+- [ ] Correlation filtering tests passing
+- [ ] All utility function tests passing
 - [ ] SSE subscription tests passing
 - [ ] Namespace isolation tests passing
 - [ ] Concurrent operation tests passing
+- [ ] Message DB compatibility tests passing
+- [ ] Hash function compatibility verified
+- [ ] Consumer group assignment compatibility verified
+- [ ] Time format standardization verified
 - [ ] Performance benchmarks implemented
 - [ ] All benchmarks meet target metrics
 - [ ] Dockerfile builds and runs
 - [ ] Docker Compose example working
 - [ ] GitHub Actions CI pipeline working
 - [ ] All CI jobs passing on every commit
-- [ ] API documentation complete
+- [ ] API documentation complete (including utility functions)
 - [ ] Deployment guide complete
-- [ ] Migration guide complete
-- [ ] Usage examples complete
+- [ ] Migration guide from Message DB complete
+- [ ] Usage examples complete (including compound IDs)
 - [ ] Performance tuning guide complete
 - [ ] Ready for alpha release
 

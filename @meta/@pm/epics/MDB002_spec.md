@@ -128,12 +128,12 @@ Authorization: Bearer ns_abc123...
 ```json
 ["stream.get", "streamName", {opts}]
 
-// opts object (optional):
+// opts object (all optional):
 {
-  "position": 0,              // stream position
-  "globalPosition": 1235,     // OR global position (mutually exclusive)
-  "batchSize": 100,
-  "condition": null           // SQL condition if needed
+  "position": 0,              // stream position (default: 0)
+  "globalPosition": 1235,     // OR global position (mutually exclusive with position)
+  "batchSize": 1000,          // default: 1000, max: 10000, -1: unlimited
+  "condition": null           // DEPRECATED: do not implement (security risk)
 }
 
 // Response:
@@ -142,6 +142,8 @@ Authorization: Bearer ns_abc123...
   ["id2", "Deposited", 1, 1001, {...data}, {...meta}, "2024-12-17T01:01:00Z"]
 ]
 // Format: [messageId, type, position, globalPosition, data, metadata, time]
+
+// Time format: ISO 8601 with Z suffix (UTC), e.g., "2024-12-17T01:00:00.123Z"
 ```
 
 #### stream.last
@@ -172,14 +174,14 @@ Authorization: Bearer ns_abc123...
 ```json
 ["category.get", "categoryName", {opts}]
 
-// opts object:
+// opts object (all optional):
 {
-  "position": 0,                            // global position for category
-  "globalPosition": 1235,                   // alternative
-  "batchSize": 100,
-  "correlation": null,
-  "consumerGroup": {"member": 0, "size": 2}, // optional
-  "condition": null
+  "position": 1,                             // global position for category (default: 1)
+  "globalPosition": 1235,                    // alternative to position
+  "batchSize": 1000,                         // default: 1000, max: 10000, -1: unlimited
+  "correlation": "workflow",                 // filter by metadata.correlationStreamName category
+  "consumerGroup": {"member": 0, "size": 2}, // consumer group partitioning
+  "condition": null                          // DEPRECATED: do not implement (security risk)
 }
 
 // Response:
@@ -189,6 +191,42 @@ Authorization: Bearer ns_abc123...
 ]
 // Format: [messageId, streamName, type, position, globalPosition, data, metadata, time]
 // Note: Stream name included since messages come from multiple streams
+```
+
+**Correlation Filtering:**
+
+When `correlation` is specified, only messages with matching `metadata.correlationStreamName` category are returned:
+
+```json
+// Write message with correlation metadata
+["stream.write", "account-123", {
+  "type": "ProcessStarted",
+  "data": {...},
+  "metadata": {
+    "correlationStreamName": "workflow-456"  // Standard field
+  }
+}]
+
+// Query with correlation filter
+["category.get", "account", {
+  "correlation": "workflow"  // Matches metadata.correlationStreamName starting with "workflow-"
+}]
+```
+
+**Consumer Group Behavior:**
+
+Consumer groups partition streams using `cardinal_id` (the part before `+` in compound IDs):
+
+```json
+// Streams: account-123, account-456, account-123+alice, account-123+bob
+
+// Consumer 0 of 2:
+["category.get", "account", {"consumerGroup": {"member": 0, "size": 2}}]
+// Returns messages from: account-123, account-123+alice, account-123+bob (all share cardinal_id "123")
+
+// Consumer 1 of 2:
+["category.get", "account", {"consumerGroup": {"member": 1, "size": 2}}]
+// Returns messages from: account-456 (cardinal_id "456")
 ```
 
 ### FR-3: Namespace Management
@@ -292,7 +330,72 @@ Authorization: Bearer ns_abc123...
 
 **Authentication:** Token for that namespace required
 
-### FR-4: System Operations
+### FR-4: Utility Operations
+
+These operations expose Message DB-compatible utility functions for stream name parsing.
+
+#### util.category
+```json
+["util.category", "account-123"]
+
+// Response:
+"account"
+
+// Examples:
+["util.category", "account-123+456"] → "account"
+["util.category", "account"] → "account"
+```
+
+#### util.id
+```json
+["util.id", "account-123"]
+
+// Response:
+"123"
+
+// Examples:
+["util.id", "account-123+456"] → "123+456"
+["util.id", "account"] → null
+```
+
+#### util.cardinalId
+```json
+["util.cardinalId", "account-123+456"]
+
+// Response:
+"123"
+
+// Examples:
+["util.cardinalId", "account-123"] → "123"
+["util.cardinalId", "account"] → null
+```
+
+**Use Case:** Compound IDs allow grouping related streams for consumer group partitioning.
+- Streams with same cardinal ID go to same consumer
+- Example: `account-123+alice` and `account-123+bob` both route to consumer handling `account-123`
+
+#### util.isCategory
+```json
+["util.isCategory", "account"]
+
+// Response:
+true
+
+// Examples:
+["util.isCategory", "account-123"] → false
+```
+
+#### util.hash64
+```json
+["util.hash64", "account-123"]
+
+// Response:
+-1234567890123456789  // int64 hash value
+```
+
+**Note:** This hash function is used internally for consumer group partitioning. Exposed for debugging/testing.
+
+### FR-5: System Operations
 
 #### sys.version
 ```json
@@ -314,7 +417,7 @@ Authorization: Bearer ns_abc123...
 }
 ```
 
-### FR-5: SSE Subscriptions (ADR-001)
+### FR-6: SSE Subscriptions (ADR-001)
 
 **Philosophy:** Stream only lightweight "pokes" (notifications), not full message data. Clients fetch actual data separately.
 
@@ -352,7 +455,7 @@ event: poke
 data: {"stream": "account-456", "position": 2, "globalPosition": 1236}
 ```
 
-### FR-6: Test Mode Support
+### FR-7: Test Mode Support
 
 When started with `--test-mode`:
 
@@ -367,7 +470,7 @@ When started with `--test-mode`:
 X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 ```
 
-### FR-7: Error Response Format
+### FR-8: Error Response Format
 
 ```json
 {
@@ -415,9 +518,18 @@ X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 
 ### Phase 4: Category Operations (2-3 days)
 - category.get implementation
-- Consumer group support
-- Correlation filtering
+- Consumer group support (using cardinal_id)
+- Correlation filtering (metadata.correlationStreamName)
 - Category stream extraction
+- Compound ID support testing
+
+### Phase 4.5: Utility Operations (1-2 days)
+- util.category implementation
+- util.id implementation
+- util.cardinalId implementation
+- util.isCategory implementation
+- util.hash64 implementation
+- Integration with store utility functions
 
 ### Phase 5: Namespace Management (2-3 days)
 - ns.create implementation
@@ -486,11 +598,29 @@ X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 - **AND** Token printed to stdout
 - **AND** Can write/read using default token
 
+### AC-8: Utility Functions Exposed
+- **GIVEN** Stream name "account-123+alice"
+- **WHEN** Calling util.cardinalId
+- **THEN** Returns "123"
+
+### AC-9: Correlation Filtering Works
+- **GIVEN** Messages with metadata.correlationStreamName="workflow-456"
+- **WHEN** category.get with correlation="workflow"
+- **THEN** Only returns messages correlated to workflow category
+
+### AC-10: Time Format Consistent
+- **GIVEN** Message written
+- **WHEN** Retrieved via stream.get
+- **THEN** Time returned as ISO 8601 UTC string (e.g., "2024-12-17T01:00:00.123Z")
+
 ## Definition of Done
 
 - [ ] HTTP server with RPC endpoint working
 - [ ] All stream operations implemented (write, get, last, version)
 - [ ] All category operations implemented (get with consumer groups)
+- [ ] Consumer groups use cardinal_id for compound ID support
+- [ ] Correlation filtering using metadata.correlationStreamName
+- [ ] All utility operations implemented (category, id, cardinalId, isCategory, hash64)
 - [ ] All namespace operations implemented (create, delete, list, info)
 - [ ] All system operations implemented (version, health)
 - [ ] Token generation and validation working
@@ -498,8 +628,11 @@ X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 - [ ] SSE subscriptions working (stream and category)
 - [ ] Test mode with auto-namespace creation
 - [ ] Default namespace setup on startup
+- [ ] Time format standardized (ISO 8601 UTC)
+- [ ] Default batch size documented (1000)
 - [ ] Error handling for all edge cases
 - [ ] Integration tests for all API methods
+- [ ] Compound ID scenarios tested
 - [ ] Performance targets met (API response < 50ms p95)
 - [ ] Documentation complete (API examples)
 - [ ] Code passes linting and formatting
@@ -533,12 +666,16 @@ X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 
 ## Validation Rules
 
-1. **Stream names:** Non-empty strings, no validation on format
+1. **Stream names:** Non-empty strings, format: `category` or `category-id` or `category-cardinalId+compoundPart`
 2. **Message types:** Non-empty strings
 3. **Message data:** Valid JSON objects
-4. **Expected version:** Non-negative integer or null
-5. **Batch size:** 1-1000 messages
-6. **Consumer group:** member < size, both non-negative
+4. **Message metadata:** Valid JSON objects (optional)
+5. **Expected version:** Non-negative integer or null
+6. **Batch size:** 1-10000 messages (default: 1000, -1 for unlimited)
+7. **Consumer group:** member < size, both non-negative
+8. **Correlation:** Must be a category name (no `-` separator)
+9. **Position:** Non-negative integer
+10. **Global position:** Non-negative integer
 
 ## Non-Goals
 
