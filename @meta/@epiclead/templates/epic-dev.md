@@ -29,6 +29,10 @@ Execute $PHASE_ID autonomously. Self-correct errors. Submit to judge for review.
 
 ---
 
+## INFOS ## 
+Postgres CREDS: PORT: 5432, user: postgres, password: postgres
+
+
 ## ERROR RECOVERY ##
 
 **Strategy: Try 3 times, then fail forward**

@@ -1,0 +1,8 @@
+### Progress Tracking
+- [ ] Phase MDB001_1A: Foundation (Migrations + Store Interface)
+- [ ] Phase MDB001_2A: Postgres Backend - Setup & Namespaces
+- [ ] Phase MDB001_3A: Postgres Backend - Messages
+- [ ] Phase MDB001_4A: SQLite Backend - Setup & Namespaces
+- [ ] Phase MDB001_5A: SQLite Backend - Messages
+- [ ] Phase MDB001_6A: Cross-Backend Integration
+- [ ] Phase MDB001_7A: Performance & Documentation
