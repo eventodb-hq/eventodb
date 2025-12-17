@@ -19,6 +19,10 @@ echo "3. Running all tests..."
 go test ./... -v -timeout 30s
 
 echo ""
+echo "4. Running tests with race detector..."
+go test ./... -race -timeout 120s
+
+echo ""
 echo "4. Checking for compilation errors..."
 go build ./cmd/messagedb
 

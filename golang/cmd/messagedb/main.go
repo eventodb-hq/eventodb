@@ -9,48 +9,200 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/message-db/message-db/internal/api"
 	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/store"
+	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
+
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 )
 
 const (
-	version          = "1.3.0"
+	version          = "1.4.0"
 	defaultPort      = 8080
 	defaultNamespace = "default"
 	shutdownTimeout  = 10 * time.Second
 )
+
+// Database configuration
+type dbConfig struct {
+	dbType   string // "postgres" or "sqlite"
+	connStr  string // Connection string for the database
+	dataDir  string // Data directory for SQLite namespace databases
+	testMode bool   // In-memory mode for testing
+}
+
+// parseDBConfig parses the database URL and returns configuration
+func parseDBConfig(dbURL, dataDir string, testMode bool) (*dbConfig, error) {
+	// Test mode: use in-memory SQLite
+	if testMode {
+		return &dbConfig{
+			dbType:   "sqlite",
+			connStr:  "file:messagedb_metadata?mode=memory&cache=shared",
+			dataDir:  "", // Not used in test mode
+			testMode: true,
+		}, nil
+	}
+
+	// No URL provided: error
+	if dbURL == "" {
+		return nil, fmt.Errorf("--db-url is required (use --test-mode for in-memory testing)")
+	}
+
+	// Parse the URL
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid database URL: %w", err)
+	}
+
+	switch u.Scheme {
+	case "postgres", "postgresql":
+		// PostgreSQL: use the URL as-is (lib/pq accepts postgres:// URLs)
+		return &dbConfig{
+			dbType:   "postgres",
+			connStr:  dbURL,
+			dataDir:  "", // Not used for Postgres
+			testMode: false,
+		}, nil
+
+	case "sqlite":
+		// SQLite: extract the database filename from the URL
+		// Format: sqlite://filename.db or sqlite:///path/to/filename.db
+		dbFile := strings.TrimPrefix(dbURL, "sqlite://")
+		if dbFile == "" {
+			dbFile = "metadata.db"
+		}
+
+		// Require data-dir for SQLite
+		if dataDir == "" {
+			return nil, fmt.Errorf("--data-dir is required for SQLite")
+		}
+
+		// Ensure data directory exists
+		if err := os.MkdirAll(dataDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create data directory: %w", err)
+		}
+
+		// Build full path to metadata database
+		metadataPath := filepath.Join(dataDir, dbFile)
+
+		return &dbConfig{
+			dbType:   "sqlite",
+			connStr:  metadataPath,
+			dataDir:  dataDir,
+			testMode: false,
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported database scheme: %s (use postgres:// or sqlite://)", u.Scheme)
+	}
+}
+
+// createStore creates the appropriate store based on configuration
+func createStore(cfg *dbConfig) (store.Store, func(), error) {
+	switch cfg.dbType {
+	case "postgres":
+		db, err := sql.Open("postgres", cfg.connStr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to open PostgreSQL connection: %w", err)
+		}
+
+		// Configure connection pool for production
+		db.SetMaxOpenConns(25)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(5 * time.Minute)
+
+		// Verify connection
+		if err := db.Ping(); err != nil {
+			db.Close()
+			return nil, nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
+		}
+
+		st, err := postgres.New(db)
+		if err != nil {
+			db.Close()
+			return nil, nil, fmt.Errorf("failed to create PostgreSQL store: %w", err)
+		}
+
+		log.Printf("Connected to PostgreSQL database")
+		cleanup := func() {
+			st.Close()
+		}
+		return st, cleanup, nil
+
+	case "sqlite":
+		var db *sql.DB
+		var err error
+
+		if cfg.testMode {
+			// In-memory mode with shared cache
+			db, err = sql.Open("sqlite", cfg.connStr)
+		} else {
+			// File-based SQLite with WAL mode
+			dsn := cfg.connStr + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+			db, err = sql.Open("sqlite", dsn)
+		}
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to open SQLite connection: %w", err)
+		}
+
+		st, err := sqlite.New(db, &sqlite.Config{
+			TestMode: cfg.testMode,
+			DataDir:  cfg.dataDir,
+		})
+		if err != nil {
+			db.Close()
+			return nil, nil, fmt.Errorf("failed to create SQLite store: %w", err)
+		}
+
+		if cfg.testMode {
+			log.Printf("Using in-memory SQLite (test mode)")
+		} else {
+			log.Printf("Connected to SQLite database at %s", cfg.connStr)
+		}
+
+		cleanup := func() {
+			st.Close()
+		}
+		return st, cleanup, nil
+
+	default:
+		return nil, nil, fmt.Errorf("unknown database type: %s", cfg.dbType)
+	}
+}
 
 func main() {
 	// Parse command-line flags
 	port := flag.Int("port", defaultPort, "HTTP server port")
 	testMode := flag.Bool("test-mode", false, "Run in test mode (in-memory SQLite)")
 	defaultToken := flag.String("token", "", "Token for default namespace (if empty, one is generated)")
+	dbURL := flag.String("db-url", "", "Database URL (postgres://... or sqlite://filename.db)")
+	dataDir := flag.String("data-dir", "", "Data directory for SQLite namespace databases (required for sqlite)")
 	flag.Parse()
 
-	// Initialize SQLite store (in-memory for now)
-	// NOTE: Must use file:xxx?mode=memory&cache=shared format to avoid conflicts
-	// with namespace databases that also use shared-cache in-memory SQLite.
-	// Using plain ":memory:" causes corruption when accessed concurrently with
-	// file:xxx?mode=memory&cache=shared databases (modernc.org/sqlite driver issue).
-	db, err := sql.Open("sqlite", "file:messagedb_metadata?mode=memory&cache=shared")
+	// Parse database configuration
+	cfg, err := parseDBConfig(*dbURL, *dataDir, *testMode)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		log.Fatalf("Invalid database configuration: %v", err)
 	}
-	defer db.Close()
 
-	st, err := sqlite.New(db, &sqlite.Config{TestMode: true})
+	// Initialize store based on database type
+	st, cleanup, err := createStore(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create store: %v", err)
 	}
-	defer st.Close()
+	defer cleanup()
 
 	// Ensure default namespace exists and get/create token
 	token, err := ensureDefaultNamespace(context.Background(), st, *defaultToken)
@@ -71,7 +223,7 @@ func main() {
 	rpcHandler := api.NewRPCHandler(version, st, pubsub)
 
 	// Create SSE handler
-	sseHandler := api.NewSSEHandler(st, pubsub, *testMode)
+	sseHandler := api.NewSSEHandler(st, pubsub, cfg.testMode)
 
 	// Set up HTTP routes
 	mux := http.NewServeMux()
@@ -91,7 +243,7 @@ func main() {
 	})
 
 	// RPC endpoint with auth middleware
-	rpcWithAuth := api.AuthMiddleware(st, *testMode)(rpcHandler)
+	rpcWithAuth := api.AuthMiddleware(st, cfg.testMode)(rpcHandler)
 	mux.Handle("/rpc", api.LoggingMiddleware(rpcWithAuth))
 
 	// SSE subscription endpoint

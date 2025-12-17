@@ -3,11 +3,10 @@ package integration
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -15,8 +14,6 @@ import (
 	"github.com/message-db/message-db/internal/api"
 	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/internal/store/sqlite"
-	_ "modernc.org/sqlite"
 )
 
 // Poke represents an SSE poke event
@@ -28,64 +25,72 @@ type Poke struct {
 
 // SSETestContext holds test server resources including pubsub
 type SSETestContext struct {
-	Server *httptest.Server
-	Store  *sqlite.SQLiteStore
-	PubSub *api.PubSub
-	DB     *sql.DB
+	URL       string
+	Env       *TestEnv
+	PubSub    *api.PubSub
+	Token     string
+	Namespace string
+	cleanup   func()
 }
 
-// setupSSETestServer creates a test server for SSE
-func setupSSETestServer(t *testing.T) (*SSETestContext, func()) {
+// setupSSETestServer creates a test server for SSE with backend abstraction
+func setupSSETestServer(t *testing.T) *SSETestContext {
 	t.Helper()
 
-	// Create in-memory SQLite database
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
-
-	// Create store
-	st, err := sqlite.New(db, &sqlite.Config{TestMode: true})
-	if err != nil {
-		t.Fatalf("Failed to create store: %v", err)
-	}
-
-	// Create default namespace
-	ctx := context.Background()
-	token, _ := auth.GenerateToken("default")
-	tokenHash := auth.HashToken(token)
-	_ = st.CreateNamespace(ctx, "default", tokenHash, "Default namespace")
+	env := SetupTestEnv(t)
 
 	// Create pubsub for real-time notifications
 	pubsub := api.NewPubSub()
 
 	// Create handlers
-	rpcHandler := api.NewRPCHandler("1.3.0", st, pubsub)
-	sseHandler := api.NewSSEHandler(st, pubsub, true) // test mode
+	rpcHandler := api.NewRPCHandler("1.4.0", env.Store, pubsub)
+	sseHandler := api.NewSSEHandler(env.Store, pubsub, true) // test mode
 
 	// Create mux
 	mux := http.NewServeMux()
-	mux.Handle("/rpc", api.AuthMiddleware(st, true)(rpcHandler))
+	mux.Handle("/rpc", api.AuthMiddleware(env.Store, true)(rpcHandler))
 	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
 
-	server := httptest.NewServer(mux)
-
-	testCtx := &SSETestContext{
-		Server: server,
-		Store:  st,
-		PubSub: pubsub,
-		DB:     db,
+	// Start server
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		env.Cleanup()
+		t.Fatalf("Failed to create listener: %v", err)
 	}
 
-	return testCtx, func() {
-		server.Close()
-		st.Close()
-		db.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	server := &http.Server{Handler: mux}
+
+	go server.Serve(listener)
+	time.Sleep(50 * time.Millisecond) // Give server time to start
+
+	testCtx := &SSETestContext{
+		URL:       fmt.Sprintf("http://127.0.0.1:%d", port),
+		Env:       env,
+		PubSub:    pubsub,
+		Token:     env.Token,
+		Namespace: env.Namespace,
+		cleanup: func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			server.Shutdown(ctx)
+			listener.Close()
+			env.Cleanup()
+		},
+	}
+
+	return testCtx
+}
+
+// Cleanup releases all resources
+func (ctx *SSETestContext) Cleanup() {
+	if ctx.cleanup != nil {
+		ctx.cleanup()
 	}
 }
 
 // writeMessage writes a message to the store and publishes to pubsub
-func writeSSEMessage(ctx context.Context, st *sqlite.SQLiteStore, pubsub *api.PubSub, namespace, streamName, msgType string, data map[string]interface{}) error {
+func writeSSEMessage(ctx context.Context, st store.Store, pubsub *api.PubSub, namespace, streamName, msgType string, data map[string]interface{}) error {
 	msg := &store.Message{
 		Type: msgType,
 		Data: data,
@@ -96,7 +101,7 @@ func writeSSEMessage(ctx context.Context, st *sqlite.SQLiteStore, pubsub *api.Pu
 	}
 	// Publish to pubsub for real-time notification
 	if pubsub != nil {
-		category := store.Category(streamName)
+		category := st.Category(streamName)
 		pubsub.Publish(api.WriteEvent{
 			Namespace:      namespace,
 			Stream:         streamName,
@@ -109,7 +114,7 @@ func writeSSEMessage(ctx context.Context, st *sqlite.SQLiteStore, pubsub *api.Pu
 }
 
 // createSSENamespace creates a test namespace
-func createSSENamespace(ctx context.Context, st *sqlite.SQLiteStore, namespace string) (string, error) {
+func createSSENamespace(ctx context.Context, st store.Store, namespace string) (string, error) {
 	token, err := auth.GenerateToken(namespace)
 	if err != nil {
 		return "", err
@@ -127,18 +132,12 @@ func createSSENamespace(ctx context.Context, st *sqlite.SQLiteStore, namespace s
 // MDB002_6A_T1: Test SSE connection established
 func TestMDB002_6A_T1_SSEConnectionEstablished(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	// Create namespace and get token
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-sse")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	// Create a stream with a message
 	streamName := "account-123"
-	err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-sse", streamName, "Opened", map[string]interface{}{"amount": 100})
+	err := writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, streamName, "Opened", map[string]interface{}{"amount": 100})
 	if err != nil {
 		t.Fatalf("Failed to write message: %v", err)
 	}
@@ -147,12 +146,12 @@ func TestMDB002_6A_T1_SSEConnectionEstablished(t *testing.T) {
 	reqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?stream=" + streamName + "&position=0"
+	url := testCtx.URL + "/subscribe?stream=" + streamName + "&position=0"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	// Make the request
 	resp, err := http.DefaultClient.Do(req)
@@ -173,23 +172,18 @@ func TestMDB002_6A_T1_SSEConnectionEstablished(t *testing.T) {
 // MDB002_6A_T2: Test SSE headers set correctly
 func TestMDB002_6A_T2_SSEHeadersSetCorrectly(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-headers")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	reqCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?stream=test-stream&position=0"
+	url := testCtx.URL + "/subscribe?stream=test-stream&position=0"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil {
@@ -212,8 +206,8 @@ func TestMDB002_6A_T2_SSEHeadersSetCorrectly(t *testing.T) {
 // MDB002_6A_T3: Test connection requires valid token (in test mode, auth is optional)
 func TestMDB002_6A_T3_ConnectionWithAuth(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	tests := []struct {
 		name       string
@@ -237,7 +231,7 @@ func TestMDB002_6A_T3_ConnectionWithAuth(t *testing.T) {
 			reqCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 			defer cancel()
 
-			url := testCtx.Server.URL + "/subscribe?stream=test&position=0"
+			url := testCtx.URL + "/subscribe?stream=test&position=0"
 			req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
@@ -269,13 +263,8 @@ func TestMDB002_6A_T3_ConnectionWithAuth(t *testing.T) {
 // MDB002_6A_T4: Test stream subscription receives poke on new message
 func TestMDB002_6A_T4_StreamSubscriptionReceivesPoke(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-poke")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	streamName := "account-456"
 
@@ -283,12 +272,12 @@ func TestMDB002_6A_T4_StreamSubscriptionReceivesPoke(t *testing.T) {
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?stream=" + streamName + "&position=0"
+	url := testCtx.URL + "/subscribe?stream=" + streamName + "&position=0"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -322,7 +311,7 @@ func TestMDB002_6A_T4_StreamSubscriptionReceivesPoke(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Write a message
-	err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-poke", streamName, "Deposited", map[string]interface{}{"amount": 50})
+	err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, streamName, "Deposited", map[string]interface{}{"amount": 50})
 	if err != nil {
 		t.Fatalf("Failed to write message: %v", err)
 	}
@@ -344,19 +333,14 @@ func TestMDB002_6A_T4_StreamSubscriptionReceivesPoke(t *testing.T) {
 // MDB002_6A_T5: Test poke contains correct position
 func TestMDB002_6A_T5_PokeContainsCorrectPosition(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-position")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	streamName := "account-789"
 
 	// Write initial messages
 	for i := 0; i < 3; i++ {
-		err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-position", streamName, "Deposited", map[string]interface{}{"amount": i * 10})
+		err := writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, streamName, "Deposited", map[string]interface{}{"amount": i * 10})
 		if err != nil {
 			t.Fatalf("Failed to write message %d: %v", i, err)
 		}
@@ -366,12 +350,12 @@ func TestMDB002_6A_T5_PokeContainsCorrectPosition(t *testing.T) {
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?stream=" + streamName + "&position=2"
+	url := testCtx.URL + "/subscribe?stream=" + streamName + "&position=2"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -395,13 +379,8 @@ func TestMDB002_6A_T5_PokeContainsCorrectPosition(t *testing.T) {
 // MDB002_6A_T6: Test multiple pokes for multiple messages
 func TestMDB002_6A_T6_MultiplePokesForMultipleMessages(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-multiple")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	streamName := "account-multi"
 
@@ -409,12 +388,12 @@ func TestMDB002_6A_T6_MultiplePokesForMultipleMessages(t *testing.T) {
 	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?stream=" + streamName + "&position=0"
+	url := testCtx.URL + "/subscribe?stream=" + streamName + "&position=0"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -428,7 +407,7 @@ func TestMDB002_6A_T6_MultiplePokesForMultipleMessages(t *testing.T) {
 	// Write multiple messages
 	messageCount := 3
 	for i := 0; i < messageCount; i++ {
-		err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-multiple", streamName, "Event", map[string]interface{}{"seq": i})
+		err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, streamName, "Event", map[string]interface{}{"seq": i})
 		if err != nil {
 			t.Fatalf("Failed to write message %d: %v", i, err)
 		}
@@ -454,19 +433,14 @@ func TestMDB002_6A_T6_MultiplePokesForMultipleMessages(t *testing.T) {
 // MDB002_6A_T7: Test subscription from specific position
 func TestMDB002_6A_T7_SubscriptionFromSpecificPosition(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-offset")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	streamName := "account-offset"
 
 	// Write 5 messages
 	for i := 0; i < 5; i++ {
-		err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-offset", streamName, "Event", map[string]interface{}{"seq": i})
+		err := writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, streamName, "Event", map[string]interface{}{"seq": i})
 		if err != nil {
 			t.Fatalf("Failed to write message %d: %v", i, err)
 		}
@@ -476,12 +450,12 @@ func TestMDB002_6A_T7_SubscriptionFromSpecificPosition(t *testing.T) {
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?stream=" + streamName + "&position=3"
+	url := testCtx.URL + "/subscribe?stream=" + streamName + "&position=3"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -505,24 +479,19 @@ func TestMDB002_6A_T7_SubscriptionFromSpecificPosition(t *testing.T) {
 // MDB002_6A_T8: Test category subscription receives pokes
 func TestMDB002_6A_T8_CategorySubscriptionReceivesPokes(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-category")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	// Subscribe to category
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?category=account&position=1"
+	url := testCtx.URL + "/subscribe?category=account&position=1"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -536,7 +505,7 @@ func TestMDB002_6A_T8_CategorySubscriptionReceivesPokes(t *testing.T) {
 	// Write messages to different streams in the category
 	streams := []string{"account-111", "account-222"}
 	for _, stream := range streams {
-		err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-category", stream, "Opened", map[string]interface{}{"id": stream})
+		err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, stream, "Opened", map[string]interface{}{"id": stream})
 		if err != nil {
 			t.Fatalf("Failed to write message to %s: %v", stream, err)
 		}
@@ -564,24 +533,19 @@ func TestMDB002_6A_T8_CategorySubscriptionReceivesPokes(t *testing.T) {
 // MDB002_6A_T9: Test poke includes stream name for category
 func TestMDB002_6A_T9_PokeIncludesStreamNameForCategory(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-stream-name")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	// Subscribe to category
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?category=product&position=1"
+	url := testCtx.URL + "/subscribe?category=product&position=1"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -594,7 +558,7 @@ func TestMDB002_6A_T9_PokeIncludesStreamNameForCategory(t *testing.T) {
 
 	// Write message to specific stream
 	streamName := "product-xyz"
-	err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-stream-name", streamName, "Created", map[string]interface{}{"name": "Widget"})
+	err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, streamName, "Created", map[string]interface{}{"name": "Widget"})
 	if err != nil {
 		t.Fatalf("Failed to write message: %v", err)
 	}
@@ -613,18 +577,13 @@ func TestMDB002_6A_T9_PokeIncludesStreamNameForCategory(t *testing.T) {
 // MDB002_6A_T10: Test consumer group filtering in subscription
 func TestMDB002_6A_T10_ConsumerGroupFilteringInSubscription(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-consumer-group")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	// Write messages to multiple streams
 	streams := []string{"order-100", "order-200"}
 	for _, stream := range streams {
-		err = writeSSEMessage(ctx, testCtx.Store, testCtx.PubSub, "test-consumer-group", stream, "Created", map[string]interface{}{"stream": stream})
+		err := writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, stream, "Created", map[string]interface{}{"stream": stream})
 		if err != nil {
 			t.Fatalf("Failed to write message to %s: %v", stream, err)
 		}
@@ -634,12 +593,12 @@ func TestMDB002_6A_T10_ConsumerGroupFilteringInSubscription(t *testing.T) {
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := testCtx.Server.URL + "/subscribe?category=order&position=1&consumer=0&size=2"
+	url := testCtx.URL + "/subscribe?category=order&position=1&consumer=0&size=2"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -656,23 +615,18 @@ func TestMDB002_6A_T10_ConsumerGroupFilteringInSubscription(t *testing.T) {
 // MDB002_6A_T11: Test connection cleanup on client disconnect
 func TestMDB002_6A_T11_ConnectionCleanupOnDisconnect(t *testing.T) {
 	ctx := context.Background()
-	testCtx, cleanup := setupSSETestServer(t)
-	defer cleanup()
-
-	token, err := createSSENamespace(ctx, testCtx.Store, "test-cleanup")
-	if err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
 
 	// Start subscription with a cancelable context
 	reqCtx, cancel := context.WithCancel(ctx)
 
-	url := testCtx.Server.URL + "/subscribe?stream=test&position=0"
+	url := testCtx.URL + "/subscribe?stream=test&position=0"
 	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

@@ -6,8 +6,8 @@ import (
 
 // TestMDB002_4A_T1: Test get category returns messages from multiple streams
 func TestMDB002_4A_T1_GetCategoryReturnsMessagesFromMultipleStreams(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write messages to multiple streams in the same category
 	msg1 := map[string]interface{}{
@@ -24,25 +24,25 @@ func TestMDB002_4A_T1_GetCategoryReturnsMessagesFromMultipleStreams(t *testing.T
 	}
 
 	// Write to account-123
-	_, err := makeRPCCall(t, port, token, "stream.write", "account-123", msg1)
+	_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-123", msg1)
 	if err != nil {
 		t.Fatalf("Failed to write message 1: %v", err)
 	}
 
 	// Write to account-456
-	_, err = makeRPCCall(t, port, token, "stream.write", "account-456", msg2)
+	_, err = makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-456", msg2)
 	if err != nil {
 		t.Fatalf("Failed to write message 2: %v", err)
 	}
 
 	// Write another message to account-123
-	_, err = makeRPCCall(t, port, token, "stream.write", "account-123", msg3)
+	_, err = makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-123", msg3)
 	if err != nil {
 		t.Fatalf("Failed to write message 3: %v", err)
 	}
 
 	// Get category messages
-	result, err := makeRPCCall(t, port, token, "category.get", "account")
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account")
 	if err != nil {
 		t.Fatalf("Failed to get category messages: %v", err)
 	}
@@ -84,8 +84,8 @@ func TestMDB002_4A_T1_GetCategoryReturnsMessagesFromMultipleStreams(t *testing.T
 
 // TestMDB002_4A_T2: Test category includes stream names in response
 func TestMDB002_4A_T2_CategoryIncludesStreamNamesInResponse(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write a message
 	msg := map[string]interface{}{
@@ -93,13 +93,13 @@ func TestMDB002_4A_T2_CategoryIncludesStreamNamesInResponse(t *testing.T) {
 		"data": map[string]interface{}{"accountId": "123"},
 	}
 
-	_, err := makeRPCCall(t, port, token, "stream.write", "account-123", msg)
+	_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-123", msg)
 	if err != nil {
 		t.Fatalf("Failed to write message: %v", err)
 	}
 
 	// Get category messages
-	result, err := makeRPCCall(t, port, token, "category.get", "account")
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account")
 	if err != nil {
 		t.Fatalf("Failed to get category messages: %v", err)
 	}
@@ -146,8 +146,8 @@ func TestMDB002_4A_T2_CategoryIncludesStreamNamesInResponse(t *testing.T) {
 
 // TestMDB002_4A_T3: Test category with position filter
 func TestMDB002_4A_T3_CategoryWithPositionFilter(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write multiple messages
 	for i := 0; i < 5; i++ {
@@ -155,14 +155,14 @@ func TestMDB002_4A_T3_CategoryWithPositionFilter(t *testing.T) {
 			"type": "Event",
 			"data": map[string]interface{}{"index": i},
 		}
-		_, err := makeRPCCall(t, port, token, "stream.write", "account-123", msg)
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-123", msg)
 		if err != nil {
 			t.Fatalf("Failed to write message %d: %v", i, err)
 		}
 	}
 
 	// Get all messages to find the global position of the 3rd message
-	allResult, err := makeRPCCall(t, port, token, "category.get", "account")
+	allResult, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account")
 	if err != nil {
 		t.Fatalf("Failed to get all messages: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestMDB002_4A_T3_CategoryWithPositionFilter(t *testing.T) {
 		"position": thirdGlobalPos,
 	}
 
-	result, err := makeRPCCall(t, port, token, "category.get", "account", opts)
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", opts)
 	if err != nil {
 		t.Fatalf("Failed to get category messages with position filter: %v", err)
 	}
@@ -199,8 +199,8 @@ func TestMDB002_4A_T3_CategoryWithPositionFilter(t *testing.T) {
 
 // TestMDB002_4A_T4: Test category with batchSize limit
 func TestMDB002_4A_T4_CategoryWithBatchSizeLimit(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write 10 messages
 	for i := 0; i < 10; i++ {
@@ -208,7 +208,7 @@ func TestMDB002_4A_T4_CategoryWithBatchSizeLimit(t *testing.T) {
 			"type": "Event",
 			"data": map[string]interface{}{"index": i},
 		}
-		_, err := makeRPCCall(t, port, token, "stream.write", "account-123", msg)
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-123", msg)
 		if err != nil {
 			t.Fatalf("Failed to write message %d: %v", i, err)
 		}
@@ -219,7 +219,7 @@ func TestMDB002_4A_T4_CategoryWithBatchSizeLimit(t *testing.T) {
 		"batchSize": 5,
 	}
 
-	result, err := makeRPCCall(t, port, token, "category.get", "account", opts)
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", opts)
 	if err != nil {
 		t.Fatalf("Failed to get category messages: %v", err)
 	}
@@ -237,8 +237,8 @@ func TestMDB002_4A_T4_CategoryWithBatchSizeLimit(t *testing.T) {
 
 // TestMDB002_4A_T5: Test category with consumer group (member 0 of 2)
 func TestMDB002_4A_T5_CategoryWithConsumerGroup(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write messages to different streams
 	// account-100, account-200, account-300, account-400
@@ -248,7 +248,7 @@ func TestMDB002_4A_T5_CategoryWithConsumerGroup(t *testing.T) {
 			"data": map[string]interface{}{"index": i},
 		}
 		streamName := "account-" + string(rune('0'+i)) + "00"
-		_, err := makeRPCCall(t, port, token, "stream.write", streamName, msg)
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", streamName, msg)
 		if err != nil {
 			t.Fatalf("Failed to write message to %s: %v", streamName, err)
 		}
@@ -262,7 +262,7 @@ func TestMDB002_4A_T5_CategoryWithConsumerGroup(t *testing.T) {
 		},
 	}
 
-	result, err := makeRPCCall(t, port, token, "category.get", "account", opts)
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", opts)
 	if err != nil {
 		t.Fatalf("Failed to get category messages: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestMDB002_4A_T5_CategoryWithConsumerGroup(t *testing.T) {
 		"size":   2,
 	}
 
-	result, err = makeRPCCall(t, port, token, "category.get", "account", opts)
+	result, err = makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", opts)
 	if err != nil {
 		t.Fatalf("Failed to get category messages: %v", err)
 	}
@@ -306,8 +306,8 @@ func TestMDB002_4A_T5_CategoryWithConsumerGroup(t *testing.T) {
 
 // TestMDB002_4A_T6: Test consumer groups have no overlap
 func TestMDB002_4A_T6_ConsumerGroupsHaveNoOverlap(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write messages to multiple streams
 	for i := 1; i <= 10; i++ {
@@ -316,7 +316,7 @@ func TestMDB002_4A_T6_ConsumerGroupsHaveNoOverlap(t *testing.T) {
 			"data": map[string]interface{}{"index": i},
 		}
 		streamName := "account-" + string(rune('0'+i))
-		_, err := makeRPCCall(t, port, token, "stream.write", streamName, msg)
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", streamName, msg)
 		if err != nil {
 			t.Fatalf("Failed to write message to %s: %v", streamName, err)
 		}
@@ -342,19 +342,19 @@ func TestMDB002_4A_T6_ConsumerGroupsHaveNoOverlap(t *testing.T) {
 		},
 	}
 
-	result0, err := makeRPCCall(t, port, token, "category.get", "account", consumer0Opts)
+	result0, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", consumer0Opts)
 	if err != nil {
 		t.Fatalf("Failed to get consumer 0 messages: %v", err)
 	}
 	messages0 := result0.([]interface{})
 
-	result1, err := makeRPCCall(t, port, token, "category.get", "account", consumer1Opts)
+	result1, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", consumer1Opts)
 	if err != nil {
 		t.Fatalf("Failed to get consumer 1 messages: %v", err)
 	}
 	messages1 := result1.([]interface{})
 
-	result2, err := makeRPCCall(t, port, token, "category.get", "account", consumer2Opts)
+	result2, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", consumer2Opts)
 	if err != nil {
 		t.Fatalf("Failed to get consumer 2 messages: %v", err)
 	}
@@ -399,8 +399,8 @@ func TestMDB002_4A_T6_ConsumerGroupsHaveNoOverlap(t *testing.T) {
 
 // TestMDB002_4A_T7: Test correlation filtering
 func TestMDB002_4A_T7_CorrelationFiltering(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Write messages with different correlation metadata
 	msg1 := map[string]interface{}{
@@ -430,19 +430,19 @@ func TestMDB002_4A_T7_CorrelationFiltering(t *testing.T) {
 		// No correlation metadata
 	}
 
-	_, err := makeRPCCall(t, port, token, "stream.write", "account-1", msg1)
+	_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-1", msg1)
 	if err != nil {
 		t.Fatalf("Failed to write message 1: %v", err)
 	}
-	_, err = makeRPCCall(t, port, token, "stream.write", "account-2", msg2)
+	_, err = makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-2", msg2)
 	if err != nil {
 		t.Fatalf("Failed to write message 2: %v", err)
 	}
-	_, err = makeRPCCall(t, port, token, "stream.write", "account-3", msg3)
+	_, err = makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-3", msg3)
 	if err != nil {
 		t.Fatalf("Failed to write message 3: %v", err)
 	}
-	_, err = makeRPCCall(t, port, token, "stream.write", "account-4", msg4)
+	_, err = makeRPCCall(t, ts.Port, ts.Token, "stream.write", "account-4", msg4)
 	if err != nil {
 		t.Fatalf("Failed to write message 4: %v", err)
 	}
@@ -452,7 +452,7 @@ func TestMDB002_4A_T7_CorrelationFiltering(t *testing.T) {
 		"correlation": "workflow",
 	}
 
-	result, err := makeRPCCall(t, port, token, "category.get", "account", opts)
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "account", opts)
 	if err != nil {
 		t.Fatalf("Failed to get category messages with correlation: %v", err)
 	}
@@ -488,13 +488,13 @@ func TestMDB002_4A_T7_CorrelationFiltering(t *testing.T) {
 
 // TestMDB002_4A_T8: Test empty category returns empty array
 func TestMDB002_4A_T8_EmptyCategoryReturnsEmptyArray(t *testing.T) {
-	port, token, cleanup := setupTestServer(t)
-	defer cleanup()
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
 
 	// Don't write any messages to the category
 
 	// Get category messages
-	result, err := makeRPCCall(t, port, token, "category.get", "nonexistent")
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "category.get", "nonexistent")
 	if err != nil {
 		t.Fatalf("Failed to get category messages: %v", err)
 	}
