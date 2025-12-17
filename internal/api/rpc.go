@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/message-db/message-db/internal/store"
 )
 
 // RPCHandler handles RPC requests in array format: ["method", arg1, arg2, ...]
 type RPCHandler struct {
 	version string
+	store   store.Store
 	methods map[string]RPCMethod
 }
 
@@ -30,9 +33,10 @@ type ErrorResponse struct {
 }
 
 // NewRPCHandler creates a new RPC handler
-func NewRPCHandler(version string) *RPCHandler {
+func NewRPCHandler(version string, st store.Store) *RPCHandler {
 	h := &RPCHandler{
 		version: version,
+		store:   st,
 		methods: make(map[string]RPCMethod),
 	}
 
@@ -142,9 +146,16 @@ func (h *RPCHandler) handleSysVersion(args []interface{}) (interface{}, *RPCErro
 
 // handleSysHealth returns server health status
 func (h *RPCHandler) handleSysHealth(args []interface{}) (interface{}, *RPCError) {
+	backend := "none"
+	if h.store != nil {
+		// Determine backend type - this is a simple heuristic
+		// In a real implementation, the store would expose its type
+		backend = "unknown"
+	}
+	
 	return map[string]interface{}{
 		"status":      "ok",
-		"backend":     "none", // Will be updated when store is connected
+		"backend":     backend,
 		"connections": 0,
 	}, nil
 }

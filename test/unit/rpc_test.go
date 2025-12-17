@@ -10,9 +10,14 @@ import (
 	"github.com/message-db/message-db/internal/api"
 )
 
+// Helper to create RPC handler with nil store for testing
+func newTestRPCHandler() *api.RPCHandler {
+	return api.NewRPCHandler("1.3.0", nil)
+}
+
 // Test MDB002_1A_T5: Test valid RPC request parsed correctly
 func TestMDB002_1A_T5_ValidRPCRequest(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Valid request: ["sys.version"]
 	reqBody := `["sys.version"]`
@@ -38,7 +43,7 @@ func TestMDB002_1A_T5_ValidRPCRequest(t *testing.T) {
 
 // Test MDB002_1A_T6: Test invalid JSON returns INVALID_REQUEST
 func TestMDB002_1A_T6_InvalidJSON(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Invalid JSON
 	reqBody := `{"invalid": json}`
@@ -69,7 +74,7 @@ func TestMDB002_1A_T6_InvalidJSON(t *testing.T) {
 
 // Test MDB002_1A_T7: Test missing method returns INVALID_REQUEST
 func TestMDB002_1A_T7_MissingMethod(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Empty array
 	reqBody := `[]`
@@ -104,7 +109,7 @@ func TestMDB002_1A_T7_MissingMethod(t *testing.T) {
 
 // Test MDB002_1A_T8: Test unknown method returns METHOD_NOT_FOUND
 func TestMDB002_1A_T8_UnknownMethod(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Unknown method
 	reqBody := `["unknown.method"]`
@@ -135,7 +140,7 @@ func TestMDB002_1A_T8_UnknownMethod(t *testing.T) {
 
 // Test MDB002_1A_T9: Test success response format correct
 func TestMDB002_1A_T9_SuccessResponseFormat(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Call sys.health which returns an object
 	reqBody := `["sys.health"]`
@@ -169,7 +174,7 @@ func TestMDB002_1A_T9_SuccessResponseFormat(t *testing.T) {
 
 // Test MDB002_1A_T10: Test error response format correct
 func TestMDB002_1A_T10_ErrorResponseFormat(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Trigger an error with unknown method
 	reqBody := `["nonexistent.method"]`
@@ -208,7 +213,7 @@ func TestMDB002_1A_T10_ErrorResponseFormat(t *testing.T) {
 
 // Test that method must be a string
 func TestMDB002_1A_MethodMustBeString(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Method is a number instead of string
 	reqBody := `[123, "arg1"]`
@@ -242,7 +247,7 @@ func TestMDB002_1A_MethodMustBeString(t *testing.T) {
 
 // Test that only POST is allowed
 func TestMDB002_1A_OnlyPostAllowed(t *testing.T) {
-	handler := api.NewRPCHandler("1.3.0")
+	handler := newTestRPCHandler()
 
 	// Try GET request
 	req := httptest.NewRequest(http.MethodGet, "/rpc", nil)
