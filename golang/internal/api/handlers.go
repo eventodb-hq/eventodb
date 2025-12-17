@@ -356,7 +356,7 @@ func (h *RPCHandler) handleStreamLast(ctx context.Context, args []interface{}) (
 	msg, err := h.store.GetLastStreamMessage(ctx, namespace, streamName, msgType)
 	if err != nil {
 		// If stream not found, return null
-		if err.Error() == "stream not found" {
+		if errors.Is(err, store.ErrStreamNotFound) {
 			return nil, nil
 		}
 		return nil, &RPCError{
@@ -645,6 +645,7 @@ func (h *RPCHandler) handleCategoryGet(ctx context.Context, args []interface{}) 
 
 // handleNamespaceCreate creates a new namespace
 // Request: ["ns.create", "namespace-id", {opts}]
+// opts.token: optional token to use (must be valid format for namespace)
 // Response: {"namespace": "tenant-a", "token": "ns_...", "createdAt": "..."}
 func (h *RPCHandler) handleNamespaceCreate(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
 	// Validate arguments
@@ -666,8 +667,7 @@ func (h *RPCHandler) handleNamespaceCreate(ctx context.Context, args []interface
 
 	// Parse optional options
 	description := ""
-	// Note: metadata is parsed but not currently used in namespace creation
-	// It's available for future use
+	var providedToken string
 
 	if len(args) > 1 {
 		optsObj, ok := args[1].(map[string]interface{})
@@ -689,6 +689,31 @@ func (h *RPCHandler) handleNamespaceCreate(ctx context.Context, args []interface
 			}
 		}
 
+		// Extract token (optional - allows caller to specify their own token)
+		if tokenVal, exists := optsObj["token"]; exists {
+			providedToken, ok = tokenVal.(string)
+			if !ok {
+				return nil, &RPCError{
+					Code:    "INVALID_REQUEST",
+					Message: "options.token must be a string",
+				}
+			}
+			// Validate token format and namespace match
+			tokenNS, err := auth.ParseToken(providedToken)
+			if err != nil {
+				return nil, &RPCError{
+					Code:    "INVALID_REQUEST",
+					Message: fmt.Sprintf("Invalid token format: %v", err),
+				}
+			}
+			if tokenNS != namespaceID {
+				return nil, &RPCError{
+					Code:    "INVALID_REQUEST",
+					Message: fmt.Sprintf("Token is for namespace '%s', not '%s'", tokenNS, namespaceID),
+				}
+			}
+		}
+
 		// Extract metadata (for future use)
 		if metaVal, exists := optsObj["metadata"]; exists {
 			_, ok = metaVal.(map[string]interface{})
@@ -701,12 +726,18 @@ func (h *RPCHandler) handleNamespaceCreate(ctx context.Context, args []interface
 		}
 	}
 
-	// Generate token and hash
-	token, err := auth.GenerateToken(namespaceID)
-	if err != nil {
-		return nil, &RPCError{
-			Code:    "BACKEND_ERROR",
-			Message: fmt.Sprintf("Failed to generate token: %v", err),
+	// Use provided token or generate one
+	var token string
+	var err error
+	if providedToken != "" {
+		token = providedToken
+	} else {
+		token, err = auth.GenerateToken(namespaceID)
+		if err != nil {
+			return nil, &RPCError{
+				Code:    "BACKEND_ERROR",
+				Message: fmt.Sprintf("Failed to generate token: %v", err),
+			}
 		}
 	}
 
@@ -715,7 +746,7 @@ func (h *RPCHandler) handleNamespaceCreate(ctx context.Context, args []interface
 	// Create namespace
 	if err := h.store.CreateNamespace(ctx, namespaceID, tokenHash, description); err != nil {
 		// Check for specific error types
-		if err.Error() == "namespace already exists" {
+		if errors.Is(err, store.ErrNamespaceExists) {
 			return nil, &RPCError{
 				Code:    "NAMESPACE_EXISTS",
 				Message: fmt.Sprintf("Namespace '%s' already exists", namespaceID),
@@ -771,7 +802,7 @@ func (h *RPCHandler) handleNamespaceDelete(ctx context.Context, args []interface
 	// Delete namespace
 	if err := h.store.DeleteNamespace(ctx, namespaceID); err != nil {
 		// Check for specific error types
-		if err.Error() == "namespace not found" {
+		if errors.Is(err, store.ErrNamespaceNotFound) {
 			return nil, &RPCError{
 				Code:    "NAMESPACE_NOT_FOUND",
 				Message: fmt.Sprintf("Namespace '%s' not found", namespaceID),
@@ -847,7 +878,7 @@ func (h *RPCHandler) handleNamespaceInfo(ctx context.Context, args []interface{}
 	ns, err := h.store.GetNamespace(ctx, namespaceID)
 	if err != nil {
 		// Check for specific error types
-		if err.Error() == "namespace not found" {
+		if errors.Is(err, store.ErrNamespaceNotFound) {
 			return nil, &RPCError{
 				Code:    "NAMESPACE_NOT_FOUND",
 				Message: fmt.Sprintf("Namespace '%s' not found", namespaceID),

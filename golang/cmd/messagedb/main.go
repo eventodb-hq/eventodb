@@ -30,11 +30,16 @@ const (
 func main() {
 	// Parse command-line flags
 	port := flag.Int("port", defaultPort, "HTTP server port")
-	testMode := flag.Bool("test-mode", false, "Run in test mode (in-memory SQLite, auto-create namespaces)")
+	testMode := flag.Bool("test-mode", false, "Run in test mode (in-memory SQLite)")
+	defaultToken := flag.String("token", "", "Token for default namespace (if empty, one is generated)")
 	flag.Parse()
 
 	// Initialize SQLite store (in-memory for now)
-	db, err := sql.Open("sqlite", ":memory:")
+	// NOTE: Must use file:xxx?mode=memory&cache=shared format to avoid conflicts
+	// with namespace databases that also use shared-cache in-memory SQLite.
+	// Using plain ":memory:" causes corruption when accessed concurrently with
+	// file:xxx?mode=memory&cache=shared databases (modernc.org/sqlite driver issue).
+	db, err := sql.Open("sqlite", "file:messagedb_metadata?mode=memory&cache=shared")
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -47,7 +52,7 @@ func main() {
 	defer st.Close()
 
 	// Ensure default namespace exists and get/create token
-	defaultToken, err := ensureDefaultNamespace(context.Background(), st)
+	token, err := ensureDefaultNamespace(context.Background(), st, *defaultToken)
 	if err != nil {
 		log.Fatalf("Failed to ensure default namespace: %v", err)
 	}
@@ -55,7 +60,7 @@ func main() {
 	// Print default namespace token
 	log.Printf("═══════════════════════════════════════════════════════")
 	log.Printf("DEFAULT NAMESPACE TOKEN:")
-	log.Printf("%s", defaultToken)
+	log.Printf("%s", token)
 	log.Printf("═══════════════════════════════════════════════════════")
 
 	// Create RPC handler
@@ -131,40 +136,45 @@ func main() {
 	}
 }
 
-// ensureDefaultNamespace creates the default namespace if it doesn't exist
-// and returns its token. If it already exists, generates a new token for it.
+// ensureDefaultNamespace creates the default namespace if it doesn't exist.
+// If providedToken is non-empty, it uses that token; otherwise generates one.
 func ensureDefaultNamespace(ctx context.Context, st interface {
 	GetNamespace(ctx context.Context, id string) (*store.Namespace, error)
 	CreateNamespace(ctx context.Context, id, tokenHash, description string) error
-}) (string, error) {
-	// Try to get existing namespace
-	_, err := st.GetNamespace(ctx, defaultNamespace)
-
+}, providedToken string) (string, error) {
 	var token string
+	var err error
 
-	if err != nil {
-		// Namespace doesn't exist, create it
+	// Use provided token or generate one
+	if providedToken != "" {
+		// Validate provided token format
+		ns, err := auth.ParseToken(providedToken)
+		if err != nil {
+			return "", fmt.Errorf("invalid token format: %w", err)
+		}
+		if ns != defaultNamespace {
+			return "", fmt.Errorf("provided token is for namespace '%s', expected '%s'", ns, defaultNamespace)
+		}
+		token = providedToken
+	} else {
 		token, err = auth.GenerateToken(defaultNamespace)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate token: %w", err)
 		}
+	}
 
-		tokenHash := auth.HashToken(token)
+	tokenHash := auth.HashToken(token)
 
+	// Try to get existing namespace
+	_, err = st.GetNamespace(ctx, defaultNamespace)
+	if err != nil {
+		// Namespace doesn't exist, create it
 		err = st.CreateNamespace(ctx, defaultNamespace, tokenHash, "Default namespace")
 		if err != nil {
 			return "", fmt.Errorf("failed to create namespace: %w", err)
 		}
-
 		log.Printf("Created default namespace: %s", defaultNamespace)
 	} else {
-		// Namespace exists, generate a new token for it
-		// Note: In production, you'd want to retrieve the existing token or use a different approach
-		// For now, we'll generate a new one (this is for development/testing)
-		token, err = auth.GenerateToken(defaultNamespace)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate token: %w", err)
-		}
 		log.Printf("Default namespace already exists: %s", defaultNamespace)
 	}
 

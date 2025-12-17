@@ -104,8 +104,8 @@ func TestMDB001_4A_T1_SQLiteStore_Creation(t *testing.T) {
 		t.Error("Expected metadataDB to be set")
 	}
 
-	if store.namespaceDBs == nil {
-		t.Error("Expected namespaceDBs map to be initialized")
+	if store.namespaces == nil {
+		t.Error("Expected namespaces map to be initialized")
 	}
 
 	if !store.testMode {
@@ -195,14 +195,14 @@ func TestMDB001_4A_T4_Close_Cleanup(t *testing.T) {
 	}
 
 	// Access the namespace to create a connection
-	_, err = store.getOrCreateNamespaceDB("test_ns_3")
+	_, err = store.getNamespaceHandle("test_ns_3")
 	if err != nil {
 		t.Fatalf("Failed to get namespace DB: %v", err)
 	}
 
 	// Verify connection exists
-	if len(store.namespaceDBs) != 1 {
-		t.Errorf("Expected 1 namespace connection, got %d", len(store.namespaceDBs))
+	if len(store.namespaces) != 1 {
+		t.Errorf("Expected 1 namespace connection, got %d", len(store.namespaces))
 	}
 
 	// Close store
@@ -211,8 +211,8 @@ func TestMDB001_4A_T4_Close_Cleanup(t *testing.T) {
 	}
 
 	// Verify all connections closed and map cleared
-	if len(store.namespaceDBs) != 0 {
-		t.Errorf("Expected 0 namespace connections after close, got %d", len(store.namespaceDBs))
+	if len(store.namespaces) != 0 {
+		t.Errorf("Expected 0 namespace connections after close, got %d", len(store.namespaces))
 	}
 }
 
@@ -318,13 +318,13 @@ func TestMDB001_4A_T7_DeleteNamespace_ClosesConnection(t *testing.T) {
 	dbPath := ns.DBPath
 
 	// Open a connection to the namespace
-	_, err = store.getOrCreateNamespaceDB("test_ns_6")
+	_, err = store.getNamespaceHandle("test_ns_6")
 	if err != nil {
 		t.Fatalf("Failed to get namespace DB: %v", err)
 	}
 
 	// Verify connection exists
-	if _, exists := store.namespaceDBs["test_ns_6"]; !exists {
+	if _, exists := store.namespaces["test_ns_6"]; !exists {
 		t.Error("Expected namespace connection to exist")
 	}
 
@@ -335,7 +335,7 @@ func TestMDB001_4A_T7_DeleteNamespace_ClosesConnection(t *testing.T) {
 	}
 
 	// Verify connection was closed and removed
-	if _, exists := store.namespaceDBs["test_ns_6"]; exists {
+	if _, exists := store.namespaces["test_ns_6"]; exists {
 		t.Error("Expected namespace connection to be removed")
 	}
 
@@ -351,7 +351,7 @@ func TestMDB001_4A_T7_DeleteNamespace_ClosesConnection(t *testing.T) {
 	}
 }
 
-// MDB001_4A_T8: Test getOrCreateNamespaceDB lazy-loads
+// MDB001_4A_T8: Test getNamespaceHandle lazy-loads
 func TestMDB001_4A_T8_GetOrCreateNamespaceDB_LazyLoads(t *testing.T) {
 	store, cleanup := getTestStore(t, true)
 	defer cleanup()
@@ -366,37 +366,37 @@ func TestMDB001_4A_T8_GetOrCreateNamespaceDB_LazyLoads(t *testing.T) {
 	defer cleanupNamespace(t, store, "test_ns_7")
 
 	// Verify no connection exists yet
-	if len(store.namespaceDBs) != 0 {
-		t.Errorf("Expected 0 namespace connections initially, got %d", len(store.namespaceDBs))
+	if len(store.namespaces) != 0 {
+		t.Errorf("Expected 0 namespace connections initially, got %d", len(store.namespaces))
 	}
 
 	// Access namespace - should create connection
-	db, err := store.getOrCreateNamespaceDB("test_ns_7")
+	handle, err := store.getNamespaceHandle("test_ns_7")
 	if err != nil {
-		t.Fatalf("Failed to get namespace DB: %v", err)
+		t.Fatalf("Failed to get namespace handle: %v", err)
 	}
 
-	if db == nil {
-		t.Error("Expected database connection, got nil")
+	if handle == nil {
+		t.Error("Expected namespace handle, got nil")
 	}
 
 	// Verify connection was cached
-	if len(store.namespaceDBs) != 1 {
-		t.Errorf("Expected 1 namespace connection, got %d", len(store.namespaceDBs))
+	if len(store.namespaces) != 1 {
+		t.Errorf("Expected 1 namespace connection, got %d", len(store.namespaces))
 	}
 
 	// Access again - should return cached connection
-	db2, err := store.getOrCreateNamespaceDB("test_ns_7")
+	handle2, err := store.getNamespaceHandle("test_ns_7")
 	if err != nil {
-		t.Fatalf("Failed to get namespace DB (cached): %v", err)
+		t.Fatalf("Failed to get namespace handle (cached): %v", err)
 	}
 
-	if db != db2 {
-		t.Error("Expected same database connection to be returned")
+	if handle != handle2 {
+		t.Error("Expected same namespace handle to be returned")
 	}
 
 	// Try to access non-existent namespace
-	_, err = store.getOrCreateNamespaceDB("nonexistent")
+	_, err = store.getNamespaceHandle("nonexistent")
 	if err == nil {
 		t.Error("Expected error when accessing non-existent namespace, got nil")
 	}

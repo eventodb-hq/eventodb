@@ -42,6 +42,29 @@ func GenerateToken(namespace string) (string, error) {
 	return token, nil
 }
 
+// GenerateDeterministicToken creates a deterministic token for a namespace.
+// This is useful for test mode where we want the same token across restarts.
+// The token is derived from the namespace name using SHA-256.
+func GenerateDeterministicToken(namespace string) (string, error) {
+	if namespace == "" {
+		return "", fmt.Errorf("namespace cannot be empty")
+	}
+
+	// Create deterministic bytes from namespace using SHA-256
+	hash := sha256.Sum256([]byte("messagedb-test-token:" + namespace))
+
+	// Encode namespace as base64url (URL-safe, no padding)
+	nsEncoded := base64.RawURLEncoding.EncodeToString([]byte(namespace))
+
+	// Encode hash as hexadecimal
+	randomHex := hex.EncodeToString(hash[:])
+
+	// Combine into token format
+	token := fmt.Sprintf("ns_%s_%s", nsEncoded, randomHex)
+
+	return token, nil
+}
+
 // ParseToken extracts the namespace from a token.
 //
 // Returns an error if the token format is invalid.

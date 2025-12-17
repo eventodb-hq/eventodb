@@ -72,6 +72,7 @@ func (h *RPCHandler) registerMethod(name string, handler RPCMethod) {
 
 // ServeHTTP implements http.Handler
 func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("RPC ServeHTTP called")
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
 		h.writeError(w, http.StatusMethodNotAllowed, &RPCError{
@@ -84,6 +85,7 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse request body as JSON array
 	var req []interface{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("JSON parse error: %v", err)
 		h.writeError(w, http.StatusBadRequest, &RPCError{
 			Code:    "INVALID_REQUEST",
 			Message: "Malformed JSON request",
@@ -118,6 +120,7 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route to handler
+	log.Printf("RPC: %s", method)
 	result, err := h.route(r.Context(), method, args)
 	if err != nil {
 		// Determine HTTP status code based on error code
@@ -135,6 +138,9 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			statusCode = http.StatusNotFound
 		case "STREAM_VERSION_CONFLICT", "NAMESPACE_EXISTS":
 			statusCode = http.StatusConflict
+		}
+		if statusCode == http.StatusInternalServerError {
+			log.Printf("500 error on %s: %s - %s", method, err.Code, err.Message)
 		}
 		h.writeError(w, statusCode, err)
 		return

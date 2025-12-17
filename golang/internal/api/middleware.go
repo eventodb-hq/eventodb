@@ -26,7 +26,11 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 		// Log request details
 		duration := time.Since(start)
-		log.Printf("%s %s %d %v", r.Method, r.URL.Path, wrapped.statusCode, duration)
+		if wrapped.statusCode >= 500 {
+			log.Printf("%s %s %d %v [ERROR]", r.Method, r.URL.Path, wrapped.statusCode, duration)
+		} else {
+			log.Printf("%s %s %d %v", r.Method, r.URL.Path, wrapped.statusCode, duration)
+		}
 	})
 }
 
