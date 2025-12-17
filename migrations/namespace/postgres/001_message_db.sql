@@ -10,11 +10,11 @@ CREATE TABLE IF NOT EXISTS "{{SCHEMA_NAME}}".messages (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     stream_name VARCHAR NOT NULL,
     type VARCHAR NOT NULL,
-    position BIGINT NOT NULL,
+    "position" BIGINT NOT NULL,
     global_position BIGSERIAL NOT NULL,
     data JSONB,
     metadata JSONB,
-    time TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+    "time" TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
     PRIMARY KEY (global_position)
 );
 
@@ -156,11 +156,11 @@ RETURNS TABLE (
     id UUID,
     stream_name VARCHAR,
     type VARCHAR,
-    position BIGINT,
+    "position" BIGINT,
     global_position BIGINT,
     data JSONB,
     metadata JSONB,
-    time TIMESTAMP
+    "time" TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -195,11 +195,11 @@ RETURNS TABLE (
     id UUID,
     stream_name VARCHAR,
     type VARCHAR,
-    position BIGINT,
+    "position" BIGINT,
     global_position BIGINT,
     data JSONB,
     metadata JSONB,
-    time TIMESTAMP
+    "time" TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -235,11 +235,11 @@ RETURNS TABLE (
     id UUID,
     stream_name VARCHAR,
     type VARCHAR,
-    position BIGINT,
+    "position" BIGINT,
     global_position BIGINT,
     data JSONB,
     metadata JSONB,
-    time TIMESTAMP
+    "time" TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
