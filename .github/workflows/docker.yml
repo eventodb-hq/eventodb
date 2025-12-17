@@ -1,0 +1,161 @@
+# Message DB CI - Docker Build Workflow
+# Builds and optionally pushes Docker images
+
+name: Docker
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DOCKER_IMAGE: messagedb
+  REGISTRY: ghcr.io
+
+jobs:
+  # ============================================================================
+  # Docker Build and Test
+  # ============================================================================
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.DOCKER_IMAGE }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Test Docker container starts
+        run: |
+          echo "Starting container..."
+          docker run -d --name test-container -p 8080:8080 ${{ env.DOCKER_IMAGE }}:test
+          
+          echo "Waiting for container to be ready..."
+          sleep 5
+          
+          echo "Testing health endpoint..."
+          curl -sf http://localhost:8080/health || (docker logs test-container && exit 1)
+          
+          echo "Testing version endpoint..."
+          curl -sf http://localhost:8080/version
+          
+          echo "Stopping container..."
+          docker stop test-container
+          docker rm test-container
+          
+          echo "✅ Docker tests passed!"
+      
+      - name: Test Docker container with test-mode
+        run: |
+          echo "Starting container in test mode..."
+          docker run -d --name test-container-testmode -p 8081:8080 ${{ env.DOCKER_IMAGE }}:test --test-mode
+          
+          echo "Waiting for container to be ready..."
+          sleep 5
+          
+          echo "Testing health endpoint..."
+          curl -sf http://localhost:8081/health || (docker logs test-container-testmode && exit 1)
+          
+          echo "Testing RPC endpoint (namespace creation)..."
+          RESPONSE=$(curl -sf -X POST http://localhost:8081/rpc \
+            -H "Content-Type: application/json" \
+            -d '["ns.list"]' || echo "FAILED")
+          
+          if [ "$RESPONSE" = "FAILED" ]; then
+            docker logs test-container-testmode
+            exit 1
+          fi
+          
+          echo "Response: $RESPONSE"
+          
+          echo "Stopping container..."
+          docker stop test-container-testmode
+          docker rm test-container-testmode
+          
+          echo "✅ Docker test-mode tests passed!"
+
+  # ============================================================================
+  # Push to GitHub Container Registry (on main/tags only)
+  # ============================================================================
+  docker-push:
+    name: Push Docker Image
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ============================================================================
+  # Docker Compose Validation
+  # ============================================================================
+  docker-compose-validate:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate docker-compose.yml syntax
+        run: docker compose config -q
+      
+      - name: Test docker-compose build
+        run: docker compose build

@@ -6,5 +6,5 @@
 - [X] Phase MDB003_3B: Concurrency & Isolation Tests
 - [X] Phase MDB003_4A: Performance Benchmarks
 - [X] Phase MDB003_5A: Docker & Deployment
-- [ ] Phase MDB003_6A: CI/CD Pipeline
+- [X] Phase MDB003_6A: CI/CD Pipeline
 - [ ] Phase MDB003_7A: Documentation & Examples
