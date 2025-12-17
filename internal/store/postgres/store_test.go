@@ -60,13 +60,21 @@ func cleanupTestNamespaces(t *testing.T, store *PostgresStore) {
 	
 	// Delete all test namespaces (but only test ones)
 	for _, ns := range namespaces {
-		// Only delete namespaces that start with "test_ns_"
-		if len(ns.ID) > 8 && ns.ID[:8] == "test_ns_" {
+		// Delete namespaces that start with "test_ns_" or "test-ns-"
+		if (len(ns.ID) > 8 && ns.ID[:8] == "test_ns_") ||
+		   (len(ns.ID) > 8 && ns.ID[:8] == "test-ns-") {
 			if err := store.DeleteNamespace(ctx, ns.ID); err != nil {
 				t.Logf("Warning: failed to delete namespace %s: %v", ns.ID, err)
 			}
 		}
 	}
+}
+
+// cleanupNamespace removes a specific namespace if it exists (for test cleanup)
+func cleanupNamespace(t *testing.T, store *PostgresStore, namespace string) {
+	t.Helper()
+	ctx := context.Background()
+	_ = store.DeleteNamespace(ctx, namespace) // Ignore error if doesn't exist
 }
 
 // MDB001_2A_T1: Test PostgresStore creation and connection

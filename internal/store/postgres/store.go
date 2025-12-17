@@ -104,29 +104,4 @@ func (s *PostgresStore) Hash64(value string) int64 {
 	return store.Hash64(value)
 }
 
-// Placeholder implementations for message operations (will be implemented in Phase 3)
-
-// WriteMessage writes a message to a stream
-func (s *PostgresStore) WriteMessage(ctx context.Context, namespace, streamName string, msg *store.Message) (*store.WriteResult, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-// GetStreamMessages retrieves messages from a stream
-func (s *PostgresStore) GetStreamMessages(ctx context.Context, namespace, streamName string, opts *store.GetOpts) ([]*store.Message, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-// GetCategoryMessages retrieves messages from a category
-func (s *PostgresStore) GetCategoryMessages(ctx context.Context, namespace, categoryName string, opts *store.CategoryOpts) ([]*store.Message, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-// GetLastStreamMessage retrieves the last message from a stream
-func (s *PostgresStore) GetLastStreamMessage(ctx context.Context, namespace, streamName string, msgType *string) (*store.Message, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-// GetStreamVersion retrieves the current version of a stream
-func (s *PostgresStore) GetStreamVersion(ctx context.Context, namespace, streamName string) (int64, error) {
-	return 0, fmt.Errorf("not implemented yet")
-}
+// Message operation implementations are in write.go and read.go
