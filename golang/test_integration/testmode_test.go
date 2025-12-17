@@ -506,7 +506,7 @@ func TestMDB002_7A_T9_SubscriptionWorkflow(t *testing.T) {
 	maxRetries := 5
 	for i := 0; i < maxRetries; i++ {
 		time.Sleep(100 * time.Millisecond)
-		
+
 		// Try to get messages
 		reqBody := []interface{}{
 			"stream.get",
@@ -518,21 +518,21 @@ func TestMDB002_7A_T9_SubscriptionWorkflow(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
-		
+
 		if w.Code == http.StatusOK {
 			json.Unmarshal(w.Body.Bytes(), &messages)
 			if len(messages) == 2 {
 				break
 			}
 		}
-		
+
 		// If last retry, report error
 		if i == maxRetries-1 {
-			t.Errorf("Failed to get messages after %d retries. Last status: %d, body: %s", 
+			t.Errorf("Failed to get messages after %d retries. Last status: %d, body: %s",
 				maxRetries, w.Code, w.Body.String())
 		}
 	}
-	
+
 	if len(messages) != 2 {
 		t.Errorf("Expected 2 messages (Init + Deposited), got %d", len(messages))
 	}

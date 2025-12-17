@@ -2,23 +2,25 @@
 set -e
 
 echo ""
-echo "=== Running QA Checks ==="
+echo "=== Running QA Checks for Message DB ==="
 echo ""
 
-echo "1. Running go test..."
-(cd golang && go test ./... -v)
+cd golang
 
-
-echo "RUNNING GOLANG WITH POSTGRES..."
-(cd golang && DB_DRIVER=postgres go test ./... -v)
+echo "1. Running go fmt..."
+gofmt -l -w .
 
 echo ""
-echo "2. Running bun tests..."
-(cd kids-real-ui && bun test)
+echo "2. Running go vet..."
+go vet ./...
 
 echo ""
-echo "3. Typescript check..."
-(cd kids-real-ui && bun run tsc --noEmit)
+echo "3. Running all tests..."
+go test ./... -v -timeout 30s
+
+echo ""
+echo "4. Checking for compilation errors..."
+go build ./cmd/messagedb
 
 echo ""
 echo "✅ All QA checks passed!"
