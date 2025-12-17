@@ -53,6 +53,12 @@ func NewRPCHandler(version string, st store.Store) *RPCHandler {
 	// Register category methods
 	h.registerMethod("category.get", h.handleCategoryGet)
 
+	// Register namespace methods
+	h.registerMethod("ns.create", h.handleNamespaceCreate)
+	h.registerMethod("ns.delete", h.handleNamespaceDelete)
+	h.registerMethod("ns.list", h.handleNamespaceList)
+	h.registerMethod("ns.info", h.handleNamespaceInfo)
+
 	return h
 }
 
@@ -161,7 +167,7 @@ func (h *RPCHandler) handleSysHealth(args []interface{}) (interface{}, *RPCError
 		// In a real implementation, the store would expose its type
 		backend = "unknown"
 	}
-	
+
 	return map[string]interface{}{
 		"status":      "ok",
 		"backend":     backend,
@@ -173,7 +179,7 @@ func (h *RPCHandler) handleSysHealth(args []interface{}) (interface{}, *RPCError
 func (h *RPCHandler) writeSuccess(w http.ResponseWriter, result interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		log.Printf("Error encoding response: %v", err)
 	}
@@ -183,7 +189,7 @@ func (h *RPCHandler) writeSuccess(w http.ResponseWriter, result interface{}) {
 func (h *RPCHandler) writeError(w http.ResponseWriter, statusCode int, rpcErr *RPCError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	resp := ErrorResponse{Error: rpcErr}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("Error encoding error response: %v", err)

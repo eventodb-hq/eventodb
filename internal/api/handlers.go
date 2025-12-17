@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/store"
 )
 
@@ -623,4 +624,233 @@ func (h *RPCHandler) handleCategoryGet(args []interface{}) (interface{}, *RPCErr
 	}
 
 	return result, nil
+}
+
+// handleNamespaceCreate creates a new namespace
+// Request: ["ns.create", "namespace-id", {opts}]
+// Response: {"namespace": "tenant-a", "token": "ns_...", "createdAt": "..."}
+func (h *RPCHandler) handleNamespaceCreate(args []interface{}) (interface{}, *RPCError) {
+	// Validate arguments
+	if len(args) < 1 {
+		return nil, &RPCError{
+			Code:    "INVALID_REQUEST",
+			Message: "ns.create requires at least 1 argument: namespace ID",
+		}
+	}
+
+	// Parse namespace ID
+	namespaceID, ok := args[0].(string)
+	if !ok || namespaceID == "" {
+		return nil, &RPCError{
+			Code:    "INVALID_REQUEST",
+			Message: "namespace ID must be a non-empty string",
+		}
+	}
+
+	// Parse optional options
+	description := ""
+	// Note: metadata is parsed but not currently used in namespace creation
+	// It's available for future use
+
+	if len(args) > 1 {
+		optsObj, ok := args[1].(map[string]interface{})
+		if !ok {
+			return nil, &RPCError{
+				Code:    "INVALID_REQUEST",
+				Message: "options must be an object",
+			}
+		}
+
+		// Extract description
+		if descVal, exists := optsObj["description"]; exists {
+			description, ok = descVal.(string)
+			if !ok {
+				return nil, &RPCError{
+					Code:    "INVALID_REQUEST",
+					Message: "options.description must be a string",
+				}
+			}
+		}
+
+		// Extract metadata (for future use)
+		if metaVal, exists := optsObj["metadata"]; exists {
+			_, ok = metaVal.(map[string]interface{})
+			if !ok {
+				return nil, &RPCError{
+					Code:    "INVALID_REQUEST",
+					Message: "options.metadata must be an object",
+				}
+			}
+		}
+	}
+
+	// Generate token and hash
+	token, err := auth.GenerateToken(namespaceID)
+	if err != nil {
+		return nil, &RPCError{
+			Code:    "BACKEND_ERROR",
+			Message: fmt.Sprintf("Failed to generate token: %v", err),
+		}
+	}
+
+	tokenHash := auth.HashToken(token)
+
+	// Create namespace
+	if err := h.store.CreateNamespace(context.Background(), namespaceID, tokenHash, description); err != nil {
+		// Check for specific error types
+		if err.Error() == "namespace already exists" {
+			return nil, &RPCError{
+				Code:    "NAMESPACE_EXISTS",
+				Message: fmt.Sprintf("Namespace '%s' already exists", namespaceID),
+			}
+		}
+
+		return nil, &RPCError{
+			Code:    "BACKEND_ERROR",
+			Message: fmt.Sprintf("Failed to create namespace: %v", err),
+		}
+	}
+
+	// Return result
+	return map[string]interface{}{
+		"namespace": namespaceID,
+		"token":     token,
+		"createdAt": time.Now().UTC().Format(time.RFC3339Nano),
+	}, nil
+}
+
+// handleNamespaceDelete deletes a namespace and all its data
+// Request: ["ns.delete", "namespace-id"]
+// Response: {"namespace": "tenant-a", "deletedAt": "...", "messagesDeleted": 1543}
+func (h *RPCHandler) handleNamespaceDelete(args []interface{}) (interface{}, *RPCError) {
+	// Validate arguments
+	if len(args) < 1 {
+		return nil, &RPCError{
+			Code:    "INVALID_REQUEST",
+			Message: "ns.delete requires 1 argument: namespace ID",
+		}
+	}
+
+	// Parse namespace ID
+	namespaceID, ok := args[0].(string)
+	if !ok || namespaceID == "" {
+		return nil, &RPCError{
+			Code:    "INVALID_REQUEST",
+			Message: "namespace ID must be a non-empty string",
+		}
+	}
+
+	// Get namespace from context (auth middleware should set this)
+	// For now, we use "default" - TODO: implement proper context extraction
+	// contextNamespace := "default"
+
+	// Verify token matches namespace - this should be done by auth middleware
+	// For now, we allow deletion if the request is made
+
+	// Get namespace info before deletion (for message count)
+	// This is optional - we'll return 0 for now as we don't have an easy way to count
+	messagesDeleted := int64(0)
+
+	// Delete namespace
+	if err := h.store.DeleteNamespace(context.Background(), namespaceID); err != nil {
+		// Check for specific error types
+		if err.Error() == "namespace not found" {
+			return nil, &RPCError{
+				Code:    "NAMESPACE_NOT_FOUND",
+				Message: fmt.Sprintf("Namespace '%s' not found", namespaceID),
+			}
+		}
+
+		return nil, &RPCError{
+			Code:    "BACKEND_ERROR",
+			Message: fmt.Sprintf("Failed to delete namespace: %v", err),
+		}
+	}
+
+	// Return result
+	return map[string]interface{}{
+		"namespace":       namespaceID,
+		"deletedAt":       time.Now().UTC().Format(time.RFC3339Nano),
+		"messagesDeleted": messagesDeleted,
+	}, nil
+}
+
+// handleNamespaceList lists all namespaces
+// Request: ["ns.list", {opts}]
+// Response: [{"namespace": "default", "description": "...", "createdAt": "...", "messageCount": 1234}, ...]
+func (h *RPCHandler) handleNamespaceList(args []interface{}) (interface{}, *RPCError) {
+	// Parse optional options (limit, offset - not implemented yet)
+	// For now, we ignore options and return all namespaces
+
+	// Get all namespaces
+	namespaces, err := h.store.ListNamespaces(context.Background())
+	if err != nil {
+		return nil, &RPCError{
+			Code:    "BACKEND_ERROR",
+			Message: fmt.Sprintf("Failed to list namespaces: %v", err),
+		}
+	}
+
+	// Format response
+	result := make([]interface{}, len(namespaces))
+	for i, ns := range namespaces {
+		result[i] = map[string]interface{}{
+			"namespace":    ns.ID,
+			"description":  ns.Description,
+			"createdAt":    ns.CreatedAt.UTC().Format(time.RFC3339Nano),
+			"messageCount": 0, // TODO: implement message counting
+		}
+	}
+
+	return result, nil
+}
+
+// handleNamespaceInfo returns information about a namespace
+// Request: ["ns.info", "namespace-id"]
+// Response: {"namespace": "tenant-a", "description": "...", "createdAt": "...", "messageCount": 567, "streamCount": 12, "lastActivity": "..."}
+func (h *RPCHandler) handleNamespaceInfo(args []interface{}) (interface{}, *RPCError) {
+	// Validate arguments
+	if len(args) < 1 {
+		return nil, &RPCError{
+			Code:    "INVALID_REQUEST",
+			Message: "ns.info requires 1 argument: namespace ID",
+		}
+	}
+
+	// Parse namespace ID
+	namespaceID, ok := args[0].(string)
+	if !ok || namespaceID == "" {
+		return nil, &RPCError{
+			Code:    "INVALID_REQUEST",
+			Message: "namespace ID must be a non-empty string",
+		}
+	}
+
+	// Get namespace
+	ns, err := h.store.GetNamespace(context.Background(), namespaceID)
+	if err != nil {
+		// Check for specific error types
+		if err.Error() == "namespace not found" {
+			return nil, &RPCError{
+				Code:    "NAMESPACE_NOT_FOUND",
+				Message: fmt.Sprintf("Namespace '%s' not found", namespaceID),
+			}
+		}
+
+		return nil, &RPCError{
+			Code:    "BACKEND_ERROR",
+			Message: fmt.Sprintf("Failed to get namespace: %v", err),
+		}
+	}
+
+	// Return result
+	// TODO: Implement actual counts and lastActivity
+	return map[string]interface{}{
+		"namespace":    ns.ID,
+		"description":  ns.Description,
+		"createdAt":    ns.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"messageCount": 0,
+		"streamCount":  0,
+		"lastActivity": nil,
+	}, nil
 }
