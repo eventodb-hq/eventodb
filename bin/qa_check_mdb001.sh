@@ -5,6 +5,8 @@ echo ""
 echo "=== Running QA Checks for MDB001 ==="
 echo ""
 
+cd golang
+
 echo "1. Running go test (all packages)..."
 go test ./internal/store/... -v
 

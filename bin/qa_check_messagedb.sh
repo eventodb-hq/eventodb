@@ -5,6 +5,8 @@ echo ""
 echo "=== Running QA Checks for Message DB ==="
 echo ""
 
+cd golang
+
 echo "1. Running go fmt..."
 gofmt -l -w .
 

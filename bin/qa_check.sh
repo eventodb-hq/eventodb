@@ -6,11 +6,11 @@ echo "=== Running QA Checks ==="
 echo ""
 
 echo "1. Running go test..."
-(cd backend && go test ./... -v)
+(cd golang && go test ./... -v)
 
 
-echo "RUNNING GOANG WITH POSTGRES..."
-(cd backend && DB_DRIVER=postgres go test ./... -v)
+echo "RUNNING GOLANG WITH POSTGRES..."
+(cd golang && DB_DRIVER=postgres go test ./... -v)
 
 echo ""
 echo "2. Running bun tests..."
