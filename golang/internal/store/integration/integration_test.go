@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/message-db/message-db/internal/store"
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
@@ -33,7 +33,7 @@ func getPostgresFactory() backendFactory {
 		connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 			host, port, user, password, dbname)
 
-		db, err := sql.Open("postgres", connStr)
+		db, err := sql.Open("pgx", connStr)
 		if err != nil {
 			t.Skipf("Failed to connect to Postgres: %v (skipping Postgres tests)", err)
 			return nil, nil

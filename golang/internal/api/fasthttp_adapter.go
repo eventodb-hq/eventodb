@@ -81,12 +81,12 @@ func AdaptRequestToStdlib(ctx *fasthttp.RequestCtx) (*http.Request, http.Respons
 
 	// Create request context with namespace and test mode from fasthttp user values
 	reqCtx := context.Background()
-	
+
 	// Transfer namespace from fasthttp user values to context
 	if namespace, ok := GetNamespaceFromFastHTTP(ctx); ok {
 		reqCtx = context.WithValue(reqCtx, ContextKeyNamespace, namespace)
 	}
-	
+
 	// Transfer test mode from fasthttp user values to context
 	if IsTestModeFastHTTP(ctx) {
 		reqCtx = context.WithValue(reqCtx, ContextKeyTestMode, true)

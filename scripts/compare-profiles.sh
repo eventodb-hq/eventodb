@@ -1,123 +1,57 @@
 #!/bin/bash
-# Compare two profile runs to measure optimization impact
-
-set -e
+# Compare two profile directories
 
 if [ $# -ne 2 ]; then
-  echo "Usage: $0 <baseline-profile-dir> <optimized-profile-dir>"
-  echo ""
-  echo "Example:"
-  echo "  $0 profiles/20241218_120000 profiles/20241218_130000"
+  echo "Usage: $0 <profile_dir_1> <profile_dir_2>"
+  echo "Example: $0 ./profiles/20251218_225728-postgres ./profiles/20251218_225959-postgres"
   exit 1
 fi
 
-BASELINE=$1
-OPTIMIZED=$2
+DIR1="$1"
+DIR2="$2"
 
-if [ ! -d "$BASELINE" ]; then
-  echo "Error: Baseline directory not found: $BASELINE"
-  exit 1
-fi
-
-if [ ! -d "$OPTIMIZED" ]; then
-  echo "Error: Optimized directory not found: $OPTIMIZED"
-  exit 1
-fi
-
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║         Profile Comparison Report                          ║"
-echo "╚════════════════════════════════════════════════════════════╝"
+echo "=== Profile Comparison ==="
 echo ""
-echo "Baseline:  $BASELINE"
-echo "Optimized: $OPTIMIZED"
+echo "Profile 1: $DIR1"
+echo "Profile 2: $DIR2"
 echo ""
 
 # Compare load test results
-echo "═══════════════════════════════════════════════════════════════"
-echo "  THROUGHPUT COMPARISON"
-echo "═══════════════════════════════════════════════════════════════"
-if [ -f "$BASELINE/load-test-results.json" ] && [ -f "$OPTIMIZED/load-test-results.json" ]; then
-  BASELINE_OPS=$(jq -r '.ops_per_sec' "$BASELINE/load-test-results.json")
-  OPTIMIZED_OPS=$(jq -r '.ops_per_sec' "$OPTIMIZED/load-test-results.json")
-  BASELINE_LAT=$(jq -r '.avg_latency_ms' "$BASELINE/load-test-results.json")
-  OPTIMIZED_LAT=$(jq -r '.avg_latency_ms' "$OPTIMIZED/load-test-results.json")
-  
-  # Calculate improvements
-  OPS_IMPROVEMENT=$(echo "scale=2; ($OPTIMIZED_OPS - $BASELINE_OPS) / $BASELINE_OPS * 100" | bc)
-  LAT_IMPROVEMENT=$(echo "scale=2; ($BASELINE_LAT - $OPTIMIZED_LAT) / $BASELINE_LAT * 100" | bc)
-  
+if [ -f "$DIR1/load-test-results.json" ] && [ -f "$DIR2/load-test-results.json" ]; then
+  echo "=== Load Test Results ==="
   echo ""
-  echo "Throughput:"
-  echo "  Baseline:    ${BASELINE_OPS} ops/sec"
-  echo "  Optimized:   ${OPTIMIZED_OPS} ops/sec"
-  echo "  Change:      ${OPS_IMPROVEMENT}%"
+  echo "Profile 1:"
+  cat "$DIR1/load-test-results.json"
   echo ""
-  echo "Latency:"
-  echo "  Baseline:    ${BASELINE_LAT} ms"
-  echo "  Optimized:   ${OPTIMIZED_LAT} ms"
-  echo "  Change:      ${LAT_IMPROVEMENT}%"
-  echo ""
-else
-  echo "⚠️  Load test results not found in one or both directories"
+  echo "Profile 2:"
+  cat "$DIR2/load-test-results.json"
   echo ""
 fi
 
-# Compare allocation profiles
-echo "═══════════════════════════════════════════════════════════════"
-echo "  ALLOCATION ANALYSIS"
-echo "═══════════════════════════════════════════════════════════════"
+# Compare top allocations
+echo "=== Top Allocations Comparison ==="
+echo ""
+echo "Profile 1 - Top 15 allocations:"
+go tool pprof -top -alloc_space "$DIR1/allocs-after.prof" 2>/dev/null | head -20
+echo ""
+echo "Profile 2 - Top 15 allocations:"
+go tool pprof -top -alloc_space "$DIR2/allocs-after.prof" 2>/dev/null | head -20
 echo ""
 
-if [ -f "$BASELINE/allocs-after.prof" ] && [ -f "$OPTIMIZED/allocs-after.prof" ]; then
-  echo "Top allocation changes (negative = improvement):"
-  echo ""
-  go tool pprof -top -alloc_space -base="$BASELINE/allocs-after.prof" "$OPTIMIZED/allocs-after.prof" 2>/dev/null | head -20
-  echo ""
-  
-  echo "─────────────────────────────────────────────────────────────"
-  echo "Baseline top allocations:"
-  echo ""
-  go tool pprof -top -alloc_space "$BASELINE/allocs-after.prof" 2>/dev/null | head -15
-  
-  echo ""
-  echo "─────────────────────────────────────────────────────────────"
-  echo "Optimized top allocations:"
-  echo ""
-  go tool pprof -top -alloc_space "$OPTIMIZED/allocs-after.prof" 2>/dev/null | head -15
-else
-  echo "⚠️  Allocation profiles not found in one or both directories"
-fi
-
-echo ""
-echo "═══════════════════════════════════════════════════════════════"
-echo "  DETAILED ANALYSIS COMMANDS"
-echo "═══════════════════════════════════════════════════════════════"
-echo ""
-echo "Interactive comparison:"
-echo "  go tool pprof -base=$BASELINE/allocs-after.prof $OPTIMIZED/allocs-after.prof"
-echo ""
-echo "Web UI comparison:"
-echo "  go tool pprof -http=:9090 -base=$BASELINE/allocs-after.prof $OPTIMIZED/allocs-after.prof"
-echo ""
-echo "CPU profile comparison:"
-echo "  go tool pprof -base=$BASELINE/cpu.prof $OPTIMIZED/cpu.prof"
+# Get total allocations
+echo "=== Total Allocations ==="
+TOTAL1=$(go tool pprof -top -alloc_space "$DIR1/allocs-after.prof" 2>/dev/null | grep "^Showing" | awk '{print $7}')
+TOTAL2=$(go tool pprof -top -alloc_space "$DIR2/allocs-after.prof" 2>/dev/null | grep "^Showing" | awk '{print $7}')
+echo "Profile 1 Total: $TOTAL1"
+echo "Profile 2 Total: $TOTAL2"
 echo ""
 
-# Generate summary report
-REPORT_FILE="profile-comparison-$(date +%Y%m%d_%H%M%S).txt"
-{
-  echo "Profile Comparison Report"
-  echo "Generated: $(date)"
-  echo ""
-  echo "Baseline:  $BASELINE"
-  echo "Optimized: $OPTIMIZED"
-  echo ""
-  if [ -f "$BASELINE/load-test-results.json" ] && [ -f "$OPTIMIZED/load-test-results.json" ]; then
-    echo "Performance Metrics:"
-    echo "  Throughput: ${BASELINE_OPS} -> ${OPTIMIZED_OPS} ops/sec (${OPS_IMPROVEMENT}%)"
-    echo "  Latency:    ${BASELINE_LAT} -> ${OPTIMIZED_LAT} ms (${LAT_IMPROVEMENT}%)"
-  fi
-} > "$REPORT_FILE"
-
-echo "Summary saved to: $REPORT_FILE"
+# Compare specific functions
+echo "=== Driver-specific allocations ==="
+echo ""
+echo "Profile 1 (lib/pq):"
+go tool pprof -top -alloc_space "$DIR1/allocs-after.prof" 2>/dev/null | grep "lib/pq" || echo "  (none found)"
+echo ""
+echo "Profile 2 (pgx):"
+go tool pprof -top -alloc_space "$DIR2/allocs-after.prof" 2>/dev/null | grep "pgx" || echo "  (none found)"
 echo ""

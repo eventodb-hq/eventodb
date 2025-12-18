@@ -17,7 +17,7 @@ import (
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
 
@@ -148,7 +148,7 @@ func setupPostgresEnv(t *testing.T) *TestEnv {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		t.Fatalf("Failed to open PostgreSQL connection: %v", err)
 	}
@@ -283,7 +283,7 @@ func setupPostgresEnvWithDefaultNamespace(t *testing.T) *TestEnv {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		t.Fatalf("Failed to open PostgreSQL connection: %v", err)
 	}

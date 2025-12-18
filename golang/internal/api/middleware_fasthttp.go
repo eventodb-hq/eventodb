@@ -51,7 +51,7 @@ func AuthMiddlewareFast(st NamespaceGetter, testMode bool) func(fasthttp.Request
 
 			// Extract token - first check query parameter (for SSE), then Authorization header
 			var token string
-			
+
 			// Check query parameter first (for SSE subscriptions which can't set custom headers)
 			if tokenParam := string(ctx.QueryArgs().Peek("token")); tokenParam != "" {
 				token = tokenParam

@@ -80,8 +80,9 @@ func (s *PostgresStore) WriteMessage(ctx context.Context, namespace, streamName 
 		lastErr = err
 
 		// Check for version conflict error (don't retry this)
-		if err.Error() == "pq: Wrong expected version" ||
-			(err != nil && len(err.Error()) > 20 && err.Error()[:20] == "pq: Wrong expected v") {
+		// pgx doesn't prefix errors with "pq:", so check for the actual error message
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "Wrong expected version") {
 			return nil, store.ErrVersionConflict
 		}
 

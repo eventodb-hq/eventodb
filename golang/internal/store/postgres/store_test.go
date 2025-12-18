@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // getTestDB creates a new database connection for testing
@@ -25,7 +25,7 @@ func getTestDB(t *testing.T) *sql.DB {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		t.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestMDB001_2A_T2_Close_Cleanup(t *testing.T) {
 		getEnv("POSTGRES_PASSWORD", "postgres"),
 		getEnv("POSTGRES_DB", "postgres"))
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

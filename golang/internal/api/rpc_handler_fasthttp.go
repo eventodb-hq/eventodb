@@ -28,5 +28,3 @@ func FastHTTPRPCHandler(h *RPCHandler, testMode bool) fasthttp.RequestHandler {
 		h.ServeHTTPFast(ctx)
 	}
 }
-
-

@@ -3,6 +3,7 @@ package timescale
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/message-db/message-db/internal/store"
@@ -66,8 +67,8 @@ func (s *TimescaleStore) WriteMessage(ctx context.Context, namespace, streamName
 
 	if err != nil {
 		// Check for version conflict error
-		if err.Error() == "pq: Wrong expected version" ||
-			(err != nil && len(err.Error()) > 20 && err.Error()[:20] == "pq: Wrong expected v") {
+		// pgx doesn't prefix errors with "pq:", so check for the actual error message
+		if strings.Contains(err.Error(), "Wrong expected version") {
 			return nil, store.ErrVersionConflict
 		}
 		return nil, fmt.Errorf("failed to write message: %w", err)

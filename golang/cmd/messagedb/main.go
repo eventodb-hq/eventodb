@@ -24,7 +24,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/pprofhandler"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
 
@@ -118,7 +118,7 @@ func parseDBConfig(dbURL, dataDir, dbTypeOverride string, testMode bool) (*dbCon
 func createStore(cfg *dbConfig) (store.Store, func(), error) {
 	switch cfg.dbType {
 	case "postgres":
-		db, err := sql.Open("postgres", cfg.connStr)
+		db, err := sql.Open("pgx", cfg.connStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 		}
@@ -149,7 +149,7 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 		return st, cleanup, nil
 
 	case "timescale":
-		db, err := sql.Open("postgres", cfg.connStr)
+		db, err := sql.Open("pgx", cfg.connStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to open TimescaleDB connection: %w", err)
 		}

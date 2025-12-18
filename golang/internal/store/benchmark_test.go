@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 
 	"github.com/message-db/message-db/internal/store"
@@ -411,7 +411,7 @@ func setupPostgresForBenchmark(b *testing.B) store.Store {
 	b.Helper()
 
 	connStr := "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		b.Fatalf("Failed to connect to Postgres: %v", err)
 	}

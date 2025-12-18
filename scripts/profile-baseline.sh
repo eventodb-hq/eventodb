@@ -31,15 +31,12 @@ cd ..
 # Start server with pprof enabled
 echo "Starting server..."
 
-# Create a temporary file to capture server output
-SERVER_LOG=$(mktemp)
-
 if [ "$DB_TYPE" = "sqlite" ]; then
   # SQLite test mode
   ./dist/messagedb-profile \
     --test-mode \
     --port 8080 \
-    --log-level info > "$SERVER_LOG" 2>&1 &
+    --log-level warn &
   SERVER_PID=$!
 elif [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
   # PostgreSQL/TimescaleDB mode
@@ -65,17 +62,22 @@ elif [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
     " 2>/dev/null || true
   fi
   
+  # Use a deterministic token for profiling to avoid auth issues
+  PROFILE_TOKEN="ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1c0b0c5e0f8e9a"
+  
   if [ "$DB_TYPE" = "timescale" ]; then
     ./dist/messagedb-profile \
       --port 8080 \
       --db-url "$DB_URL" \
       --db-type timescale \
-      --log-level info > "$SERVER_LOG" 2>&1 &
+      --token "$PROFILE_TOKEN" \
+      --log-level warn &
   else
     ./dist/messagedb-profile \
       --port 8080 \
       --db-url "$DB_URL" \
-      --log-level info > "$SERVER_LOG" 2>&1 &
+      --token "$PROFILE_TOKEN" \
+      --log-level warn &
   fi
   SERVER_PID=$!
 else
@@ -90,9 +92,6 @@ cleanup() {
   echo "Stopping server..."
   kill $SERVER_PID 2>/dev/null || true
   wait $SERVER_PID 2>/dev/null || true
-  
-  # Clean up server log
-  rm -f "$SERVER_LOG"
   
   # Clean up PostgreSQL test namespaces
   if [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
@@ -118,31 +117,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Wait for server to be ready and extract token
+# Wait for server to be ready
 echo "Waiting for server to be ready..."
 sleep 2
-DEFAULT_TOKEN=""
 for i in {1..30}; do
   if curl -s http://localhost:8080/health > /dev/null 2>&1; then
     echo "Server is ready!"
-    
-    # Extract token from server log
-    # Look for the token line (starts with "ns_")
-    DEFAULT_TOKEN=$(grep -o 'ns_[a-zA-Z0-9_]*' "$SERVER_LOG" | head -1)
-    
-    if [ -z "$DEFAULT_TOKEN" ]; then
-      echo "Warning: Could not extract default token from server logs"
-      cat "$SERVER_LOG"
-      exit 1
-    fi
-    
-    echo "Extracted token: $DEFAULT_TOKEN"
     break
   fi
   sleep 1
   if [ $i -eq 30 ]; then
     echo "Server failed to start"
-    cat "$SERVER_LOG"
     exit 1
   fi
 done
@@ -160,9 +145,13 @@ if [ ! -s "$PROFILE_DIR/allocs-before.prof" ]; then
   echo "Warning: Failed to capture allocs-before.prof"
 fi
 
-# Run load test with extracted token
+# Run load test
 echo "Running load test (30 seconds)..."
-DEFAULT_TOKEN="$DEFAULT_TOKEN" go run ./scripts/load-test.go \
+# For PostgreSQL/TimescaleDB, use the deterministic token
+if [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
+  export DEFAULT_TOKEN="ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1c0b0c5e0f8e9a"
+fi
+go run ./scripts/load-test.go \
   --duration 30s \
   --workers 10 \
   --profile-dir "$PROFILE_DIR" &
