@@ -21,11 +21,11 @@ func sendPokeBaseline(streamName string, position, globalPosition int64) ([]byte
 func sendPokePooled(streamName string, position, globalPosition int64) ([]byte, error) {
 	poke := pokePool.Get().(*Poke)
 	defer pokePool.Put(poke)
-	
+
 	poke.Stream = streamName
 	poke.Position = position
 	poke.GlobalPosition = globalPosition
-	
+
 	return json.Marshal(poke)
 }
 
@@ -39,20 +39,20 @@ var bufferPool = sync.Pool{
 func sendPokePooledWithBuffer(streamName string, position, globalPosition int64) ([]byte, error) {
 	poke := pokePool.Get().(*Poke)
 	defer pokePool.Put(poke)
-	
+
 	poke.Stream = streamName
 	poke.Position = position
 	poke.GlobalPosition = globalPosition
-	
+
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
 	buf.Reset()
-	
+
 	enc := json.NewEncoder(buf)
 	if err := enc.Encode(poke); err != nil {
 		return nil, err
 	}
-	
+
 	// Need to copy because we're returning the buffer to the pool
 	result := make([]byte, buf.Len())
 	copy(result, buf.Bytes())
@@ -225,7 +225,7 @@ func TestPokePoolReuse(t *testing.T) {
 
 	// Get another poke (might be the same object)
 	poke2 := pokePool.Get().(*Poke)
-	
+
 	// Should be a valid Poke object (either new or recycled)
 	// If recycled, it will have old values that we'll overwrite
 	poke2.Stream = "test-2"

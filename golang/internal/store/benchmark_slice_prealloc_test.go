@@ -13,7 +13,7 @@ import (
 // BenchmarkReadOperations measures the impact of slice pre-allocation
 func BenchmarkReadOperations(b *testing.B) {
 	ctx := context.Background()
-	
+
 	// Create in-memory metadata database
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {

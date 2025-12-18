@@ -150,10 +150,10 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 		poke.Stream = streamName
 		poke.Position = msg.Position
 		poke.GlobalPosition = msg.GlobalPosition
-		
+
 		err := h.sendPoke(w, poke)
 		pokePool.Put(poke)
-		
+
 		if err != nil {
 			return
 		}
@@ -184,10 +184,10 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 				poke.Stream = event.Stream
 				poke.Position = event.Position
 				poke.GlobalPosition = event.GlobalPosition
-				
+
 				err := h.sendPoke(w, poke)
 				pokePool.Put(poke)
-				
+
 				if err != nil {
 					return
 				}
@@ -230,10 +230,10 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 		poke.Stream = msg.StreamName
 		poke.Position = msg.Position
 		poke.GlobalPosition = msg.GlobalPosition
-		
+
 		err := h.sendPoke(w, poke)
 		pokePool.Put(poke)
-		
+
 		if err != nil {
 			return
 		}
@@ -268,10 +268,10 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 				poke.Stream = event.Stream
 				poke.Position = event.Position
 				poke.GlobalPosition = event.GlobalPosition
-				
+
 				err := h.sendPoke(w, poke)
 				pokePool.Put(poke)
-				
+
 				if err != nil {
 					return
 				}
