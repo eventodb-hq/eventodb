@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/logger"
@@ -18,6 +19,13 @@ type Poke struct {
 	Stream         string `json:"stream"`
 	Position       int64  `json:"position"`
 	GlobalPosition int64  `json:"globalPosition"`
+}
+
+// pokePool reduces allocations for SSE poke notifications
+var pokePool = sync.Pool{
+	New: func() interface{} {
+		return &Poke{}
+	},
 }
 
 // SSEHandler manages Server-Sent Events subscriptions
@@ -138,12 +146,15 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 
 	lastPosition := startPosition
 	for _, msg := range messages {
-		poke := Poke{
-			Stream:         streamName,
-			Position:       msg.Position,
-			GlobalPosition: msg.GlobalPosition,
-		}
-		if err := h.sendPoke(w, poke); err != nil {
+		poke := pokePool.Get().(*Poke)
+		poke.Stream = streamName
+		poke.Position = msg.Position
+		poke.GlobalPosition = msg.GlobalPosition
+		
+		err := h.sendPoke(w, poke)
+		pokePool.Put(poke)
+		
+		if err != nil {
 			return
 		}
 		lastPosition = msg.Position + 1
@@ -169,12 +180,15 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 			}
 			// Only send if position >= our tracking position
 			if event.Position >= lastPosition {
-				poke := Poke{
-					Stream:         event.Stream,
-					Position:       event.Position,
-					GlobalPosition: event.GlobalPosition,
-				}
-				if err := h.sendPoke(w, poke); err != nil {
+				poke := pokePool.Get().(*Poke)
+				poke.Stream = event.Stream
+				poke.Position = event.Position
+				poke.GlobalPosition = event.GlobalPosition
+				
+				err := h.sendPoke(w, poke)
+				pokePool.Put(poke)
+				
+				if err != nil {
 					return
 				}
 				lastPosition = event.Position + 1
@@ -212,12 +226,15 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 		if consumerSize > 0 && !h.matchesConsumerGroup(msg.StreamName, consumerMember, consumerSize) {
 			continue
 		}
-		poke := Poke{
-			Stream:         msg.StreamName,
-			Position:       msg.Position,
-			GlobalPosition: msg.GlobalPosition,
-		}
-		if err := h.sendPoke(w, poke); err != nil {
+		poke := pokePool.Get().(*Poke)
+		poke.Stream = msg.StreamName
+		poke.Position = msg.Position
+		poke.GlobalPosition = msg.GlobalPosition
+		
+		err := h.sendPoke(w, poke)
+		pokePool.Put(poke)
+		
+		if err != nil {
 			return
 		}
 		lastGlobalPosition = msg.GlobalPosition + 1
@@ -247,12 +264,15 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 				if consumerSize > 0 && !h.matchesConsumerGroup(event.Stream, consumerMember, consumerSize) {
 					continue
 				}
-				poke := Poke{
-					Stream:         event.Stream,
-					Position:       event.Position,
-					GlobalPosition: event.GlobalPosition,
-				}
-				if err := h.sendPoke(w, poke); err != nil {
+				poke := pokePool.Get().(*Poke)
+				poke.Stream = event.Stream
+				poke.Position = event.Position
+				poke.GlobalPosition = event.GlobalPosition
+				
+				err := h.sendPoke(w, poke)
+				pokePool.Put(poke)
+				
+				if err != nil {
 					return
 				}
 				lastGlobalPosition = event.GlobalPosition + 1
@@ -272,7 +292,7 @@ func (h *SSEHandler) matchesConsumerGroup(streamName string, member, size int64)
 }
 
 // sendPoke sends a poke event via SSE
-func (h *SSEHandler) sendPoke(w http.ResponseWriter, poke Poke) error {
+func (h *SSEHandler) sendPoke(w http.ResponseWriter, poke *Poke) error {
 	data, err := json.Marshal(poke)
 	if err != nil {
 		return err

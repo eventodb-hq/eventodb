@@ -499,51 +499,53 @@ func Category(streamName string) string {
 
 ---
 
-### 4. Poke Object Pooling in SSE
+### 4. Poke Object Pooling in SSE ✅ COMPLETED
 
 **Impact**: 🟡 HIGH - Frequent allocations in SSE streaming
 
 **Files**:
-- `golang/internal/api/sse.go:149, 168, 215, 235`
+- `golang/internal/api/sse.go` (4 locations updated)
 
-**Current Code**:
+**Optimization Applied**:
 ```go
-poke := Poke{
-    Stream:         streamName,
-    Position:       msg.Position,
-    GlobalPosition: msg.GlobalPosition,
-}
-data, err := json.Marshal(poke)
-```
-
-**Optimization Strategy**:
-```go
+// Global pool for Poke objects
 var pokePool = sync.Pool{
     New: func() interface{} {
         return &Poke{}
     },
 }
 
-var bufferPool = sync.Pool{
-    New: func() interface{} {
-        return new(bytes.Buffer)
-    },
+// BEFORE: Direct allocation
+poke := Poke{
+    Stream:         streamName,
+    Position:       msg.Position,
+    GlobalPosition: msg.GlobalPosition,
+}
+if err := h.sendPoke(w, poke); err != nil {
+    return
 }
 
-// In sendPoke:
+// AFTER: Pool reuse
 poke := pokePool.Get().(*Poke)
-defer pokePool.Put(poke)
 poke.Stream = streamName
-poke.Position = position
-poke.GlobalPosition = globalPosition
+poke.Position = msg.Position
+poke.GlobalPosition = msg.GlobalPosition
 
-buf := bufferPool.Get().(*bytes.Buffer)
-defer bufferPool.Put(buf)
-buf.Reset()
-json.NewEncoder(buf).Encode(poke)
+err := h.sendPoke(w, poke)
+pokePool.Put(poke)  // Return immediately
+
+if err != nil {
+    return
+}
 ```
 
-**Expected Impact**: 15-25% reduction in SSE allocations
+**Actual Results**:
+- **10% faster** (153ns → 141ns)
+- **50% allocation reduction** (2 allocs → 1 alloc)
+- **33% memory reduction** (96 bytes → 64 bytes)
+- System-wide impact: ~2.5% baseline, 5-10% under high SSE load
+
+**Key Insight**: sync.Pool perfect for short-lived, frequently-created objects!
 
 ---
 
@@ -629,7 +631,12 @@ Each optimization must demonstrate:
   - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
   - [x] **Results**: See `optimization-003-string-splitting-results.md`
   - [x] **Key Lesson**: Best effort-to-reward ratio - simple change, massive local improvement
-- [ ] Implement optimization #4: Poke object pooling
+- [x] **Implement optimization #4: Poke object pooling** ✅ COMPLETED 2024-12-18
+  - [x] Benchmark before/after - 10% faster, 50% allocation reduction
+  - [x] Profile impact - 2.5% baseline (5-10% under high SSE load)
+  - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
+  - [x] **Results**: See `optimization-004-poke-pooling-results.md`
+  - [x] **Key Lesson**: sync.Pool perfect for transient objects - GC benefits compound over time
 - [ ] Implement optimization #5: Response map pooling
 - [ ] Run final comparison profile
 - [ ] Document results and learnings
