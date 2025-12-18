@@ -167,7 +167,7 @@ func TestMDB001_1A_T5_MigrationTrackingRecordsVersionAndTimestamp(t *testing.T) 
 
 // Helper: setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}

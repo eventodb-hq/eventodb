@@ -57,6 +57,21 @@ func (s *PostgresStore) CreateNamespace(ctx context.Context, id, tokenHash, desc
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Verify the schema is accessible by checking if we can query the messages table
+	// This helps avoid race conditions where concurrent operations might try to access
+	// the schema before it's fully available
+	// We'll retry a few times to ensure the schema is fully propagated
+	verifyQuery := fmt.Sprintf(`SELECT COUNT(*) FROM "%s".messages`, schemaName)
+	var count int
+	for attempts := 0; attempts < 5; attempts++ {
+		if err := s.db.QueryRowContext(ctx, verifyQuery).Scan(&count); err == nil {
+			// Success - schema is accessible
+			break
+		}
+		// Wait a bit before retrying
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	return nil
 }
 

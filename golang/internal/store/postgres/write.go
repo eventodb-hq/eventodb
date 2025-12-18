@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/message-db/message-db/internal/store"
@@ -56,24 +58,47 @@ func (s *PostgresStore) WriteMessage(ctx context.Context, namespace, streamName 
 	)
 
 	var position int64
-	err = s.db.QueryRowContext(
-		ctx,
-		query,
-		msg.ID,
-		streamName,
-		msg.Type,
-		dataParam,
-		metadataParam,
-		msg.ExpectedVersion,
-	).Scan(&position)
+	var lastErr error
 
-	if err != nil {
-		// Check for version conflict error
+	// Retry logic for handling race conditions during schema creation
+	for attempts := 0; attempts < 3; attempts++ {
+		err = s.db.QueryRowContext(
+			ctx,
+			query,
+			msg.ID,
+			streamName,
+			msg.Type,
+			dataParam,
+			metadataParam,
+			msg.ExpectedVersion,
+		).Scan(&position)
+
+		if err == nil {
+			// Success
+			break
+		}
+
+		lastErr = err
+
+		// Check for version conflict error (don't retry this)
 		if err.Error() == "pq: Wrong expected version" ||
 			(err != nil && len(err.Error()) > 20 && err.Error()[:20] == "pq: Wrong expected v") {
 			return nil, store.ErrVersionConflict
 		}
-		return nil, fmt.Errorf("failed to write message: %w", err)
+
+		// Check if error is due to missing relation (schema not ready yet)
+		if strings.Contains(err.Error(), "does not exist") && attempts < 2 {
+			// Wait a bit and retry
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+
+		// Other errors, don't retry
+		break
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("failed to write message: %w", lastErr)
 	}
 
 	// 6. Query for global_position
@@ -84,8 +109,20 @@ func (s *PostgresStore) WriteMessage(ctx context.Context, namespace, streamName 
 	)
 
 	var globalPosition int64
-	err = s.db.QueryRowContext(ctx, globalQuery, streamName, position).Scan(&globalPosition)
-	if err != nil {
+
+	// Retry logic for the global position query as well
+	for attempts := 0; attempts < 3; attempts++ {
+		err = s.db.QueryRowContext(ctx, globalQuery, streamName, position).Scan(&globalPosition)
+		if err == nil {
+			break
+		}
+
+		// Check if error is due to missing relation (schema not ready yet)
+		if strings.Contains(err.Error(), "does not exist") && attempts < 2 {
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+
 		return nil, fmt.Errorf("failed to get global position: %w", err)
 	}
 
