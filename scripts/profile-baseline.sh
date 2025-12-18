@@ -4,10 +4,22 @@
 
 set -e
 
-PROFILE_DIR="./profiles/$(date +%Y%m%d_%H%M%S)"
+# Parse arguments
+DB_TYPE="${1:-sqlite}"  # default to sqlite for backward compatibility
+PROFILE_SUFFIX="${DB_TYPE}"
+
+# PostgreSQL connection settings (only used if DB_TYPE=postgres or DB_TYPE=timescale)
+POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
+POSTGRES_DB="${POSTGRES_DB:-message_store}"
+
+PROFILE_DIR="./profiles/$(date +%Y%m%d_%H%M%S)-${PROFILE_SUFFIX}"
 mkdir -p "$PROFILE_DIR"
 
 echo "=== Message DB Performance Profiling ==="
+echo "Database Type: $DB_TYPE"
 echo "Profile directory: $PROFILE_DIR"
 
 # Build server with profiling enabled
@@ -18,26 +30,119 @@ cd ..
 
 # Start server with pprof enabled
 echo "Starting server..."
-./dist/messagedb-profile \
-  --test-mode \
-  --port 8080 \
-  --log-level warn &
 
-SERVER_PID=$!
+# Create a temporary file to capture server output
+SERVER_LOG=$(mktemp)
+
+if [ "$DB_TYPE" = "sqlite" ]; then
+  # SQLite test mode
+  ./dist/messagedb-profile \
+    --test-mode \
+    --port 8080 \
+    --log-level info > "$SERVER_LOG" 2>&1 &
+  SERVER_PID=$!
+elif [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
+  # PostgreSQL/TimescaleDB mode
+  DB_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+  
+  # Clean up any old test namespaces
+  if command -v psql &> /dev/null; then
+    echo "Cleaning up old test namespaces..."
+    PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "
+      DO \$\$
+      DECLARE
+        ns RECORD;
+      BEGIN
+        FOR ns IN SELECT schema_name FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%'
+        LOOP
+          EXECUTE 'DROP SCHEMA IF EXISTS \"' || ns.schema_name || '\" CASCADE';
+        END LOOP;
+        DELETE FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%';
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN invalid_schema_name THEN NULL;
+      END \$\$;
+    " 2>/dev/null || true
+  fi
+  
+  if [ "$DB_TYPE" = "timescale" ]; then
+    ./dist/messagedb-profile \
+      --port 8080 \
+      --db-url "$DB_URL" \
+      --db-type timescale \
+      --log-level info > "$SERVER_LOG" 2>&1 &
+  else
+    ./dist/messagedb-profile \
+      --port 8080 \
+      --db-url "$DB_URL" \
+      --log-level info > "$SERVER_LOG" 2>&1 &
+  fi
+  SERVER_PID=$!
+else
+  echo "Error: Unknown database type '$DB_TYPE'. Use: sqlite, postgres, or timescale"
+  exit 1
+fi
+
 echo "Server PID: $SERVER_PID"
 
-# Wait for server to be ready
+# Cleanup function
+cleanup() {
+  echo "Stopping server..."
+  kill $SERVER_PID 2>/dev/null || true
+  wait $SERVER_PID 2>/dev/null || true
+  
+  # Clean up server log
+  rm -f "$SERVER_LOG"
+  
+  # Clean up PostgreSQL test namespaces
+  if [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
+    if command -v psql &> /dev/null; then
+      echo "Cleaning up test namespaces..."
+      PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "
+        DO \$\$
+        DECLARE
+          ns RECORD;
+        BEGIN
+          FOR ns IN SELECT schema_name FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%'
+          LOOP
+            EXECUTE 'DROP SCHEMA IF EXISTS \"' || ns.schema_name || '\" CASCADE';
+          END LOOP;
+          DELETE FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%';
+        EXCEPTION
+          WHEN undefined_table THEN NULL;
+          WHEN invalid_schema_name THEN NULL;
+        END \$\$;
+      " 2>/dev/null || true
+    fi
+  fi
+}
+trap cleanup EXIT
+
+# Wait for server to be ready and extract token
 echo "Waiting for server to be ready..."
 sleep 2
+DEFAULT_TOKEN=""
 for i in {1..30}; do
   if curl -s http://localhost:8080/health > /dev/null 2>&1; then
     echo "Server is ready!"
+    
+    # Extract token from server log
+    # Look for the token line (starts with "ns_")
+    DEFAULT_TOKEN=$(grep -o 'ns_[a-zA-Z0-9_]*' "$SERVER_LOG" | head -1)
+    
+    if [ -z "$DEFAULT_TOKEN" ]; then
+      echo "Warning: Could not extract default token from server logs"
+      cat "$SERVER_LOG"
+      exit 1
+    fi
+    
+    echo "Extracted token: $DEFAULT_TOKEN"
     break
   fi
   sleep 1
   if [ $i -eq 30 ]; then
     echo "Server failed to start"
-    kill $SERVER_PID 2>/dev/null || true
+    cat "$SERVER_LOG"
     exit 1
   fi
 done
@@ -55,9 +160,9 @@ if [ ! -s "$PROFILE_DIR/allocs-before.prof" ]; then
   echo "Warning: Failed to capture allocs-before.prof"
 fi
 
-# Run load test
+# Run load test with extracted token
 echo "Running load test (30 seconds)..."
-go run ./scripts/load-test.go \
+DEFAULT_TOKEN="$DEFAULT_TOKEN" go run ./scripts/load-test.go \
   --duration 30s \
   --workers 10 \
   --profile-dir "$PROFILE_DIR" &
@@ -77,11 +182,6 @@ echo "Capturing post-load profiles..."
 curl -s http://localhost:8080/debug/pprof/heap > "$PROFILE_DIR/heap-after.prof"
 curl -s http://localhost:8080/debug/pprof/allocs > "$PROFILE_DIR/allocs-after.prof"
 curl -s http://localhost:8080/debug/pprof/goroutine > "$PROFILE_DIR/goroutine.prof"
-
-# Stop server gracefully
-echo "Stopping server..."
-kill $SERVER_PID
-wait $SERVER_PID 2>/dev/null || true
 
 echo ""
 echo "=== Profile Analysis ==="
@@ -117,6 +217,7 @@ cat > "$PROFILE_DIR/README.md" << EOF
 # Profile Results
 
 **Date**: $(date)
+**Database**: $DB_TYPE
 **Duration**: 30 seconds
 **Workers**: 10
 

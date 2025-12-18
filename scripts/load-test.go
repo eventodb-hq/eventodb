@@ -37,6 +37,10 @@ func main() {
 
 	// Get default namespace token
 	token := getDefaultToken()
+	if token == "" {
+		fmt.Fprintf(os.Stderr, "Error: Could not get default token\n")
+		os.Exit(1)
+	}
 
 	fmt.Printf("Starting load test:\n")
 	fmt.Printf("  Duration: %v\n", *duration)
@@ -179,7 +183,39 @@ func readMessages(client *http.Client, token, stream string) error {
 }
 
 func getDefaultToken() string {
-	// For test mode, generate deterministic token
+	// Try to get token from environment first
+	if token := os.Getenv("DEFAULT_TOKEN"); token != "" {
+		return token
+	}
+
+	// Try to fetch from server's /admin/namespaces endpoint
+	// This works when the server has just started with a fresh database
+	client := &http.Client{Timeout: 5 * time.Second}
+	
+	// First try to list namespaces (works without auth)
+	resp, err := client.Get(*baseURL + "/admin/namespaces")
+	if err != nil {
+		// Fallback to deterministic token for test mode (SQLite)
+		return "ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1c0b0c5e0f8e9a"
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		body, _ := io.ReadAll(resp.Body)
+		var namespaces []map[string]interface{}
+		if err := json.Unmarshal(body, &namespaces); err == nil {
+			// Find default namespace and extract token from it
+			for _, ns := range namespaces {
+				if id, ok := ns["id"].(string); ok && id == "default" {
+					if token, ok := ns["token"].(string); ok && token != "" {
+						return token
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to deterministic token for test mode (SQLite)
 	return "ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1c0b0c5e0f8e9a"
 }
 
