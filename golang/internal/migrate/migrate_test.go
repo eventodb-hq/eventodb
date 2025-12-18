@@ -5,7 +5,7 @@ import (
 	"embed"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 //go:embed testdata
