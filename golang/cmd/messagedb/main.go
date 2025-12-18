@@ -1,4 +1,4 @@
-// Package main provides the Message DB HTTP server with RPC API.
+// Package main provides the Message DB HTTP server with RPC API using fasthttp.
 package main
 
 import (
@@ -6,9 +6,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/pprof"
 	"net/url"
 	"os"
 	"os/signal"
@@ -24,6 +21,8 @@ import (
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
 	"github.com/message-db/message-db/internal/store/timescale"
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/pprofhandler"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
@@ -277,60 +276,71 @@ func main() {
 	// Create SSE handler
 	sseHandler := api.NewSSEHandler(st, pubsub, cfg.testMode)
 
-	// Set up HTTP routes
-	mux := http.NewServeMux()
+	// Create fasthttp middleware
+	authMiddlewareFast := api.AuthMiddlewareFast(st, cfg.testMode)
 
-	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ok"}`)
-	})
+	// Create wrapped RPC handler with auth and logging for fasthttp
+	rpcHandlerFast := api.FastHTTPRPCHandler(rpcHandler, cfg.testMode)
+	rpcWithAuthFast := authMiddlewareFast(rpcHandlerFast)
+	rpcWithLoggingFast := api.LoggingMiddlewareFast(rpcWithAuthFast)
 
-	// Version endpoint
-	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"version":"%s"}`, version)
-	})
+	// Set up fasthttp router
+	requestHandler := func(ctx *fasthttp.RequestCtx) {
+		path := string(ctx.Path())
 
-	// RPC endpoint with auth middleware
-	rpcWithAuth := api.AuthMiddleware(st, cfg.testMode)(rpcHandler)
-	mux.Handle("/rpc", api.LoggingMiddleware(rpcWithAuth))
+		switch path {
+		case "/health":
+			ctx.SetContentType("application/json")
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			fmt.Fprintf(ctx, `{"status":"ok"}`)
 
-	// SSE subscription endpoint
-	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
+		case "/version":
+			ctx.SetContentType("application/json")
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			fmt.Fprintf(ctx, `{"version":"%s"}`, version)
 
-	// Register pprof handlers for profiling
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-	mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
-	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+		case "/rpc":
+			// Use native fasthttp handler with auth and logging
+			rpcWithLoggingFast(ctx)
+
+		case "/subscribe":
+			// SSE needs special handling with stdlib adapter
+			req, w := api.AdaptRequestToStdlib(ctx)
+			sseHandler.HandleSubscribe(w, req)
+
+		default:
+			// Handle all pprof endpoints with a prefix check
+			if len(path) >= 13 && path[:13] == "/debug/pprof/" {
+				pprofhandler.PprofHandler(ctx)
+				return
+			}
+
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			ctx.SetContentType("application/json")
+			fmt.Fprintf(ctx, `{"error":{"code":"NOT_FOUND","message":"Endpoint not found"}}`)
+		}
+	}
 
 	logger.Get().Info().Msg("pprof profiling endpoints enabled at /debug/pprof/")
 
-	// Create server with proper timeouts and limits for high concurrency
+	// Create fasthttp server with optimized settings
 	addr := fmt.Sprintf(":%d", *port)
-	server := &http.Server{
-		Handler:           mux,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       120 * time.Second,
-		ReadHeaderTimeout: 10 * time.Second,
-		MaxHeaderBytes:    1 << 20, // 1 MB
-	}
-
-	// Create TCP listener with custom configuration for high concurrency
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		logger.Get().Fatal().Err(err).Str("address", addr).Msg("Failed to create listener")
+	server := &fasthttp.Server{
+		Handler:                       requestHandler,
+		Name:                          "MessageDB/" + version,
+		ReadTimeout:                   30 * time.Second,
+		WriteTimeout:                  30 * time.Second,
+		IdleTimeout:                   120 * time.Second,
+		MaxRequestBodySize:            4 * 1024 * 1024, // 4 MB
+		Concurrency:                   256 * 1024,      // Handle up to 256K concurrent connections
+		DisableKeepalive:              false,
+		TCPKeepalive:                  true,
+		TCPKeepalivePeriod:            30 * time.Second,
+		MaxConnsPerIP:                 0, // No limit
+		MaxRequestsPerConn:            0, // No limit
+		ReduceMemoryUsage:             false,
+		GetOnly:                       false,
+		DisableHeaderNamesNormalizing: false,
 	}
 
 	// Start server in a goroutine
@@ -339,8 +349,9 @@ func main() {
 		logger.Get().Info().
 			Str("address", addr).
 			Str("version", version).
+			Str("engine", "fasthttp").
 			Msg("Message DB server starting")
-		serverErrors <- server.Serve(listener)
+		serverErrors <- server.ListenAndServe(addr)
 	}()
 
 	// Wait for interrupt signal or server error
@@ -349,23 +360,16 @@ func main() {
 
 	select {
 	case err := <-serverErrors:
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil {
 			logger.Get().Fatal().Err(err).Msg("Server error")
 		}
 
 	case sig := <-shutdown:
 		logger.Get().Info().Str("signal", sig.String()).Msg("Shutdown signal received")
 
-		// Create context with timeout for graceful shutdown
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-
 		// Attempt graceful shutdown
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(); err != nil {
 			logger.Get().Error().Err(err).Msg("Graceful shutdown failed")
-			if err := server.Close(); err != nil {
-				logger.Get().Error().Err(err).Msg("Force shutdown error")
-			}
 		}
 
 		logger.Get().Info().Msg("Server stopped")
