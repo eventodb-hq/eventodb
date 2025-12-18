@@ -7,3 +7,7 @@ tmp/
 
 # Golang build artifacts
 golang/messagedb
+
+# Profiler
+profiles/
+dist/
