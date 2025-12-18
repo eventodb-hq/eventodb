@@ -1,0 +1,9 @@
+Profile Comparison Report
+Generated: Thu Dec 18 21:38:29 CET 2025
+
+Baseline:  ./profiles/20251218_213657
+Optimized: ./profiles/20251218_213751
+
+Performance Metrics:
+  Throughput: 10303.659038493637 -> 11061.584483788818 ops/sec (7.00%)
+  Latency:    0.9699593654264835 -> 0.903470449621373 ms (6.00%)

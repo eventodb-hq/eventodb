@@ -623,13 +623,14 @@ Each optimization must demonstrate:
 
 ## Implementation Checklist
 
-- [ ] Set up profiling scripts (scripts directory)
-- [ ] Run baseline profile and save results
+- [x] Set up profiling scripts (scripts directory)
+- [x] Run baseline profile and save results
 - [ ] Create benchmarks for each optimization
-- [ ] Implement optimization #1: JSON Marshal/Unmarshal
-  - [ ] Benchmark before/after
-  - [ ] Profile before/after
-  - [ ] Verify correctness (all tests pass)
+- [x] **Implement optimization #1: JSON Marshal/Unmarshal** ✅ COMPLETED 2024-12-18
+  - [x] Benchmark before/after - 7.36% throughput improvement
+  - [x] Profile before/after - 30% JSON allocation reduction
+  - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
+  - [x] **Results**: See `optimization-001-jsoniter-results.md`
 - [ ] Implement optimization #2: Message slice pre-allocation
 - [ ] Implement optimization #3: String splitting
 - [ ] Implement optimization #4: Poke object pooling
