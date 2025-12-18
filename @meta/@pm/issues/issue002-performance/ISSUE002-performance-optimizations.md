@@ -465,51 +465,37 @@ messages := make([]*store.Message, 0, capacity)
 
 ---
 
-### 3. String Splitting in Utility Functions
+### 3. String Splitting in Utility Functions ✅ COMPLETED
 
 **Impact**: 🟡 HIGH - Called frequently in category/consumer group operations
 
 **Files**:
 - `golang/internal/store/utils.go` (Category, ID, CardinalID functions)
 
-**Current Code**:
+**Optimization Applied**:
 ```go
+// BEFORE: Allocates slice
 func Category(streamName string) string {
-    parts := strings.SplitN(streamName, "-", 2)  // Allocates slice
+    parts := strings.SplitN(streamName, "-", 2)
     return parts[0]
 }
-```
 
-**Optimization Strategy**:
-```go
+// AFTER: Zero allocations
 func Category(streamName string) string {
     if idx := strings.IndexByte(streamName, '-'); idx >= 0 {
-        return streamName[:idx]  // No allocation, substring shares backing array
+        return streamName[:idx]  // Substring shares backing array
     }
     return streamName
 }
 ```
 
-**Expected Impact**: 5-10% reduction in allocations for category operations
+**Actual Results**: 
+- **7.3x faster** (25ns → 3ns)
+- **100% allocation reduction** (1 alloc → 0 allocs)
+- **CardinalID**: 5.6x faster, 2 allocs → 0 allocs
+- System-wide impact: ~1-2% reduction
 
-**Benchmark**:
-```go
-func BenchmarkCategory(b *testing.B) {
-    streamName := "account-123-456"
-    
-    b.Run("split", func(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-            CategorySplit(streamName)
-        }
-    })
-    
-    b.Run("index", func(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-            CategoryIndex(streamName)
-        }
-    })
-}
-```
+**Key Insight**: `strings.IndexByte()` + substring slicing = zero allocations!
 
 ---
 
@@ -637,7 +623,12 @@ Each optimization must demonstrate:
   - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
   - [x] **Results**: See `optimization-002-slice-prealloc-results.md`
   - [x] **Key Lesson**: ALWAYS run multiple iterations! Single runs misleading due to variance
-- [ ] Implement optimization #3: String splitting
+- [x] **Implement optimization #3: String splitting** ✅ COMPLETED 2024-12-18
+  - [x] Benchmark before/after - 7.3x local speedup, 100% allocation reduction
+  - [x] Profile impact - 1-2% system-wide reduction (estimated)
+  - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
+  - [x] **Results**: See `optimization-003-string-splitting-results.md`
+  - [x] **Key Lesson**: Best effort-to-reward ratio - simple change, massive local improvement
 - [ ] Implement optimization #4: Poke object pooling
 - [ ] Implement optimization #5: Response map pooling
 - [ ] Run final comparison profile

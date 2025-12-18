@@ -13,8 +13,10 @@ import (
 //	Category("account-123+456") → "account"
 //	Category("account") → "account"
 func Category(streamName string) string {
-	parts := strings.SplitN(streamName, "-", 2)
-	return parts[0]
+	if idx := strings.IndexByte(streamName, '-'); idx >= 0 {
+		return streamName[:idx]
+	}
+	return streamName
 }
 
 // ID extracts the ID portion from a stream name
@@ -24,11 +26,10 @@ func Category(streamName string) string {
 //	ID("account-123+456") → "123+456"
 //	ID("account") → ""
 func ID(streamName string) string {
-	parts := strings.SplitN(streamName, "-", 2)
-	if len(parts) < 2 {
-		return ""
+	if idx := strings.IndexByte(streamName, '-'); idx >= 0 {
+		return streamName[idx+1:]
 	}
-	return parts[1]
+	return ""
 }
 
 // CardinalID extracts the cardinal ID (before '+') from a stream name
@@ -39,13 +40,16 @@ func ID(streamName string) string {
 //	CardinalID("account-123+456") → "123"
 //	CardinalID("account") → ""
 func CardinalID(streamName string) string {
-	id := ID(streamName)
-	if id == "" {
-		return ""
+	// Extract ID part
+	if idx := strings.IndexByte(streamName, '-'); idx >= 0 {
+		id := streamName[idx+1:]
+		// Extract part before '+' for compound IDs
+		if plusIdx := strings.IndexByte(id, '+'); plusIdx >= 0 {
+			return id[:plusIdx]
+		}
+		return id
 	}
-	// Extract part before '+' for compound IDs
-	parts := strings.SplitN(id, "+", 2)
-	return parts[0]
+	return ""
 }
 
 // IsCategory determines if a name represents a category (no ID part)
