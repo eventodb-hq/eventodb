@@ -284,6 +284,11 @@ func main() {
 	rpcWithAuthFast := authMiddlewareFast(rpcHandlerFast)
 	rpcWithLoggingFast := api.LoggingMiddlewareFast(rpcWithAuthFast)
 
+	// Create SSE handler wrapper with auth
+	sseHandlerFast := api.FastHTTPSSEHandler(sseHandler, cfg.testMode)
+	sseWithAuthFast := authMiddlewareFast(sseHandlerFast)
+	sseWithLoggingFast := api.LoggingMiddlewareFast(sseWithAuthFast)
+
 	// Set up fasthttp router
 	requestHandler := func(ctx *fasthttp.RequestCtx) {
 		path := string(ctx.Path())
@@ -304,9 +309,8 @@ func main() {
 			rpcWithLoggingFast(ctx)
 
 		case "/subscribe":
-			// SSE needs special handling with stdlib adapter
-			req, w := api.AdaptRequestToStdlib(ctx)
-			sseHandler.HandleSubscribe(w, req)
+			// SSE handler with auth and logging
+			sseWithLoggingFast(ctx)
 
 		default:
 			// Handle all pprof endpoints with a prefix check

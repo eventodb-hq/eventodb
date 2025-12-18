@@ -63,6 +63,7 @@ func convertRequest(ctx *fasthttp.RequestCtx) *http.Request {
 
 // AdaptRequestToStdlib converts a fasthttp.RequestCtx to standard library compatible objects
 // This is used for SSE where we need ResponseWriter interface features
+// It also transfers namespace and test mode context from fasthttp user values
 func AdaptRequestToStdlib(ctx *fasthttp.RequestCtx) (*http.Request, http.ResponseWriter) {
 	// Create a reader from the request body
 	bodyReader := bytes.NewReader(ctx.Request.Body())
@@ -78,9 +79,22 @@ func AdaptRequestToStdlib(ctx *fasthttp.RequestCtx) (*http.Request, http.Respons
 		url += "?" + string(uri.QueryString())
 	}
 
-	// Create http.Request
+	// Create request context with namespace and test mode from fasthttp user values
+	reqCtx := context.Background()
+	
+	// Transfer namespace from fasthttp user values to context
+	if namespace, ok := GetNamespaceFromFastHTTP(ctx); ok {
+		reqCtx = context.WithValue(reqCtx, ContextKeyNamespace, namespace)
+	}
+	
+	// Transfer test mode from fasthttp user values to context
+	if IsTestModeFastHTTP(ctx) {
+		reqCtx = context.WithValue(reqCtx, ContextKeyTestMode, true)
+	}
+
+	// Create http.Request with context
 	req, _ := http.NewRequestWithContext(
-		context.Background(),
+		reqCtx,
 		string(ctx.Method()),
 		url,
 		bodyReader,

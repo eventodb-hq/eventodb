@@ -30,17 +30,17 @@ var pokePool = sync.Pool{
 
 // SSEHandler manages Server-Sent Events subscriptions
 type SSEHandler struct {
-	store    store.Store
-	pubsub   *PubSub
-	testMode bool
+	Store    store.Store
+	Pubsub   *PubSub
+	TestMode bool
 }
 
 // NewSSEHandler creates a new SSE handler
 func NewSSEHandler(st store.Store, pubsub *PubSub, testMode bool) *SSEHandler {
 	return &SSEHandler{
-		store:    st,
-		pubsub:   pubsub,
-		testMode: testMode,
+		Store:    st,
+		Pubsub:   pubsub,
+		TestMode: testMode,
 	}
 }
 
@@ -131,7 +131,7 @@ func (h *SSEHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 // subscribeToStream handles stream-specific subscriptions
 func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWriter, namespace, streamName string, startPosition int64) {
 	// First, send any existing messages from startPosition
-	messages, err := h.store.GetStreamMessages(ctx, namespace, streamName, &store.GetOpts{
+	messages, err := h.Store.GetStreamMessages(ctx, namespace, streamName, &store.GetOpts{
 		Position:  startPosition,
 		BatchSize: 1000,
 	})
@@ -161,14 +161,14 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 	}
 
 	// Subscribe to real-time updates (if pubsub is available)
-	if h.pubsub == nil {
+	if h.Pubsub == nil {
 		// No pubsub, just wait for context cancellation
 		<-ctx.Done()
 		return
 	}
 
-	sub := h.pubsub.SubscribeStream(namespace, streamName)
-	defer h.pubsub.UnsubscribeStream(namespace, streamName, sub)
+	sub := h.Pubsub.SubscribeStream(namespace, streamName)
+	defer h.Pubsub.UnsubscribeStream(namespace, streamName, sub)
 
 	for {
 		select {
@@ -210,7 +210,7 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 	}
 
 	// First, send any existing messages from startPosition
-	messages, err := h.store.GetCategoryMessages(ctx, namespace, categoryName, opts)
+	messages, err := h.Store.GetCategoryMessages(ctx, namespace, categoryName, opts)
 	if err != nil {
 		logger.Get().Error().
 			Err(err).
@@ -241,14 +241,14 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 	}
 
 	// Subscribe to real-time updates (if pubsub is available)
-	if h.pubsub == nil {
+	if h.Pubsub == nil {
 		// No pubsub, just wait for context cancellation
 		<-ctx.Done()
 		return
 	}
 
-	sub := h.pubsub.SubscribeCategory(namespace, categoryName)
-	defer h.pubsub.UnsubscribeCategory(namespace, categoryName, sub)
+	sub := h.Pubsub.SubscribeCategory(namespace, categoryName)
+	defer h.Pubsub.UnsubscribeCategory(namespace, categoryName, sub)
 
 	for {
 		select {
@@ -313,19 +313,26 @@ func (h *SSEHandler) sendPoke(w http.ResponseWriter, poke *Poke) error {
 
 // extractNamespace extracts and validates the namespace from the request
 func (h *SSEHandler) extractNamespace(r *http.Request) (string, error) {
-	// Check query parameter first (for SSE which can't set headers easily)
+	// First check if namespace is already in context (set by auth middleware)
+	if ns := r.Context().Value(ContextKeyNamespace); ns != nil {
+		if namespace, ok := ns.(string); ok && namespace != "" {
+			return namespace, nil
+		}
+	}
+
+	// Fallback: Check query parameter (for SSE which can't set headers easily)
 	if token := r.URL.Query().Get("token"); token != "" {
 		namespace, err := auth.ParseToken(token)
 		if err != nil {
-			if h.testMode {
+			if h.TestMode {
 				return "default", nil
 			}
 			return "", fmt.Errorf("invalid token in query parameter")
 		}
-		if !h.testMode {
+		if !h.TestMode {
 			// Validate namespace exists in database
 			ctx := r.Context()
-			_, err = h.store.GetNamespace(ctx, namespace)
+			_, err = h.Store.GetNamespace(ctx, namespace)
 			if err != nil {
 				return "", fmt.Errorf("unauthorized: namespace not found")
 			}
@@ -334,7 +341,7 @@ func (h *SSEHandler) extractNamespace(r *http.Request) (string, error) {
 	}
 
 	// In test mode, auth is optional
-	if h.testMode {
+	if h.TestMode {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			return "default", nil
@@ -368,7 +375,7 @@ func (h *SSEHandler) extractNamespace(r *http.Request) (string, error) {
 
 	// Validate namespace exists in database
 	ctx := r.Context()
-	_, err = h.store.GetNamespace(ctx, namespace)
+	_, err = h.Store.GetNamespace(ctx, namespace)
 	if err != nil {
 		return "", fmt.Errorf("unauthorized: namespace not found")
 	}
