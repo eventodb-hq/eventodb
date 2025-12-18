@@ -35,7 +35,7 @@ func (s *SQLiteStore) GetStreamMessages(ctx context.Context, namespace, streamNa
 	}
 	defer rows.Close()
 
-	return scanMessages(rows)
+	return scanMessages(rows, opts.BatchSize)
 }
 
 // GetCategoryMessages retrieves messages from a category
@@ -72,14 +72,19 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 	}
 	defer rows.Close()
 
-	allMessages, err := scanMessages(rows)
+	allMessages, err := scanMessages(rows, opts.BatchSize)
 	if err != nil {
 		return nil, err
 	}
 
 	// Consumer group filtering
 	if opts.ConsumerMember != nil && opts.ConsumerSize != nil {
-		var messages []*store.Message
+		// Pre-allocate for consumer group filtering
+		capacity := int(opts.BatchSize)
+		if capacity <= 0 || capacity > 10000 {
+			capacity = 1000
+		}
+		messages := make([]*store.Message, 0, capacity)
 		for _, msg := range allMessages {
 			if store.IsAssignedToConsumerMember(msg.StreamName, *opts.ConsumerMember, *opts.ConsumerSize) {
 				messages = append(messages, msg)
@@ -121,7 +126,7 @@ func (s *SQLiteStore) GetLastStreamMessage(ctx context.Context, namespace, strea
 	}
 	defer rows.Close()
 
-	messages, err := scanMessages(rows)
+	messages, err := scanMessages(rows, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +154,13 @@ func (s *SQLiteStore) GetStreamVersion(ctx context.Context, namespace, streamNam
 	return version, nil
 }
 
-func scanMessages(rows *sql.Rows) ([]*store.Message, error) {
-	var messages []*store.Message
+func scanMessages(rows *sql.Rows, capacityHint int64) ([]*store.Message, error) {
+	// Pre-allocate slice with capacity hint to reduce allocations
+	capacity := int(capacityHint)
+	if capacity <= 0 || capacity > 10000 {
+		capacity = 1000 // reasonable default
+	}
+	messages := make([]*store.Message, 0, capacity)
 
 	for rows.Next() {
 		var id, streamName, msgType string

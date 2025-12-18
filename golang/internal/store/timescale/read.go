@@ -47,8 +47,8 @@ func (s *TimescaleStore) GetStreamMessages(ctx context.Context, namespace, strea
 	}
 	defer rows.Close()
 
-	// 5. Parse results
-	return s.scanMessages(rows)
+	// 5. Parse results with capacity hint
+	return s.scanMessages(rows, opts.BatchSize)
 }
 
 // GetCategoryMessages retrieves messages from a category with consumer group support
@@ -92,8 +92,8 @@ func (s *TimescaleStore) GetCategoryMessages(ctx context.Context, namespace, cat
 	}
 	defer rows.Close()
 
-	// 5. Parse results
-	return s.scanMessages(rows)
+	// 5. Parse results with capacity hint
+	return s.scanMessages(rows, opts.BatchSize)
 }
 
 // GetLastStreamMessage retrieves the last message from a stream
@@ -121,8 +121,8 @@ func (s *TimescaleStore) GetLastStreamMessage(ctx context.Context, namespace, st
 	}
 	defer rows.Close()
 
-	// 3. Parse results
-	messages, err := s.scanMessages(rows)
+	// 3. Parse results with capacity hint (expect 1 message)
+	messages, err := s.scanMessages(rows, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +158,13 @@ func (s *TimescaleStore) GetStreamVersion(ctx context.Context, namespace, stream
 }
 
 // scanMessages is a helper function to scan rows into Message structs
-func (s *TimescaleStore) scanMessages(rows *sql.Rows) ([]*store.Message, error) {
-	messages := []*store.Message{}
+func (s *TimescaleStore) scanMessages(rows *sql.Rows, capacityHint int64) ([]*store.Message, error) {
+	// Pre-allocate slice with capacity hint to reduce allocations
+	capacity := int(capacityHint)
+	if capacity <= 0 || capacity > 10000 {
+		capacity = 1000 // reasonable default
+	}
+	messages := make([]*store.Message, 0, capacity)
 
 	for rows.Next() {
 		var (

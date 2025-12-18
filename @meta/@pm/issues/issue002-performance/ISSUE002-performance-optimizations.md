@@ -625,13 +625,18 @@ Each optimization must demonstrate:
 
 - [x] Set up profiling scripts (scripts directory)
 - [x] Run baseline profile and save results
-- [ ] Create benchmarks for each optimization
+- [x] Create benchmarks for each optimization
 - [x] **Implement optimization #1: JSON Marshal/Unmarshal** ✅ COMPLETED 2024-12-18
   - [x] Benchmark before/after - 7.36% throughput improvement
   - [x] Profile before/after - 30% JSON allocation reduction
   - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
   - [x] **Results**: See `optimization-001-jsoniter-results.md`
-- [ ] Implement optimization #2: Message slice pre-allocation
+- [x] **Implement optimization #2: Message slice pre-allocation** ✅ COMPLETED 2024-12-18
+  - [x] Benchmark before/after - 1.15% throughput improvement (avg of 3 runs)
+  - [x] Profile before/after - 12.1% reduction in scanMessages allocations, 4.2% system-wide
+  - [x] Verify correctness (all tests pass) - ✅ 100% pass rate
+  - [x] **Results**: See `optimization-002-slice-prealloc-results.md`
+  - [x] **Key Lesson**: ALWAYS run multiple iterations! Single runs misleading due to variance
 - [ ] Implement optimization #3: String splitting
 - [ ] Implement optimization #4: Poke object pooling
 - [ ] Implement optimization #5: Response map pooling
