@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/message-db/message-db/internal/auth"
+	"github.com/message-db/message-db/internal/logger"
 	"github.com/message-db/message-db/internal/store"
 )
 
@@ -128,7 +128,12 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 		BatchSize: 1000,
 	})
 	if err != nil {
-		log.Printf("Error fetching initial stream messages: %v", err)
+		logger.Get().Error().
+			Err(err).
+			Str("stream", streamName).
+			Str("namespace", namespace).
+			Int64("position", startPosition).
+			Msg("Error fetching initial stream messages")
 	}
 
 	lastPosition := startPosition
@@ -193,7 +198,12 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 	// First, send any existing messages from startPosition
 	messages, err := h.store.GetCategoryMessages(ctx, namespace, categoryName, opts)
 	if err != nil {
-		log.Printf("Error fetching initial category messages: %v", err)
+		logger.Get().Error().
+			Err(err).
+			Str("category", categoryName).
+			Str("namespace", namespace).
+			Int64("position", startPosition).
+			Msg("Error fetching initial category messages")
 	}
 
 	lastGlobalPosition := startPosition

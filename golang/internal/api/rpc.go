@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 
+	"github.com/message-db/message-db/internal/logger"
 	"github.com/message-db/message-db/internal/store"
 )
 
@@ -74,7 +74,7 @@ func (h *RPCHandler) registerMethod(name string, handler RPCMethod) {
 
 // ServeHTTP implements http.Handler
 func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("RPC ServeHTTP called")
+	logger.Get().Debug().Msg("RPC ServeHTTP called")
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
 		h.writeError(w, http.StatusMethodNotAllowed, &RPCError{
@@ -87,7 +87,7 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse request body as JSON array
 	var req []interface{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("JSON parse error: %v", err)
+		logger.Get().Error().Err(err).Msg("JSON parse error")
 		h.writeError(w, http.StatusBadRequest, &RPCError{
 			Code:    "INVALID_REQUEST",
 			Message: "Malformed JSON request",
@@ -122,7 +122,10 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route to handler
-	log.Printf("RPC: %s", method)
+	logger.Get().Debug().
+		Str("method", method).
+		Int("args_count", len(args)).
+		Msg("RPC method invoked")
 	result, err := h.route(r.Context(), method, args)
 	if err != nil {
 		// Determine HTTP status code based on error code
@@ -142,7 +145,11 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			statusCode = http.StatusConflict
 		}
 		if statusCode == http.StatusInternalServerError {
-			log.Printf("500 error on %s: %s - %s", method, err.Code, err.Message)
+			logger.Get().Error().
+				Str("method", method).
+				Str("error_code", err.Code).
+				Str("error_message", err.Message).
+				Msg("RPC internal server error")
 		}
 		h.writeError(w, statusCode, err)
 		return
@@ -192,7 +199,7 @@ func (h *RPCHandler) writeSuccess(w http.ResponseWriter, result interface{}) {
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(result); err != nil {
-		log.Printf("Error encoding response: %v", err)
+		logger.Get().Error().Err(err).Msg("Error encoding response")
 	}
 }
 
@@ -203,6 +210,6 @@ func (h *RPCHandler) writeError(w http.ResponseWriter, statusCode int, rpcErr *R
 
 	resp := ErrorResponse{Error: rpcErr}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("Error encoding error response: %v", err)
+		logger.Get().Error().Err(err).Msg("Error encoding error response")
 	}
 }

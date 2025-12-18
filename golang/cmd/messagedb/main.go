@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/message-db/message-db/internal/api"
 	"github.com/message-db/message-db/internal/auth"
+	"github.com/message-db/message-db/internal/logger"
 	"github.com/message-db/message-db/internal/store"
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
@@ -140,7 +140,9 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 			return nil, nil, fmt.Errorf("failed to create PostgreSQL store: %w", err)
 		}
 
-		log.Printf("Connected to PostgreSQL database")
+		logger.Get().Info().
+			Str("db_type", "postgres").
+			Msg("Connected to PostgreSQL database")
 		cleanup := func() {
 			st.Close()
 		}
@@ -169,7 +171,9 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 			return nil, nil, fmt.Errorf("failed to create TimescaleDB store: %w", err)
 		}
 
-		log.Printf("Connected to TimescaleDB database")
+		logger.Get().Info().
+			Str("db_type", "timescale").
+			Msg("Connected to TimescaleDB database")
 		cleanup := func() {
 			st.Close()
 		}
@@ -202,9 +206,15 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 		}
 
 		if cfg.testMode {
-			log.Printf("Using in-memory SQLite (test mode)")
+			logger.Get().Info().
+				Str("db_type", "sqlite").
+				Bool("test_mode", true).
+				Msg("Using in-memory SQLite")
 		} else {
-			log.Printf("Connected to SQLite database at %s", cfg.connStr)
+			logger.Get().Info().
+				Str("db_type", "sqlite").
+				Str("path", cfg.connStr).
+				Msg("Connected to SQLite database")
 		}
 
 		cleanup := func() {
@@ -225,32 +235,37 @@ func main() {
 	dbURL := flag.String("db-url", "", "Database URL (postgres://... or sqlite://filename.db)")
 	dataDir := flag.String("data-dir", "", "Data directory for SQLite namespace databases (required for sqlite)")
 	dbType := flag.String("db-type", "", "Database type override (use 'timescale' for TimescaleDB with postgres:// URL)")
+	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+	logFormat := flag.String("log-format", "console", "Log format (json, console)")
 	flag.Parse()
+
+	// Initialize logger
+	logger.Initialize(*logLevel, *logFormat)
 
 	// Parse database configuration
 	cfg, err := parseDBConfig(*dbURL, *dataDir, *dbType, *testMode)
 	if err != nil {
-		log.Fatalf("Invalid database configuration: %v", err)
+		logger.Get().Fatal().Err(err).Msg("Invalid database configuration")
 	}
 
 	// Initialize store based on database type
 	st, cleanup, err := createStore(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create store: %v", err)
+		logger.Get().Fatal().Err(err).Msg("Failed to create store")
 	}
 	defer cleanup()
 
 	// Ensure default namespace exists and get/create token
 	token, err := ensureDefaultNamespace(context.Background(), st, *defaultToken)
 	if err != nil {
-		log.Fatalf("Failed to ensure default namespace: %v", err)
+		logger.Get().Fatal().Err(err).Msg("Failed to ensure default namespace")
 	}
 
 	// Print default namespace token
-	log.Printf("═══════════════════════════════════════════════════════")
-	log.Printf("DEFAULT NAMESPACE TOKEN:")
-	log.Printf("%s", token)
-	log.Printf("═══════════════════════════════════════════════════════")
+	logger.Get().Info().Msg("═══════════════════════════════════════════════════════")
+	logger.Get().Info().Msg("DEFAULT NAMESPACE TOKEN:")
+	logger.Get().Info().Msgf("%s", token)
+	logger.Get().Info().Msg("═══════════════════════════════════════════════════════")
 
 	// Create pubsub for real-time notifications
 	pubsub := api.NewPubSub()
@@ -299,13 +314,16 @@ func main() {
 	// Create TCP listener with custom configuration for high concurrency
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalf("Failed to create listener: %v", err)
+		logger.Get().Fatal().Err(err).Str("address", addr).Msg("Failed to create listener")
 	}
 
 	// Start server in a goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
-		log.Printf("Message DB server starting on %s (version %s)", addr, version)
+		logger.Get().Info().
+			Str("address", addr).
+			Str("version", version).
+			Msg("Message DB server starting")
 		serverErrors <- server.Serve(listener)
 	}()
 
@@ -316,11 +334,11 @@ func main() {
 	select {
 	case err := <-serverErrors:
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			logger.Get().Fatal().Err(err).Msg("Server error")
 		}
 
 	case sig := <-shutdown:
-		log.Printf("Shutdown signal received: %v", sig)
+		logger.Get().Info().Str("signal", sig.String()).Msg("Shutdown signal received")
 
 		// Create context with timeout for graceful shutdown
 		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -328,13 +346,13 @@ func main() {
 
 		// Attempt graceful shutdown
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Graceful shutdown failed: %v", err)
+			logger.Get().Error().Err(err).Msg("Graceful shutdown failed")
 			if err := server.Close(); err != nil {
-				log.Printf("Force shutdown error: %v", err)
+				logger.Get().Error().Err(err).Msg("Force shutdown error")
 			}
 		}
 
-		log.Println("Server stopped")
+		logger.Get().Info().Msg("Server stopped")
 	}
 }
 
@@ -375,9 +393,9 @@ func ensureDefaultNamespace(ctx context.Context, st interface {
 		if err != nil {
 			return "", fmt.Errorf("failed to create namespace: %w", err)
 		}
-		log.Printf("Created default namespace: %s", defaultNamespace)
+		logger.Get().Info().Str("namespace", defaultNamespace).Msg("Created default namespace")
 	} else {
-		log.Printf("Default namespace already exists: %s", defaultNamespace)
+		logger.Get().Info().Str("namespace", defaultNamespace).Msg("Default namespace already exists")
 	}
 
 	return token, nil

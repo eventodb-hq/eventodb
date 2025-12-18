@@ -4,13 +4,14 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/message-db/message-db/internal/auth"
+	"github.com/message-db/message-db/internal/logger"
 	"github.com/message-db/message-db/internal/store"
+	"github.com/rs/zerolog"
 )
 
 // LoggingMiddleware logs HTTP requests with timing information
@@ -26,11 +27,19 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 		// Log request details
 		duration := time.Since(start)
+		log := logger.Get()
+
+		event := log.WithLevel(zerolog.InfoLevel)
 		if wrapped.statusCode >= 500 {
-			log.Printf("%s %s %d %v [ERROR]", r.Method, r.URL.Path, wrapped.statusCode, duration)
-		} else {
-			log.Printf("%s %s %d %v", r.Method, r.URL.Path, wrapped.statusCode, duration)
+			event = log.Error()
 		}
+
+		event.
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Int("status", wrapped.statusCode).
+			Dur("duration", duration).
+			Msg("HTTP request")
 	})
 }
 
@@ -160,7 +169,7 @@ func writeAuthError(w http.ResponseWriter, statusCode int, rpcErr *RPCError) {
 
 	resp := ErrorResponse{Error: rpcErr}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("Error encoding error response: %v", err)
+		logger.Get().Error().Err(err).Msg("Error encoding error response")
 	}
 }
 
