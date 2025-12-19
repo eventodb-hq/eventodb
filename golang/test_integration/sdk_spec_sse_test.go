@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/message-db/message-db/internal/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +23,7 @@ type SSEClient struct {
 	events  chan map[string]interface{}
 	errors  chan error
 	done    chan bool
+	ready   chan bool
 	mu      sync.Mutex
 	running bool
 }
@@ -58,6 +61,7 @@ func NewSSEClient(url string, token string) (*SSEClient, error) {
 		events:  make(chan map[string]interface{}, 100),
 		errors:  make(chan error, 10),
 		done:    make(chan bool),
+		ready:   make(chan bool, 1),
 		running: true,
 	}
 
@@ -70,11 +74,22 @@ func NewSSEClient(url string, token string) (*SSEClient, error) {
 func (c *SSEClient) readEvents() {
 	defer close(c.events)
 	defer close(c.errors)
+	defer close(c.ready)
 
 	var eventData strings.Builder
+	readySent := false
 
 	for c.scanner.Scan() {
 		line := c.scanner.Text()
+
+		// Check for ready signal (comment line)
+		if strings.HasPrefix(line, ":") {
+			if strings.Contains(line, "ready") && !readySent {
+				c.ready <- true
+				readySent = true
+			}
+			continue
+		}
 
 		if strings.HasPrefix(line, "data: ") {
 			eventData.WriteString(strings.TrimPrefix(line, "data: "))
@@ -99,6 +114,18 @@ func (c *SSEClient) readEvents() {
 			c.errors <- err
 		}
 		c.mu.Unlock()
+	}
+}
+
+// WaitForReady waits for the subscription to be ready
+func (c *SSEClient) WaitForReady(timeout time.Duration) error {
+	select {
+	case <-c.ready:
+		return nil
+	case err := <-c.errors:
+		return err
+	case <-time.After(timeout):
+		return fmt.Errorf("timeout waiting for ready signal")
 	}
 }
 
@@ -138,8 +165,9 @@ func TestSSE001_SubscribeToStream(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	// Give subscription time to establish
-	time.Sleep(100 * time.Millisecond)
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
 
 	// Write a message to the stream
 	msg := map[string]interface{}{
@@ -165,12 +193,12 @@ func TestSSE001_SubscribeToStream(t *testing.T) {
 
 // TestSSE002_SubscribeToCategory validates subscribing to a category
 func TestSSE002_SubscribeToCategory(t *testing.T) {
-	t.Skip("Category SSE subscriptions have timing issues in tests - works in practice")
-
 	ts := SetupTestServer(t)
 	defer ts.Cleanup()
 
-	category := randomStreamName("sse-test")
+	// Use a simple category name without random suffix
+	// The category is the part before the first dash in the stream name
+	category := fmt.Sprintf("ssetest%d", time.Now().UnixNano()%1000000)
 	stream := category + "-123"
 
 	// Subscribe to category
@@ -179,8 +207,9 @@ func TestSSE002_SubscribeToCategory(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	// Give subscription time to establish - category subscriptions may need more time
-	time.Sleep(300 * time.Millisecond)
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
 
 	// Write a message to a stream in the category
 	msg := map[string]interface{}{
@@ -226,9 +255,23 @@ func TestSSE003_SubscribeWithPosition(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	// Should receive pokes for positions 3, 4 and any new messages
-	// Wait for initial pokes
-	time.Sleep(200 * time.Millisecond)
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
+
+	// Should receive pokes for existing positions 3, 4 immediately after ready
+	// Drain existing events (positions 3 and 4)
+	drainedCount := 0
+	for i := 0; i < 2; i++ {
+		_, err := client.WaitForEvent(500 * time.Millisecond)
+		if err == nil {
+			drainedCount++
+		} else {
+			break
+		}
+	}
+	// We should have received at least the existing messages
+	require.GreaterOrEqual(t, drainedCount, 2, "Should receive pokes for existing messages")
 
 	// Write a new message
 	msg := map[string]interface{}{
@@ -264,30 +307,57 @@ func TestSSE003_SubscribeWithPosition(t *testing.T) {
 
 // TestSSE004_SubscribeWithoutAuthentication validates subscription fails without auth
 func TestSSE004_SubscribeWithoutAuthentication(t *testing.T) {
-	// Skip in test mode where auth is optional
-	t.Skip("Test server runs in test mode which allows missing auth")
+	// Create a test server in production mode (not test mode)
+	env := SetupTestEnv(t)
+	defer env.Cleanup()
 
-	ts := SetupTestServer(t)
-	defer ts.Cleanup()
+	// Create pubsub for real-time notifications
+	pubsub := api.NewPubSub()
+
+	// Create SSE handler in production mode (testMode = false)
+	sseHandler := api.NewSSEHandler(env.Store, pubsub, false)
+
+	// Set up HTTP route
+	mux := http.NewServeMux()
+	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
+
+	// Start server
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	server := &http.Server{Handler: mux}
+
+	go server.Serve(listener)
+	defer server.Close()
+	defer listener.Close()
+
+	time.Sleep(50 * time.Millisecond) // Give server time to start
 
 	stream := randomStreamName("sse-test")
 
 	// Try to subscribe without token
-	subscribeURL := fmt.Sprintf("%s/subscribe?stream=%s", ts.URL(), stream)
-	_, err := NewSSEClient(subscribeURL, "")
+	subscribeURL := fmt.Sprintf("http://127.0.0.1:%d/subscribe?stream=%s", port, stream)
+	resp, err := http.Get(subscribeURL)
 
 	// Should fail with authentication error
-	require.Error(t, err)
+	if err == nil {
+		defer resp.Body.Close()
+		require.NotEqual(t, http.StatusOK, resp.StatusCode, "Should fail without authentication")
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Should return 401 Unauthorized")
+	} else {
+		// Connection might be rejected immediately, which is also acceptable
+		t.Logf("Connection rejected: %v", err)
+	}
 }
 
 // TestSSE005_SubscribeWithConsumerGroup validates subscription with consumer group
 func TestSSE005_SubscribeWithConsumerGroup(t *testing.T) {
-	t.Skip("Consumer group SSE subscriptions have timing issues in tests - works in practice")
-
 	ts := SetupTestServer(t)
 	defer ts.Cleanup()
 
-	category := randomStreamName("sse-test")
+	// Use a simple category name without random suffix
+	category := fmt.Sprintf("ssetest%d", time.Now().UnixNano()%1000000)
 
 	// Subscribe with consumer group (member 0 of 2)
 	// Note: Parameters are "consumer" and "size", not "consumerGroup.member" and "consumerGroup.size"
@@ -297,8 +367,9 @@ func TestSSE005_SubscribeWithConsumerGroup(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	// Give subscription time to establish - category with consumer group may need more time
-	time.Sleep(300 * time.Millisecond)
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
 
 	// Write messages to multiple streams
 	for i := 1; i <= 4; i++ {
@@ -338,8 +409,11 @@ func TestSSE006_MultipleSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	defer client2.Close()
 
-	// Give subscriptions time to establish
-	time.Sleep(100 * time.Millisecond)
+	// Wait for both subscriptions to be ready
+	err = client1.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription 1 should be ready")
+	err = client2.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription 2 should be ready")
 
 	// Write to stream1
 	msg1 := map[string]interface{}{
@@ -370,12 +444,78 @@ func TestSSE006_MultipleSubscriptions(t *testing.T) {
 
 // TestSSE007_ReconnectionHandling validates reconnection handling
 func TestSSE007_ReconnectionHandling(t *testing.T) {
-	t.Skip("Reconnection handling requires simulating connection drops - complex test")
-	// This test would require:
-	// 1. Establishing a subscription
-	// 2. Forcibly closing the connection
-	// 3. Re-establishing with last known position
-	// 4. Verifying no messages were missed
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
+
+	stream := randomStreamName("sse-test")
+
+	// Subscribe to stream
+	subscribeURL := fmt.Sprintf("%s/subscribe?stream=%s&token=%s", ts.URL(), stream, ts.Token)
+	client1, err := NewSSEClient(subscribeURL, ts.Token)
+	require.NoError(t, err)
+
+	// Wait for subscription to be ready
+	err = client1.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
+
+	// Write some messages
+	for i := 0; i < 3; i++ {
+		msg := map[string]interface{}{
+			"type": "TestEvent",
+			"data": map[string]interface{}{"seq": i},
+		}
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", stream, msg)
+		require.NoError(t, err)
+	}
+
+	// Read all events from first connection
+	var lastPosition int64
+	for i := 0; i < 3; i++ {
+		event, err := client1.WaitForEvent(2 * time.Second)
+		require.NoError(t, err, "Should receive event %d", i)
+		lastPosition = int64(event["position"].(float64))
+	}
+
+	// Close first connection (simulating disconnect)
+	client1.Close()
+
+	// Write more messages while disconnected
+	for i := 3; i < 6; i++ {
+		msg := map[string]interface{}{
+			"type": "TestEvent",
+			"data": map[string]interface{}{"seq": i},
+		}
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", stream, msg)
+		require.NoError(t, err)
+	}
+
+	// Reconnect from last known stream position + 1
+	reconnectURL := fmt.Sprintf("%s/subscribe?stream=%s&position=%d&token=%s",
+		ts.URL(), stream, lastPosition+1, ts.Token)
+	client2, err := NewSSEClient(reconnectURL, ts.Token)
+	require.NoError(t, err)
+	defer client2.Close()
+
+	// Wait for subscription to be ready
+	err = client2.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Reconnected subscription should be ready")
+
+	// Should receive the messages that were written while disconnected
+	// Note: We're using stream position, not global position for the subscription
+	// So we should get messages from the stream position, not global position
+	receivedCount := 0
+	for i := 0; i < 5; i++ { // Try to read up to 5 events
+		_, err := client2.WaitForEvent(500 * time.Millisecond)
+		if err != nil {
+			break
+		}
+		receivedCount++
+	}
+
+	// We should have received at least the 3 messages written while disconnected
+	// (might receive more if position calculation includes earlier messages)
+	require.GreaterOrEqual(t, receivedCount, 3,
+		"Should receive messages written during disconnect")
 }
 
 // TestSSE008_PokeEventParsing validates poke event structure
@@ -391,8 +531,9 @@ func TestSSE008_PokeEventParsing(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	// Give subscription time to establish
-	time.Sleep(100 * time.Millisecond)
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
 
 	// Write a message
 	msg := map[string]interface{}{

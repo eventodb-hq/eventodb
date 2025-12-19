@@ -130,7 +130,21 @@ func (h *SSEHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 // subscribeToStream handles stream-specific subscriptions
 func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWriter, namespace, streamName string, startPosition int64) {
-	// First, send any existing messages from startPosition
+	// Subscribe to real-time updates FIRST (before fetching existing messages)
+	// This prevents a race where messages written between fetch and subscribe are missed
+	var sub Subscriber
+	if h.Pubsub != nil {
+		sub = h.Pubsub.SubscribeStream(namespace, streamName)
+		defer h.Pubsub.UnsubscribeStream(namespace, streamName, sub)
+	}
+
+	// Send a ready comment to signal subscription is established
+	fmt.Fprintf(w, ": ready\n\n")
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Now fetch any existing messages from startPosition
 	messages, err := h.Store.GetStreamMessages(ctx, namespace, streamName, &store.GetOpts{
 		Position:  startPosition,
 		BatchSize: 1000,
@@ -160,15 +174,11 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 		lastPosition = msg.Position + 1
 	}
 
-	// Subscribe to real-time updates (if pubsub is available)
+	// If no pubsub, just wait for context cancellation
 	if h.Pubsub == nil {
-		// No pubsub, just wait for context cancellation
 		<-ctx.Done()
 		return
 	}
-
-	sub := h.Pubsub.SubscribeStream(namespace, streamName)
-	defer h.Pubsub.UnsubscribeStream(namespace, streamName, sub)
 
 	for {
 		select {
@@ -199,6 +209,20 @@ func (h *SSEHandler) subscribeToStream(ctx context.Context, w http.ResponseWrite
 
 // subscribeToCategory handles category-specific subscriptions
 func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWriter, namespace, categoryName string, startPosition int64, consumerMember, consumerSize int64) {
+	// Subscribe to real-time updates FIRST (before fetching existing messages)
+	// This prevents a race where messages written between fetch and subscribe are missed
+	var sub Subscriber
+	if h.Pubsub != nil {
+		sub = h.Pubsub.SubscribeCategory(namespace, categoryName)
+		defer h.Pubsub.UnsubscribeCategory(namespace, categoryName, sub)
+	}
+
+	// Send a ready comment to signal subscription is established
+	fmt.Fprintf(w, ": ready\n\n")
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
 	// Build options for category query
 	opts := &store.CategoryOpts{
 		Position:  startPosition,
@@ -209,7 +233,7 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 		opts.ConsumerSize = &consumerSize
 	}
 
-	// First, send any existing messages from startPosition
+	// Now fetch any existing messages from startPosition
 	messages, err := h.Store.GetCategoryMessages(ctx, namespace, categoryName, opts)
 	if err != nil {
 		logger.Get().Error().
@@ -240,15 +264,11 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 		lastGlobalPosition = msg.GlobalPosition + 1
 	}
 
-	// Subscribe to real-time updates (if pubsub is available)
+	// If no pubsub, just wait for context cancellation
 	if h.Pubsub == nil {
-		// No pubsub, just wait for context cancellation
 		<-ctx.Done()
 		return
 	}
-
-	sub := h.Pubsub.SubscribeCategory(namespace, categoryName)
-	defer h.Pubsub.UnsubscribeCategory(namespace, categoryName, sub)
 
 	for {
 		select {
