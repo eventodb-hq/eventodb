@@ -613,3 +613,145 @@ func TestMDB001_5A_T13_GetStreamVersion_ReturnsCorrectVersion(t *testing.T) {
 			lastMsg.Position, version5)
 	}
 }
+
+// MDB001_5A_T14: Test GetStreamMessages with GlobalPosition filter
+func TestMDB001_5A_T14_GetStreamMessages_WithGlobalPosition(t *testing.T) {
+	store, cleanup := getTestStore(t, true)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create namespace
+	err := store.CreateNamespace(ctx, "test_ns_r9", "hash_r9", "Test namespace r9")
+	if err != nil {
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+	defer cleanupNamespace(t, store, "test_ns_r9")
+
+	streamName := "account-gpos-test"
+
+	// Write 10 test messages and track their global positions
+	var globalPositions []int64
+	for i := 0; i < 10; i++ {
+		msg := &storepkg.Message{
+			StreamName: streamName,
+			Type:       "TestMessage",
+			Data: map[string]interface{}{
+				"index": i,
+			},
+		}
+
+		result, err := store.WriteMessage(ctx, "test_ns_r9", streamName, msg)
+		if err != nil {
+			t.Fatalf("Failed to write test message %d: %v", i, err)
+		}
+		globalPositions = append(globalPositions, result.GlobalPosition)
+	}
+
+	// Get the global position of the 5th message (index 4)
+	targetGPos := globalPositions[4]
+
+	// Read messages from that global position
+	opts := &storepkg.GetOpts{
+		GlobalPosition: &targetGPos,
+		BatchSize:      1000,
+	}
+
+	messages, err := store.GetStreamMessages(ctx, "test_ns_r9", streamName, opts)
+	if err != nil {
+		t.Fatalf("Failed to read messages with global position filter: %v", err)
+	}
+
+	// Should get messages from position 4 onwards (6 messages total)
+	if len(messages) != 6 {
+		t.Errorf("Expected 6 messages, got %d", len(messages))
+	}
+
+	// Verify all returned messages have global_position >= targetGPos
+	for i, msg := range messages {
+		if msg.GlobalPosition < targetGPos {
+			t.Errorf("Message %d has global_position %d, expected >= %d",
+				i, msg.GlobalPosition, targetGPos)
+		}
+	}
+
+	// Verify first returned message has the target global position
+	if messages[0].GlobalPosition != targetGPos {
+		t.Errorf("First message should have global_position %d, got %d",
+			targetGPos, messages[0].GlobalPosition)
+	}
+}
+
+// MDB001_5A_T15: Test GetCategoryMessages with GlobalPosition filter
+func TestMDB001_5A_T15_GetCategoryMessages_WithGlobalPosition(t *testing.T) {
+	store, cleanup := getTestStore(t, true)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create namespace
+	err := store.CreateNamespace(ctx, "test_ns_r10", "hash_r10", "Test namespace r10")
+	if err != nil {
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+	defer cleanupNamespace(t, store, "test_ns_r10")
+
+	// Write messages to multiple streams and track global positions
+	var allGlobalPositions []int64
+	streams := []string{"account-111", "account-222", "account-333"}
+
+	for _, stream := range streams {
+		for i := 0; i < 3; i++ {
+			msg := &storepkg.Message{
+				StreamName: stream,
+				Type:       "TestMessage",
+				Data: map[string]interface{}{
+					"stream": stream,
+					"index":  i,
+				},
+			}
+
+			result, err := store.WriteMessage(ctx, "test_ns_r10", stream, msg)
+			if err != nil {
+				t.Fatalf("Failed to write message: %v", err)
+			}
+			allGlobalPositions = append(allGlobalPositions, result.GlobalPosition)
+		}
+	}
+
+	// Get the global position of the 5th message overall (index 4)
+	targetGPos := allGlobalPositions[4]
+
+	// Read category messages from that global position
+	opts := &storepkg.CategoryOpts{
+		GlobalPosition: &targetGPos,
+		BatchSize:      1000,
+	}
+
+	messages, err := store.GetCategoryMessages(ctx, "test_ns_r10", "account", opts)
+	if err != nil {
+		t.Fatalf("Failed to read category messages with global position filter: %v", err)
+	}
+
+	// Should get messages from the 5th message onwards (5 messages remaining)
+	expectedCount := 9 - 4 // Total 9 messages, skip first 4
+	if len(messages) != expectedCount {
+		t.Errorf("Expected %d messages, got %d", expectedCount, len(messages))
+	}
+
+	// Verify all returned messages have global_position >= targetGPos
+	for i, msg := range messages {
+		if msg.GlobalPosition < targetGPos {
+			t.Errorf("Message %d has global_position %d, expected >= %d",
+				i, msg.GlobalPosition, targetGPos)
+		}
+	}
+
+	// Verify messages are still in global position order
+	for i := 1; i < len(messages); i++ {
+		if messages[i].GlobalPosition <= messages[i-1].GlobalPosition {
+			t.Errorf("Expected increasing global positions, got %d -> %d",
+				messages[i-1].GlobalPosition, messages[i].GlobalPosition)
+		}
+	}
+}

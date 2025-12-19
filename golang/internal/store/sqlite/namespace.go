@@ -117,3 +117,19 @@ func (s *SQLiteStore) ListNamespaces(ctx context.Context) ([]*store.Namespace, e
 
 	return namespaces, rows.Err()
 }
+
+// GetNamespaceMessageCount returns the number of messages in a namespace
+func (s *SQLiteStore) GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error) {
+	handle, err := s.getNamespaceHandle(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	err = handle.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages`).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count messages: %w", err)
+	}
+
+	return count, nil
+}

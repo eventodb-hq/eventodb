@@ -210,6 +210,23 @@ func (s *PostgresStore) ListNamespaces(ctx context.Context) ([]*store.Namespace,
 	return namespaces, nil
 }
 
+// GetNamespaceMessageCount returns the total number of messages in a namespace
+func (s *PostgresStore) GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error) {
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM "%s".messages`, schemaName)
+	var count int64
+	err = s.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count messages: %w", err)
+	}
+
+	return count, nil
+}
+
 // applyNamespaceMigrations applies namespace migrations with template substitution
 func applyNamespaceMigrations(ctx context.Context, tx *sql.Tx, schemaName string) error {
 	// The embed.FS includes the full path, so we need to use the correct directory

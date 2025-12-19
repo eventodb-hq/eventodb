@@ -903,13 +903,20 @@ func (h *RPCHandler) handleNamespaceInfo(ctx context.Context, args []interface{}
 		}
 	}
 
+	// Get message count
+	messageCount, err := h.store.GetNamespaceMessageCount(ctx, namespaceID)
+	if err != nil {
+		// If we can't get the count, just return 0 rather than failing
+		messageCount = 0
+	}
+
 	// Return result
-	// TODO: Implement actual counts and lastActivity
+	// TODO: Implement streamCount and lastActivity
 	return map[string]interface{}{
 		"namespace":    ns.ID,
 		"description":  ns.Description,
 		"createdAt":    ns.CreatedAt.UTC().Format(time.RFC3339Nano),
-		"messageCount": 0,
+		"messageCount": messageCount,
 		"streamCount":  0,
 		"lastActivity": nil,
 	}, nil

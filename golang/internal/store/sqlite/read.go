@@ -20,9 +20,19 @@ func (s *SQLiteStore) GetStreamMessages(ctx context.Context, namespace, streamNa
 		opts = store.NewGetOpts()
 	}
 
-	query := `SELECT id, stream_name, type, position, global_position, data, metadata, time
-		FROM messages WHERE stream_name = ? AND position >= ? ORDER BY position ASC`
-	args := []interface{}{streamName, opts.Position}
+	var query string
+	var args []interface{}
+
+	// Use global_position filter if GlobalPosition is specified, otherwise use position
+	if opts.GlobalPosition != nil {
+		query = `SELECT id, stream_name, type, position, global_position, data, metadata, time
+			FROM messages WHERE stream_name = ? AND global_position >= ? ORDER BY position ASC`
+		args = []interface{}{streamName, *opts.GlobalPosition}
+	} else {
+		query = `SELECT id, stream_name, type, position, global_position, data, metadata, time
+			FROM messages WHERE stream_name = ? AND position >= ? ORDER BY position ASC`
+		args = []interface{}{streamName, opts.Position}
+	}
 
 	if opts.BatchSize > 0 {
 		query += ` LIMIT ?`
@@ -49,12 +59,19 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 		opts = store.NewCategoryOpts()
 	}
 
+	// For category queries, Position represents the global position filter
+	// GlobalPosition is an alternative way to specify the same thing
+	position := opts.Position
+	if opts.GlobalPosition != nil {
+		position = *opts.GlobalPosition
+	}
+
 	query := `SELECT id, stream_name, type, position, global_position, data, metadata, time
 		FROM messages
 		WHERE substr(stream_name, 1, instr(stream_name || '-', '-') - 1) = ?
 		AND global_position >= ?
 		ORDER BY global_position ASC`
-	args := []interface{}{categoryName, opts.Position}
+	args := []interface{}{categoryName, position}
 
 	if opts.Correlation != nil && *opts.Correlation != "" {
 		query = `SELECT id, stream_name, type, position, global_position, data, metadata, time

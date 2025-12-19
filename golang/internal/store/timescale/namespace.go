@@ -228,3 +228,20 @@ func applyTimescaleMigrations(ctx context.Context, tx *sql.Tx, schemaName string
 
 	return nil
 }
+
+// GetNamespaceMessageCount returns the total number of messages in a namespace
+func (s *TimescaleStore) GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error) {
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM "%s".messages`, schemaName)
+	var count int64
+	err = s.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count messages: %w", err)
+	}
+
+	return count, nil
+}

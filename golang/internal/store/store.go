@@ -116,6 +116,13 @@ type Store interface {
 	// ListNamespaces returns all namespaces in the store.
 	ListNamespaces(ctx context.Context) ([]*Namespace, error)
 
+	// GetNamespaceMessageCount returns the total number of messages in a namespace.
+	//
+	// This is useful for getting statistics about a namespace.
+	// Returns 0 if the namespace exists but has no messages.
+	// Returns an error if the namespace doesn't exist.
+	GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error)
+
 	// Utility Functions (Message DB compatible)
 
 	// Category extracts the category name from a stream name.

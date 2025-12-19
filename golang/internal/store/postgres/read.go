@@ -22,15 +22,30 @@ func (s *PostgresStore) GetStreamMessages(ctx context.Context, namespace, stream
 		opts = store.NewGetOpts()
 	}
 
-	// 3. Determine starting position
-	position := opts.Position
+	// 3. If GlobalPosition is specified, use a direct query instead of the stored procedure
 	if opts.GlobalPosition != nil {
-		// If GlobalPosition is specified, we need to convert it to stream position
-		// For stream queries, we'll use position directly
-		position = opts.Position
+		query := fmt.Sprintf(
+			`SELECT id, stream_name, type, position, global_position, data, metadata, time
+			 FROM "%s".messages
+			 WHERE stream_name = $1 AND global_position >= $2
+			 ORDER BY position ASC`,
+			schemaName,
+		)
+		
+		if opts.BatchSize > 0 {
+			query += fmt.Sprintf(` LIMIT %d`, opts.BatchSize)
+		}
+		
+		rows, err := s.db.QueryContext(ctx, query, streamName, *opts.GlobalPosition)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query stream messages: %w", err)
+		}
+		defer rows.Close()
+		
+		return s.scanMessages(rows, opts.BatchSize)
 	}
 
-	// 4. Call get_stream_messages stored procedure
+	// 4. Call get_stream_messages stored procedure for position-based queries
 	query := fmt.Sprintf(
 		`SELECT * FROM "%s".get_stream_messages($1, $2, $3, $4)`,
 		schemaName,
@@ -40,7 +55,7 @@ func (s *PostgresStore) GetStreamMessages(ctx context.Context, namespace, stream
 		ctx,
 		query,
 		streamName,
-		position,
+		opts.Position,
 		opts.BatchSize,
 		nil, // condition is deprecated
 	)

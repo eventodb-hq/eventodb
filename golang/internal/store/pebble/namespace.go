@@ -176,3 +176,33 @@ func prefixUpperBound(prefix []byte) []byte {
 	}
 	return nil // no upper bound if prefix is all 0xff
 }
+
+// GetNamespaceMessageCount returns the total number of messages in a namespace
+func (s *PebbleStore) GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error) {
+	handle, err := s.getNamespaceDB(ctx, namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	// Count all messages by iterating over the message prefix
+	prefix := []byte("m:")
+	iter, err := handle.db.NewIter(&pebble.IterOptions{
+		LowerBound: prefix,
+		UpperBound: prefixUpperBound(prefix),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create iterator: %w", err)
+	}
+	defer iter.Close()
+
+	var count int64
+	for iter.First(); iter.Valid(); iter.Next() {
+		count++
+	}
+
+	if err := iter.Error(); err != nil {
+		return 0, fmt.Errorf("failed to iterate messages: %w", err)
+	}
+
+	return count, nil
+}

@@ -527,3 +527,80 @@ func TestMDB001_4A_T10_ListNamespaces_ReturnsAll(t *testing.T) {
 		}
 	}
 }
+
+// MDB001_4A_T11: Test GetNamespaceMessageCount returns correct count
+func TestMDB001_4A_T11_GetNamespaceMessageCount_ReturnsCorrectCount(t *testing.T) {
+	store, cleanup := getTestStore(t, true)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create namespace
+	err := store.CreateNamespace(ctx, "test_ns_count", "hash_count", "Test namespace for counting")
+	if err != nil {
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+	defer cleanupNamespace(t, store, "test_ns_count")
+
+	// Initially should have 0 messages
+	count0, err := store.GetNamespaceMessageCount(ctx, "test_ns_count")
+	if err != nil {
+		t.Fatalf("Failed to get initial message count: %v", err)
+	}
+	if count0 != 0 {
+		t.Errorf("Expected 0 messages initially, got %d", count0)
+	}
+
+	// Write 5 messages to stream 1
+	for i := 0; i < 5; i++ {
+		msg := &storepkg.Message{
+			StreamName: "account-111",
+			Type:       "TestMessage",
+			Data:       map[string]interface{}{"index": i},
+		}
+		_, err := store.WriteMessage(ctx, "test_ns_count", "account-111", msg)
+		if err != nil {
+			t.Fatalf("Failed to write message %d: %v", i, err)
+		}
+	}
+
+	// Should have 5 messages
+	count1, err := store.GetNamespaceMessageCount(ctx, "test_ns_count")
+	if err != nil {
+		t.Fatalf("Failed to get message count after 5 messages: %v", err)
+	}
+	if count1 != 5 {
+		t.Errorf("Expected 5 messages, got %d", count1)
+	}
+
+	// Write 3 messages to stream 2
+	for i := 0; i < 3; i++ {
+		msg := &storepkg.Message{
+			StreamName: "account-222",
+			Type:       "TestMessage",
+			Data:       map[string]interface{}{"index": i},
+		}
+		_, err := store.WriteMessage(ctx, "test_ns_count", "account-222", msg)
+		if err != nil {
+			t.Fatalf("Failed to write message %d to stream 2: %v", i, err)
+		}
+	}
+
+	// Should have 8 messages total
+	count2, err := store.GetNamespaceMessageCount(ctx, "test_ns_count")
+	if err != nil {
+		t.Fatalf("Failed to get message count after 8 messages: %v", err)
+	}
+	if count2 != 8 {
+		t.Errorf("Expected 8 messages, got %d", count2)
+	}
+
+	// Test with non-existent namespace
+	_, err = store.GetNamespaceMessageCount(ctx, "nonexistent_namespace")
+	if err == nil {
+		t.Error("Expected error for non-existent namespace")
+	}
+	if err != storepkg.ErrNamespaceNotFound {
+		t.Errorf("Expected ErrNamespaceNotFound, got: %v", err)
+	}
+}
