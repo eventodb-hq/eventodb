@@ -2,7 +2,6 @@ package pebble
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/cockroachdb/pebble"
@@ -58,11 +57,14 @@ func (s *PebbleStore) WriteMessage(ctx context.Context, namespace, streamName st
 		msg.ID = uuid.New().String()
 	}
 
-	// Serialize message to JSON
+	// Serialize message to JSON using jsoniter
 	messageJSON, err := json.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize message: %w", err)
 	}
+
+	// Compress JSON using S2
+	compressedMessage := compressJSON(messageJSON)
 
 	// Extract category
 	category := extractCategory(streamName)
@@ -71,8 +73,8 @@ func (s *PebbleStore) WriteMessage(ctx context.Context, namespace, streamName st
 	batch := handle.db.NewBatch()
 	defer batch.Close()
 
-	// 1. M:{gp} → full message JSON
-	batch.Set(formatMessageKey(globalPosition), messageJSON, nil)
+	// 1. M:{gp} → compressed message JSON
+	batch.Set(formatMessageKey(globalPosition), compressedMessage, nil)
 
 	// 2. SI:{stream}:{position} → global position
 	batch.Set(formatStreamIndexKey(streamName, newPosition), []byte(encodeInt64(globalPosition)), nil)

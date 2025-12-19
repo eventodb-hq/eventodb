@@ -2,7 +2,6 @@ package pebble
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/cockroachdb/pebble"
@@ -66,18 +65,23 @@ func (s *PebbleStore) GetStreamMessages(ctx context.Context, namespace, streamNa
 
 		// Point lookup message: M:{gp}
 		msgKey := formatMessageKey(gp)
-		msgData, closer, err := handle.db.Get(msgKey)
+		compressedData, closer, err := handle.db.Get(msgKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get message at gp=%d: %w", gp, err)
 		}
 
-		// Deserialize message
+		// Decompress S2-compressed data
+		msgData, err := decompressJSON(compressedData)
+		closer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		}
+
+		// Deserialize message using jsoniter
 		var msg store.Message
 		if err := json.Unmarshal(msgData, &msg); err != nil {
-			closer.Close()
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
-		closer.Close()
 
 		messages = append(messages, &msg)
 	}
@@ -187,18 +191,23 @@ func (s *PebbleStore) GetCategoryMessages(ctx context.Context, namespace, catego
 
 		// Point lookup message: M:{gp}
 		msgKey := formatMessageKey(gp)
-		msgData, closer, err := handle.db.Get(msgKey)
+		compressedData, closer, err := handle.db.Get(msgKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get message at gp=%d: %w", gp, err)
 		}
 
-		// Deserialize message
+		// Decompress S2-compressed data
+		msgData, err := decompressJSON(compressedData)
+		closer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		}
+
+		// Deserialize message using jsoniter
 		var msg store.Message
 		if err := json.Unmarshal(msgData, &msg); err != nil {
-			closer.Close()
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
-		closer.Close()
 
 		// Apply correlation filter if specified
 		if correlationCategory != nil {
@@ -280,17 +289,22 @@ func (s *PebbleStore) GetLastStreamMessage(ctx context.Context, namespace, strea
 
 		// Get message
 		msgKey := formatMessageKey(gp)
-		msgData, closer, err := handle.db.Get(msgKey)
+		compressedData, closer, err := handle.db.Get(msgKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get message: %w", err)
 		}
 
+		// Decompress S2-compressed data
+		msgData, err := decompressJSON(compressedData)
+		closer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		}
+
 		var msg store.Message
 		if err := json.Unmarshal(msgData, &msg); err != nil {
-			closer.Close()
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
-		closer.Close()
 
 		return &msg, nil
 	}
@@ -319,17 +333,22 @@ func (s *PebbleStore) GetLastStreamMessage(ctx context.Context, namespace, strea
 
 		// Get message
 		msgKey := formatMessageKey(gp)
-		msgData, closer, err := handle.db.Get(msgKey)
+		compressedData, closer, err := handle.db.Get(msgKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get message at gp=%d: %w", gp, err)
 		}
 
+		// Decompress S2-compressed data
+		msgData, err := decompressJSON(compressedData)
+		closer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		}
+
 		var msg store.Message
 		if err := json.Unmarshal(msgData, &msg); err != nil {
-			closer.Close()
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
-		closer.Close()
 
 		// Check if type matches
 		if msg.Type == *msgType {
