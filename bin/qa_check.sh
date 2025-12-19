@@ -19,7 +19,7 @@ gofmt -l -w .
 
 echo ""
 echo -e "${CYAN}2. Running go vet...${NC}"
-go vet ./...
+CGO_ENABLED=0 go vet ./...
 
 echo ""
 echo -e "${CYAN}3. Checking PostgreSQL availability...${NC}"
@@ -45,11 +45,11 @@ echo ""
 echo -e "${CYAN}4. Running all tests...${NC}"
 if [ "$POSTGRES_AVAILABLE" = true ]; then
     echo -e "${GREEN}Running full test suite including PostgreSQL tests${NC}"
-    go test ./... -v -timeout 30s
+    CGO_ENABLED=0 go test ./... -v -timeout 30s
 else
     echo -e "${YELLOW}Running tests excluding PostgreSQL-specific tests${NC}"
     # Run tests but exclude the postgres package tests that require a real connection
-    go test $(go list ./... | grep -v '/internal/store/postgres$') -v -timeout 30s
+    CGO_ENABLED=0 go test $(go list ./... | grep -v '/internal/store/postgres$') -v -timeout 30s
     echo -e "${YELLOW}Skipped PostgreSQL-specific tests in internal/store/postgres${NC}"
 fi
 
@@ -58,14 +58,14 @@ echo -e "${CYAN}5. Running tests with race detector...${NC}"
 RACE_FAILED=false
 if [ "$POSTGRES_AVAILABLE" = true ]; then
     echo -e "${GREEN}Running full test suite with race detector${NC}"
-    if ! go test ./... -race -timeout 120s; then
+    if ! CGO_ENABLED=0 go test ./... -race -timeout 120s; then
         RACE_FAILED=true
         echo -e "${YELLOW}⚠️  Some race tests failed (this may be due to timing issues in concurrent tests)${NC}"
     fi
 else
     echo -e "${YELLOW}Running tests with race detector excluding PostgreSQL-specific tests${NC}"
     # Run tests but exclude the postgres package tests that require a real connection
-    if ! go test $(go list ./... | grep -v '/internal/store/postgres$') -race -timeout 120s; then
+    if ! CGO_ENABLED=0 go test $(go list ./... | grep -v '/internal/store/postgres$') -race -timeout 120s; then
         RACE_FAILED=true
         echo -e "${YELLOW}⚠️  Some race tests failed (this may be due to timing issues in concurrent tests)${NC}"
     fi
@@ -74,7 +74,7 @@ fi
 
 echo ""
 echo -e "${CYAN}6. Checking for compilation errors...${NC}"
-go build ./cmd/messagedb
+CGO_ENABLED=0 go build ./cmd/messagedb
 BUILD_EXIT=$?
 
 echo ""
