@@ -35,10 +35,13 @@ func (s *PebbleStore) CreateNamespace(ctx context.Context, id, tokenHash, descri
 		return fmt.Errorf("failed to check namespace existence: %w", err)
 	}
 
-	// Create namespace directory
-	nsDir := filepath.Join(s.dataDir, id)
-	if err := os.MkdirAll(nsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create namespace directory: %w", err)
+	// Create namespace directory (skip in memory mode)
+	var nsDir string
+	if s.config == nil || !s.config.InMemory {
+		nsDir = filepath.Join(s.dataDir, id)
+		if err := os.MkdirAll(nsDir, 0755); err != nil {
+			return fmt.Errorf("failed to create namespace directory: %w", err)
+		}
 	}
 
 	// Create namespace metadata
@@ -57,9 +60,17 @@ func (s *PebbleStore) CreateNamespace(ctx context.Context, id, tokenHash, descri
 	}
 
 	// Write to metadata DB
-	if err := s.metadataDB.Set(key, value, pebble.Sync); err != nil {
+	// Use NoSync in test/memory mode for performance, Sync in production for durability
+	writeOpts := pebble.Sync
+	if s.config != nil && (s.config.TestMode || s.config.InMemory) {
+		writeOpts = pebble.NoSync
+	}
+	
+	if err := s.metadataDB.Set(key, value, writeOpts); err != nil {
 		// Clean up directory on failure
-		os.RemoveAll(nsDir)
+		if !s.config.InMemory {
+			os.RemoveAll(nsDir)
+		}
 		return fmt.Errorf("failed to write namespace metadata: %w", err)
 	}
 
@@ -151,14 +162,22 @@ func (s *PebbleStore) DeleteNamespace(ctx context.Context, id string) error {
 	}
 
 	// Delete from metadata DB
-	if err := s.metadataDB.Delete(key, pebble.Sync); err != nil {
+	// Use NoSync in test/memory mode for performance, Sync in production for durability
+	writeOpts := pebble.Sync
+	if s.config != nil && (s.config.TestMode || s.config.InMemory) {
+		writeOpts = pebble.NoSync
+	}
+	
+	if err := s.metadataDB.Delete(key, writeOpts); err != nil {
 		return fmt.Errorf("failed to delete namespace metadata: %w", err)
 	}
 
-	// Delete namespace directory
-	nsDir := filepath.Join(s.dataDir, id)
-	if err := os.RemoveAll(nsDir); err != nil {
-		return fmt.Errorf("failed to delete namespace directory: %w", err)
+	// Delete namespace directory (skip in memory mode)
+	if s.config == nil || !s.config.InMemory {
+		nsDir := filepath.Join(s.dataDir, id)
+		if err := os.RemoveAll(nsDir); err != nil {
+			return fmt.Errorf("failed to delete namespace directory: %w", err)
+		}
 	}
 
 	return nil

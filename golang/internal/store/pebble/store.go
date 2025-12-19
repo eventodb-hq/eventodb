@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/vfs"
 	"github.com/message-db/message-db/internal/store"
 )
 
@@ -15,11 +16,18 @@ const (
 	metadataDBName = "_metadata"
 )
 
+// Config contains configuration options for PebbleStore
+type Config struct {
+	TestMode bool // Use reduced memory settings optimized for tests
+	InMemory bool // Use in-memory storage (faster, no disk persistence)
+}
+
 // PebbleStore implements store.Store using Pebble key-value store
 type PebbleStore struct {
 	metadataDB *pebble.DB                  // Namespace registry (opened first)
 	namespaces map[string]*namespaceHandle // Lazy-loaded namespace DBs
 	dataDir    string                      // Base directory for all databases
+	config     *Config                     // Configuration options
 	mu         sync.RWMutex                // Protects namespaces map
 }
 
@@ -31,24 +39,36 @@ type namespaceHandle struct {
 
 // New creates a new PebbleStore
 func New(dataDir string) (*PebbleStore, error) {
-	// Create data directory if it doesn't exist
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create data directory: %w", err)
+	return NewWithConfig(dataDir, nil)
+}
+
+// NewWithConfig creates a new PebbleStore with custom configuration
+func NewWithConfig(dataDir string, config *Config) (*PebbleStore, error) {
+	if config == nil {
+		config = &Config{
+			TestMode: false,
+			InMemory: false,
+		}
+	}
+	// Create data directory if not in-memory mode
+	if !config.InMemory {
+		if err := os.MkdirAll(dataDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create data directory: %w", err)
+		}
 	}
 
-	// Open metadata DB with optimized settings
-	metadataPath := filepath.Join(dataDir, metadataDBName)
-	metadataDB, err := pebble.Open(metadataPath, &pebble.Options{
-		Cache:                       pebble.NewCache(256 << 20), // 256MB cache
-		MemTableSize:                128 << 20,                  // 128MB memtable
-		MemTableStopWritesThreshold: 4,                          // Allow more memtables before blocking
-		L0CompactionThreshold:       4,                          // More aggressive compaction
-		L0StopWritesThreshold:       12,                         // Higher threshold before blocking
-		MaxConcurrentCompactions:    func() int { return 3 },    // More concurrent compactions
-		DisableWAL:                  false,                      // Keep WAL for durability
-		WALBytesPerSync:             0,                          // Don't sync WAL on every write
-		BytesPerSync:                512 << 10,                  // Sync SSTs every 512KB
-	})
+	// Get options based on config
+	metadataOpts := getMetadataDBOptions(config)
+	
+	// Open metadata DB
+	var metadataPath string
+	if config.InMemory {
+		metadataPath = "" // Empty path triggers in-memory mode
+	} else {
+		metadataPath = filepath.Join(dataDir, metadataDBName)
+	}
+	
+	metadataDB, err := pebble.Open(metadataPath, metadataOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open metadata DB: %w", err)
 	}
@@ -57,6 +77,7 @@ func New(dataDir string) (*PebbleStore, error) {
 		metadataDB: metadataDB,
 		namespaces: make(map[string]*namespaceHandle),
 		dataDir:    dataDir,
+		config:     config,
 	}, nil
 }
 
@@ -114,20 +135,18 @@ func (s *PebbleStore) getNamespaceDB(ctx context.Context, nsID string) (*namespa
 		return handle, nil
 	}
 
-	// Open namespace Pebble DB with optimized settings for high throughput
-	dbPath := filepath.Join(s.dataDir, nsID)
-	db, err := pebble.Open(dbPath, &pebble.Options{
-		Cache:                       pebble.NewCache(1 << 30), // 1GB cache
-		MemTableSize:                256 << 20,                // 256MB memtable
-		MemTableStopWritesThreshold: 4,                        // Allow more memtables before blocking
-		L0CompactionThreshold:       4,                        // More aggressive compaction
-		L0StopWritesThreshold:       12,                       // Higher threshold before blocking
-		MaxConcurrentCompactions:    func() int { return 4 },  // More concurrent compactions
-		DisableWAL:                  false,                    // Keep WAL for durability
-		WALBytesPerSync:             0,                        // Don't sync WAL on every write
-		BytesPerSync:                1 << 20,                  // Sync SSTs every 1MB
-		MaxOpenFiles:                1000,                     // Allow more open files
-	})
+	// Get options based on config
+	namespaceOpts := getNamespaceDBOptions(s.config)
+	
+	// Open namespace Pebble DB
+	var dbPath string
+	if s.config.InMemory {
+		dbPath = "" // Empty path triggers in-memory mode
+	} else {
+		dbPath = filepath.Join(s.dataDir, nsID)
+	}
+	
+	db, err := pebble.Open(dbPath, namespaceOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open namespace DB: %w", err)
 	}
@@ -170,4 +189,96 @@ func (s *PebbleStore) IsCategory(name string) bool {
 
 func (s *PebbleStore) Hash64(value string) int64 {
 	return int64(hashCardinalID(value))
+}
+
+// getMetadataDBOptions returns Pebble options for metadata DB based on config
+func getMetadataDBOptions(config *Config) *pebble.Options {
+	if config.InMemory {
+		// In-memory mode: minimal settings, no persistence
+		return &pebble.Options{
+			Cache:                       pebble.NewCache(8 << 20),    // 8MB cache
+			MemTableSize:                4 << 20,                     // 4MB memtable
+			MemTableStopWritesThreshold: 2,
+			L0CompactionThreshold:       2,
+			L0StopWritesThreshold:       4,
+			MaxConcurrentCompactions:    func() int { return 1 },
+			DisableWAL:                  true,  // No WAL in memory mode
+			FS:                          vfs.NewMem(), // In-memory filesystem
+		}
+	}
+	
+	if config.TestMode {
+		// Test mode: reduced memory footprint, optimized for speed
+		return &pebble.Options{
+			Cache:                       pebble.NewCache(32 << 20),   // 32MB cache
+			MemTableSize:                16 << 20,                    // 16MB memtable
+			MemTableStopWritesThreshold: 2,
+			L0CompactionThreshold:       2,
+			L0StopWritesThreshold:       4,
+			MaxConcurrentCompactions:    func() int { return 1 },
+			DisableWAL:                  true,                        // Disable WAL for test speed
+			WALBytesPerSync:             0,
+			BytesPerSync:                1 << 20,
+		}
+	}
+	
+	// Production mode: optimized for durability and throughput
+	return &pebble.Options{
+		Cache:                       pebble.NewCache(256 << 20),  // 256MB cache
+		MemTableSize:                128 << 20,                   // 128MB memtable
+		MemTableStopWritesThreshold: 4,
+		L0CompactionThreshold:       4,
+		L0StopWritesThreshold:       12,
+		MaxConcurrentCompactions:    func() int { return 3 },
+		DisableWAL:                  false,                       // Keep WAL for durability
+		WALBytesPerSync:             0,
+		BytesPerSync:                512 << 10,                   // Sync SSTs every 512KB
+	}
+}
+
+// getNamespaceDBOptions returns Pebble options for namespace DB based on config
+func getNamespaceDBOptions(config *Config) *pebble.Options {
+	if config.InMemory {
+		// In-memory mode: minimal settings, no persistence
+		return &pebble.Options{
+			Cache:                       pebble.NewCache(16 << 20),   // 16MB cache
+			MemTableSize:                8 << 20,                     // 8MB memtable
+			MemTableStopWritesThreshold: 2,
+			L0CompactionThreshold:       2,
+			L0StopWritesThreshold:       4,
+			MaxConcurrentCompactions:    func() int { return 1 },
+			DisableWAL:                  true,  // No WAL in memory mode
+			FS:                          vfs.NewMem(), // In-memory filesystem
+		}
+	}
+	
+	if config.TestMode {
+		// Test mode: reduced memory footprint, optimized for speed
+		return &pebble.Options{
+			Cache:                       pebble.NewCache(64 << 20),   // 64MB cache
+			MemTableSize:                32 << 20,                    // 32MB memtable
+			MemTableStopWritesThreshold: 2,
+			L0CompactionThreshold:       2,
+			L0StopWritesThreshold:       4,
+			MaxConcurrentCompactions:    func() int { return 2 },
+			DisableWAL:                  true,                        // Disable WAL for test speed
+			WALBytesPerSync:             0,
+			BytesPerSync:                1 << 20,
+			MaxOpenFiles:                100,
+		}
+	}
+	
+	// Production mode: optimized for durability and high throughput
+	return &pebble.Options{
+		Cache:                       pebble.NewCache(1 << 30),    // 1GB cache
+		MemTableSize:                256 << 20,                   // 256MB memtable
+		MemTableStopWritesThreshold: 4,
+		L0CompactionThreshold:       4,
+		L0StopWritesThreshold:       12,
+		MaxConcurrentCompactions:    func() int { return 4 },
+		DisableWAL:                  false,                       // Keep WAL for durability
+		WALBytesPerSync:             0,
+		BytesPerSync:                1 << 20,                     // Sync SSTs every 1MB
+		MaxOpenFiles:                1000,
+	}
 }

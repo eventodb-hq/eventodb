@@ -221,11 +221,14 @@ func setupPostgresEnv(t *testing.T) *TestEnv {
 func setupPebbleEnv(t *testing.T) *TestEnv {
 	t.Helper()
 
-	// Create temporary directory for Pebble data
+	// Create temporary directory for Pebble data (not used in memory mode but required)
 	tmpDir := t.TempDir()
 
-	// Create store
-	st, err := pebble.New(tmpDir)
+	// Create store with in-memory mode for fastest tests
+	st, err := pebble.NewWithConfig(tmpDir, &pebble.Config{
+		TestMode: true,
+		InMemory: true, // Use in-memory for maximum test speed
+	})
 	if err != nil {
 		t.Fatalf("Failed to create Pebble store: %v", err)
 	}
@@ -409,10 +412,14 @@ func setupPostgresEnvWithDefaultNamespace(t *testing.T) *TestEnv {
 func setupPebbleEnvWithDefaultNamespace(t *testing.T) *TestEnv {
 	t.Helper()
 
-	// Create temporary directory for Pebble data
+	// Create temporary directory for Pebble data (not used in memory mode but required)
 	tmpDir := t.TempDir()
 
-	st, err := pebble.New(tmpDir)
+	// Create store with in-memory mode for fastest tests
+	st, err := pebble.NewWithConfig(tmpDir, &pebble.Config{
+		TestMode: true,
+		InMemory: true, // Use in-memory for maximum test speed
+	})
 	if err != nil {
 		t.Fatalf("Failed to create Pebble store: %v", err)
 	}
