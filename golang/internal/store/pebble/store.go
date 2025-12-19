@@ -126,25 +126,6 @@ func (s *PebbleStore) getNamespaceDB(ctx context.Context, nsID string) (*namespa
 // Verify PebbleStore implements store.Store interface
 var _ store.Store = (*PebbleStore)(nil)
 
-// Placeholder implementations for Store interface methods
-// These will be implemented in later phases
-
-func (s *PebbleStore) GetStreamMessages(ctx context.Context, namespace, streamName string, opts *store.GetOpts) ([]*store.Message, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-func (s *PebbleStore) GetCategoryMessages(ctx context.Context, namespace, categoryName string, opts *store.CategoryOpts) ([]*store.Message, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-func (s *PebbleStore) GetLastStreamMessage(ctx context.Context, namespace, streamName string, msgType *string) (*store.Message, error) {
-	return nil, fmt.Errorf("not implemented yet")
-}
-
-func (s *PebbleStore) GetStreamVersion(ctx context.Context, namespace, streamName string) (int64, error) {
-	return -1, fmt.Errorf("not implemented yet")
-}
-
 // Utility methods for stream name parsing
 
 func (s *PebbleStore) Category(streamName string) string {
