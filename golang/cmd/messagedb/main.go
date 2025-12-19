@@ -18,6 +18,7 @@ import (
 	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/logger"
 	"github.com/message-db/message-db/internal/store"
+	"github.com/message-db/message-db/internal/store/pebble"
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
 	"github.com/message-db/message-db/internal/store/timescale"
@@ -109,8 +110,28 @@ func parseDBConfig(dbURL, dataDir, dbTypeOverride string, testMode bool) (*dbCon
 			testMode: false,
 		}, nil
 
+	case "pebble":
+		// Pebble: extract the data directory from the URL
+		// Format: pebble:///path/to/data or pebble://path/to/data
+		pebbleDir := strings.TrimPrefix(dbURL, "pebble://")
+		if pebbleDir == "" {
+			pebbleDir = "./data/pebble"
+		}
+
+		// Ensure data directory exists
+		if err := os.MkdirAll(pebbleDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create Pebble data directory: %w", err)
+		}
+
+		return &dbConfig{
+			dbType:   "pebble",
+			connStr:  "", // Not used for Pebble
+			dataDir:  pebbleDir,
+			testMode: false,
+		}, nil
+
 	default:
-		return nil, fmt.Errorf("unsupported database scheme: %s (use postgres:// or sqlite://)", u.Scheme)
+		return nil, fmt.Errorf("unsupported database scheme: %s (use postgres://, sqlite://, or pebble://)", u.Scheme)
 	}
 }
 
@@ -216,6 +237,22 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 				Str("path", cfg.connStr).
 				Msg("Connected to SQLite database")
 		}
+
+		cleanup := func() {
+			st.Close()
+		}
+		return st, cleanup, nil
+
+	case "pebble":
+		st, err := pebble.New(cfg.dataDir)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create Pebble store: %w", err)
+		}
+
+		logger.Get().Info().
+			Str("db_type", "pebble").
+			Str("path", cfg.dataDir).
+			Msg("Connected to Pebble database")
 
 		cleanup := func() {
 			st.Close()

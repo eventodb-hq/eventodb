@@ -86,8 +86,9 @@ func (s *PebbleStore) WriteMessage(ctx context.Context, namespace, streamName st
 	// 5. GP → incremented global position
 	batch.Set(formatGlobalPositionKey(), []byte(encodeInt64(globalPosition+1)), nil)
 
-	// Commit batch with sync
-	if err := batch.Commit(pebble.Sync); err != nil {
+	// Commit batch WITHOUT sync for performance (WAL provides durability)
+	// The WAL (Write-Ahead Log) ensures durability without forcing fsync on every write
+	if err := batch.Commit(pebble.NoSync); err != nil {
 		return nil, fmt.Errorf("failed to commit write batch: %w", err)
 	}
 

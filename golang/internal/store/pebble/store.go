@@ -36,11 +36,18 @@ func New(dataDir string) (*PebbleStore, error) {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	// Open metadata DB
+	// Open metadata DB with optimized settings
 	metadataPath := filepath.Join(dataDir, metadataDBName)
 	metadataDB, err := pebble.Open(metadataPath, &pebble.Options{
-		Cache:        pebble.NewCache(64 << 20), // 64MB cache
-		MemTableSize: 32 << 20,                  // 32MB memtable
+		Cache:                       pebble.NewCache(256 << 20), // 256MB cache
+		MemTableSize:                128 << 20,                  // 128MB memtable
+		MemTableStopWritesThreshold: 4,                          // Allow more memtables before blocking
+		L0CompactionThreshold:       4,                          // More aggressive compaction
+		L0StopWritesThreshold:       12,                         // Higher threshold before blocking
+		MaxConcurrentCompactions:    func() int { return 3 },    // More concurrent compactions
+		DisableWAL:                  false,                      // Keep WAL for durability
+		WALBytesPerSync:             0,                          // Don't sync WAL on every write
+		BytesPerSync:                512 << 10,                  // Sync SSTs every 512KB
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open metadata DB: %w", err)
@@ -107,11 +114,19 @@ func (s *PebbleStore) getNamespaceDB(ctx context.Context, nsID string) (*namespa
 		return handle, nil
 	}
 
-	// Open namespace Pebble DB
+	// Open namespace Pebble DB with optimized settings for high throughput
 	dbPath := filepath.Join(s.dataDir, nsID)
 	db, err := pebble.Open(dbPath, &pebble.Options{
-		Cache:        pebble.NewCache(128 << 20), // 128MB cache
-		MemTableSize: 64 << 20,                   // 64MB memtable
+		Cache:                       pebble.NewCache(1 << 30),  // 1GB cache
+		MemTableSize:                256 << 20,                 // 256MB memtable
+		MemTableStopWritesThreshold: 4,                         // Allow more memtables before blocking
+		L0CompactionThreshold:       4,                         // More aggressive compaction
+		L0StopWritesThreshold:       12,                        // Higher threshold before blocking
+		MaxConcurrentCompactions:    func() int { return 4 },   // More concurrent compactions
+		DisableWAL:                  false,                     // Keep WAL for durability
+		WALBytesPerSync:             0,                         // Don't sync WAL on every write
+		BytesPerSync:                1 << 20,                   // Sync SSTs every 1MB
+		MaxOpenFiles:                1000,                      // Allow more open files
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open namespace DB: %w", err)
