@@ -14,6 +14,7 @@ import (
 	"github.com/message-db/message-db/internal/api"
 	"github.com/message-db/message-db/internal/auth"
 	"github.com/message-db/message-db/internal/store"
+	"github.com/message-db/message-db/internal/store/pebble"
 	"github.com/message-db/message-db/internal/store/postgres"
 	"github.com/message-db/message-db/internal/store/sqlite"
 
@@ -27,6 +28,7 @@ type BackendType string
 const (
 	BackendSQLite   BackendType = "sqlite"
 	BackendPostgres BackendType = "postgres"
+	BackendPebble   BackendType = "pebble"
 )
 
 // GetTestBackend returns the backend type based on TEST_BACKEND environment variable.
@@ -36,9 +38,16 @@ func GetTestBackend() BackendType {
 	switch backend {
 	case "postgres", "postgresql":
 		return BackendPostgres
+	case "pebble":
+		return BackendPebble
 	default:
 		return BackendSQLite
 	}
+}
+
+// GetAllTestBackends returns all available backends for comprehensive testing
+func GetAllTestBackends() []BackendType {
+	return []BackendType{BackendSQLite, BackendPostgres, BackendPebble}
 }
 
 // TestEnv holds the test environment configuration
@@ -61,9 +70,18 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	t.Helper()
 
 	backend := GetTestBackend()
+	return SetupTestEnvWithBackend(t, backend)
+}
+
+// SetupTestEnvWithBackend creates a test environment with a specific backend
+func SetupTestEnvWithBackend(t *testing.T, backend BackendType) *TestEnv {
+	t.Helper()
+
 	switch backend {
 	case BackendPostgres:
 		return setupPostgresEnv(t)
+	case BackendPebble:
+		return setupPebbleEnv(t)
 	default:
 		return setupSQLiteEnv(t)
 	}
@@ -199,6 +217,59 @@ func setupPostgresEnv(t *testing.T) *TestEnv {
 	}
 }
 
+// setupPebbleEnv creates a Pebble-based test environment
+func setupPebbleEnv(t *testing.T) *TestEnv {
+	t.Helper()
+
+	// Create temporary directory for Pebble data
+	tmpDir := t.TempDir()
+
+	// Create store
+	st, err := pebble.New(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create Pebble store: %v", err)
+	}
+
+	// Create unique namespace for this test
+	namespace := fmt.Sprintf("test-%s-%s",
+		sanitizeName(t.Name()),
+		uuid.New().String()[:8])
+
+	token, err := auth.GenerateToken(namespace)
+	if err != nil {
+		st.Close()
+		t.Fatalf("Failed to generate token: %v", err)
+	}
+
+	tokenHash := auth.HashToken(token)
+
+	ctx := context.Background()
+	err = st.CreateNamespace(ctx, namespace, tokenHash, "Test namespace")
+	if err != nil {
+		st.Close()
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+
+	// Eagerly initialize the namespace database
+	_, err = st.GetNamespace(ctx, namespace)
+	if err != nil {
+		st.Close()
+		t.Fatalf("Failed to initialize namespace: %v", err)
+	}
+
+	cleanup := func() {
+		_ = st.DeleteNamespace(context.Background(), namespace)
+		_ = st.Close()
+	}
+
+	return &TestEnv{
+		Store:     st,
+		Namespace: namespace,
+		Token:     token,
+		cleanup:   cleanup,
+	}
+}
+
 // SetupTestEnvWithDefaultNamespace creates a test environment with "default" namespace
 func SetupTestEnvWithDefaultNamespace(t *testing.T) *TestEnv {
 	t.Helper()
@@ -207,6 +278,8 @@ func SetupTestEnvWithDefaultNamespace(t *testing.T) *TestEnv {
 	switch backend {
 	case BackendPostgres:
 		return setupPostgresEnvWithDefaultNamespace(t)
+	case BackendPebble:
+		return setupPebbleEnvWithDefaultNamespace(t)
 	default:
 		return setupSQLiteEnvWithDefaultNamespace(t)
 	}
@@ -317,6 +390,58 @@ func setupPostgresEnvWithDefaultNamespace(t *testing.T) *TestEnv {
 	if err != nil {
 		st.Close()
 		t.Fatalf("Failed to create namespace: %v", err)
+	}
+
+	cleanup := func() {
+		_ = st.DeleteNamespace(context.Background(), namespace)
+		_ = st.Close()
+	}
+
+	return &TestEnv{
+		Store:     st,
+		Namespace: namespace,
+		Token:     token,
+		cleanup:   cleanup,
+	}
+}
+
+// setupPebbleEnvWithDefaultNamespace creates Pebble env with "default" namespace
+func setupPebbleEnvWithDefaultNamespace(t *testing.T) *TestEnv {
+	t.Helper()
+
+	// Create temporary directory for Pebble data
+	tmpDir := t.TempDir()
+
+	st, err := pebble.New(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create Pebble store: %v", err)
+	}
+
+	// Use a unique "default" namespace per test to avoid conflicts
+	namespace := fmt.Sprintf("default_%s_%s",
+		sanitizeName(t.Name()),
+		uuid.New().String()[:8])
+
+	token, err := auth.GenerateToken(namespace)
+	if err != nil {
+		st.Close()
+		t.Fatalf("Failed to generate token: %v", err)
+	}
+
+	tokenHash := auth.HashToken(token)
+
+	ctx := context.Background()
+	err = st.CreateNamespace(ctx, namespace, tokenHash, "Default namespace")
+	if err != nil {
+		st.Close()
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+
+	// Eagerly initialize the namespace database
+	_, err = st.GetNamespace(ctx, namespace)
+	if err != nil {
+		st.Close()
+		t.Fatalf("Failed to initialize namespace: %v", err)
 	}
 
 	cleanup := func() {

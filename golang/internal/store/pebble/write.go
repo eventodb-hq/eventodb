@@ -3,6 +3,7 @@ package pebble
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cockroachdb/pebble"
 	"github.com/google/uuid"
@@ -51,6 +52,7 @@ func (s *PebbleStore) WriteMessage(ctx context.Context, namespace, streamName st
 	msg.Position = newPosition
 	msg.GlobalPosition = globalPosition
 	msg.StreamName = streamName
+	msg.Time = time.Now().UTC()
 
 	// Generate ID if not provided
 	if msg.ID == "" {

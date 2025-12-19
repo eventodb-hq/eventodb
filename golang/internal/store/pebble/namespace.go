@@ -29,7 +29,7 @@ func (s *PebbleStore) CreateNamespace(ctx context.Context, id, tokenHash, descri
 	_, closer, err := s.metadataDB.Get(key)
 	if err == nil {
 		closer.Close()
-		return fmt.Errorf("namespace %s already exists", id)
+		return store.ErrNamespaceExists
 	}
 	if err != pebble.ErrNotFound {
 		return fmt.Errorf("failed to check namespace existence: %w", err)
@@ -75,7 +75,7 @@ func (s *PebbleStore) GetNamespace(ctx context.Context, id string) (*store.Names
 	value, closer, err := s.metadataDB.Get(key)
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return nil, fmt.Errorf("namespace %s not found", id)
+			return nil, store.ErrNamespaceNotFound
 		}
 		return nil, fmt.Errorf("failed to read namespace metadata: %w", err)
 	}
@@ -136,7 +136,7 @@ func (s *PebbleStore) DeleteNamespace(ctx context.Context, id string) error {
 	_, closer, err := s.metadataDB.Get(key)
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return fmt.Errorf("namespace %s not found", id)
+			return store.ErrNamespaceNotFound
 		}
 		return fmt.Errorf("failed to check namespace existence: %w", err)
 	}
@@ -184,8 +184,8 @@ func (s *PebbleStore) GetNamespaceMessageCount(ctx context.Context, namespace st
 		return 0, err
 	}
 
-	// Count all messages by iterating over the message prefix
-	prefix := []byte("m:")
+	// Count all messages by iterating over the message prefix "M:"
+	prefix := []byte("M:")
 	iter, err := handle.db.NewIter(&pebble.IterOptions{
 		LowerBound: prefix,
 		UpperBound: prefixUpperBound(prefix),

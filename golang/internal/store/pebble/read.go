@@ -22,10 +22,6 @@ func (s *PebbleStore) GetStreamMessages(ctx context.Context, namespace, streamNa
 	}
 
 	// Set defaults
-	position := int64(0)
-	if opts != nil && opts.Position > 0 {
-		position = opts.Position
-	}
 	batchSize := int64(1000)
 	if opts != nil && opts.BatchSize > 0 {
 		batchSize = opts.BatchSize
@@ -33,61 +29,133 @@ func (s *PebbleStore) GetStreamMessages(ctx context.Context, namespace, streamNa
 		batchSize = -1 // unlimited
 	}
 
-	// Create range scan iterator over stream index
-	// Start: SI:{stream}:{position_20}
-	// End: SI:{stream}:{max_int64}
-	startKey := formatStreamIndexKey(streamName, position)
-	endKey := formatStreamIndexKey(streamName, 999999999999999999) // Max 18-digit number
-
-	iter, err := handle.db.NewIter(&pebble.IterOptions{
-		LowerBound: startKey,
-		UpperBound: endKey,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create iterator: %w", err)
-	}
-	defer iter.Close()
-
-	// Collect messages
-	messages := make([]*store.Message, 0, batchSize)
-	for iter.First(); iter.Valid(); iter.Next() {
-		// Check batch size limit
-		if batchSize != -1 && int64(len(messages)) >= batchSize {
-			break
+	// Use GlobalPosition filter if specified, otherwise use Position
+	var messages []*store.Message
+	if opts != nil && opts.GlobalPosition != nil {
+		// Filter by global position - need to iterate through stream and filter
+		position := int64(0)
+		if opts.Position > 0 {
+			position = opts.Position
 		}
 
-		// Extract global position from value
-		gpBytes := iter.Value()
-		gp, err := decodeInt64(gpBytes)
+		startKey := formatStreamIndexKey(streamName, position)
+		endKey := formatStreamIndexKey(streamName, 999999999999999999)
+
+		iter, err := handle.db.NewIter(&pebble.IterOptions{
+			LowerBound: startKey,
+			UpperBound: endKey,
+		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode global position: %w", err)
+			return nil, fmt.Errorf("failed to create iterator: %w", err)
+		}
+		defer iter.Close()
+
+		capacity := batchSize
+		if capacity <= 0 {
+			capacity = 1000
+		}
+		messages = make([]*store.Message, 0, capacity)
+
+		for iter.First(); iter.Valid(); iter.Next() {
+			gpBytes := iter.Value()
+			gp, err := decodeInt64(gpBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode global position: %w", err)
+			}
+
+			// Skip messages before the global position filter
+			if gp < *opts.GlobalPosition {
+				continue
+			}
+
+			// Check batch size limit
+			if batchSize != -1 && int64(len(messages)) >= batchSize {
+				break
+			}
+
+			msgKey := formatMessageKey(gp)
+			compressedData, closer, err := handle.db.Get(msgKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get message at gp=%d: %w", gp, err)
+			}
+
+			msgData, err := decompressJSON(compressedData)
+			closer.Close()
+			if err != nil {
+				return nil, fmt.Errorf("failed to decompress message: %w", err)
+			}
+
+			var msg store.Message
+			if err := json.Unmarshal(msgData, &msg); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+			}
+
+			messages = append(messages, &msg)
 		}
 
-		// Point lookup message: M:{gp}
-		msgKey := formatMessageKey(gp)
-		compressedData, closer, err := handle.db.Get(msgKey)
+		if err := iter.Error(); err != nil {
+			return nil, fmt.Errorf("iterator error: %w", err)
+		}
+	} else {
+		// Filter by position (default)
+		position := int64(0)
+		if opts != nil && opts.Position > 0 {
+			position = opts.Position
+		}
+
+		startKey := formatStreamIndexKey(streamName, position)
+		endKey := formatStreamIndexKey(streamName, 999999999999999999)
+
+		iter, err := handle.db.NewIter(&pebble.IterOptions{
+			LowerBound: startKey,
+			UpperBound: endKey,
+		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get message at gp=%d: %w", gp, err)
+			return nil, fmt.Errorf("failed to create iterator: %w", err)
+		}
+		defer iter.Close()
+
+		capacity := batchSize
+		if capacity <= 0 {
+			capacity = 1000
+		}
+		messages = make([]*store.Message, 0, capacity)
+
+		for iter.First(); iter.Valid(); iter.Next() {
+			// Check batch size limit
+			if batchSize != -1 && int64(len(messages)) >= batchSize {
+				break
+			}
+
+			gpBytes := iter.Value()
+			gp, err := decodeInt64(gpBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode global position: %w", err)
+			}
+
+			msgKey := formatMessageKey(gp)
+			compressedData, closer, err := handle.db.Get(msgKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get message at gp=%d: %w", gp, err)
+			}
+
+			msgData, err := decompressJSON(compressedData)
+			closer.Close()
+			if err != nil {
+				return nil, fmt.Errorf("failed to decompress message: %w", err)
+			}
+
+			var msg store.Message
+			if err := json.Unmarshal(msgData, &msg); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+			}
+
+			messages = append(messages, &msg)
 		}
 
-		// Decompress S2-compressed data
-		msgData, err := decompressJSON(compressedData)
-		closer.Close()
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		if err := iter.Error(); err != nil {
+			return nil, fmt.Errorf("iterator error: %w", err)
 		}
-
-		// Deserialize message using jsoniter
-		var msg store.Message
-		if err := json.Unmarshal(msgData, &msg); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-		}
-
-		messages = append(messages, &msg)
-	}
-
-	if err := iter.Error(); err != nil {
-		return nil, fmt.Errorf("iterator error: %w", err)
 	}
 
 	return messages, nil
