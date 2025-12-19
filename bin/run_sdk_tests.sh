@@ -15,7 +15,7 @@ set -e
 
 SDK="${1:-all}"
 PORT=6789
-SERVER_BIN="./golang/messagedb"
+SERVER_BIN="./dist/messagedb"
 MESSAGEDB_URL="http://localhost:$PORT"
 # Known admin token for default namespace (used for creating test namespaces)
 ADMIN_TOKEN="ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000"
@@ -56,8 +56,9 @@ fi
 
 # Always build server to ensure we have the latest version
 echo -e "${YELLOW}→ Building MessageDB server...${NC}"
-cd golang && CGO_ENABLED=0 go build -o messagedb ./cmd/messagedb && cd ..
-echo -e "${GREEN}✓ Server built${NC}"
+mkdir -p dist
+cd golang && CGO_ENABLED=0 go build -o ../dist/messagedb ./cmd/messagedb && cd ..
+echo -e "${GREEN}✓ Server built to dist/messagedb${NC}"
 
 # Start test server (SQLite with proper auth)
 echo -e "${YELLOW}→ Starting test server on port $PORT...${NC}"
