@@ -117,16 +117,16 @@ func (s *PebbleStore) getNamespaceDB(ctx context.Context, nsID string) (*namespa
 	// Open namespace Pebble DB with optimized settings for high throughput
 	dbPath := filepath.Join(s.dataDir, nsID)
 	db, err := pebble.Open(dbPath, &pebble.Options{
-		Cache:                       pebble.NewCache(1 << 30),  // 1GB cache
-		MemTableSize:                256 << 20,                 // 256MB memtable
-		MemTableStopWritesThreshold: 4,                         // Allow more memtables before blocking
-		L0CompactionThreshold:       4,                         // More aggressive compaction
-		L0StopWritesThreshold:       12,                        // Higher threshold before blocking
-		MaxConcurrentCompactions:    func() int { return 4 },   // More concurrent compactions
-		DisableWAL:                  false,                     // Keep WAL for durability
-		WALBytesPerSync:             0,                         // Don't sync WAL on every write
-		BytesPerSync:                1 << 20,                   // Sync SSTs every 1MB
-		MaxOpenFiles:                1000,                      // Allow more open files
+		Cache:                       pebble.NewCache(1 << 30), // 1GB cache
+		MemTableSize:                256 << 20,                // 256MB memtable
+		MemTableStopWritesThreshold: 4,                        // Allow more memtables before blocking
+		L0CompactionThreshold:       4,                        // More aggressive compaction
+		L0StopWritesThreshold:       12,                       // Higher threshold before blocking
+		MaxConcurrentCompactions:    func() int { return 4 },  // More concurrent compactions
+		DisableWAL:                  false,                    // Keep WAL for durability
+		WALBytesPerSync:             0,                        // Don't sync WAL on every write
+		BytesPerSync:                1 << 20,                  // Sync SSTs every 1MB
+		MaxOpenFiles:                1000,                     // Allow more open files
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open namespace DB: %w", err)
