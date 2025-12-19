@@ -8,6 +8,12 @@
 #   bin/run_golang_sdk_specs.sh sqlite       # All tests, SQLite only
 #   bin/run_golang_sdk_specs.sh all TestSSE  # SSE tests, all backends
 #   bin/run_golang_sdk_specs.sh pebble WRITE # Write tests, Pebble only
+#
+# Features:
+#   - Real-time streaming output with colors
+#   - Progress indicators (✓ ✗ ⊘)
+#   - Test timing information
+#   - Summary with pass/fail counts
 
 set -e
 
@@ -23,7 +29,15 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+GRAY='\033[0;90m'
 NC='\033[0m' # No Color
+
+# Symbols
+CHECK="✓"
+CROSS="✗"
+SKIP="⊘"
+ARROW="→"
 
 # Backend icons
 ICON_SQLITE="📦"
@@ -53,7 +67,7 @@ run_backend_tests() {
     echo -e "${BLUE}=========================================${NC}"
     
     # Build test command
-    local test_cmd="CGO_ENABLED=0 TEST_BACKEND=$backend go test"
+    local test_cmd="CGO_ENABLED=0 TEST_BACKEND=$backend go test -v"
     
     # Add test pattern if specified
     if [ -n "$TEST_PATTERN" ]; then
@@ -71,9 +85,61 @@ run_backend_tests() {
         fi
     fi
     
-    # Run tests
+    # Run tests with real-time output
     cd golang
-    if eval $test_cmd; then
+    
+    # Use a temporary file to capture exit code while still streaming output
+    local tmpfile=$(mktemp)
+    
+    # Track test counts
+    local pass_count=0
+    local fail_count=0
+    local skip_count=0
+    
+    # Run tests and colorize output in real-time
+    (eval $test_cmd 2>&1; echo $? > "$tmpfile") | while IFS= read -r line; do
+        # Colorize test results
+        if [[ "$line" =~ ^===\ RUN ]]; then
+            # Extract test name
+            test_name=$(echo "$line" | sed 's/=== RUN   //')
+            echo -e "${CYAN}${ARROW} Running: ${NC}${test_name}"
+        elif [[ "$line" =~ ^---\ PASS ]]; then
+            ((pass_count++)) || true
+            # Extract test name and timing
+            test_info=$(echo "$line" | sed 's/--- PASS: //')
+            echo -e "${GREEN}  ${CHECK} ${test_info}${NC}"
+        elif [[ "$line" =~ ^---\ FAIL ]]; then
+            ((fail_count++)) || true
+            test_info=$(echo "$line" | sed 's/--- FAIL: //')
+            echo -e "${RED}  ${CROSS} ${test_info}${NC}"
+        elif [[ "$line" =~ ^---\ SKIP ]]; then
+            ((skip_count++)) || true
+            test_info=$(echo "$line" | sed 's/--- SKIP: //')
+            echo -e "${GRAY}  ${SKIP} ${test_info}${NC}"
+        elif [[ "$line" =~ ^PASS$ ]]; then
+            echo -e "${GREEN}${line}${NC}"
+        elif [[ "$line" =~ ^FAIL$ ]]; then
+            echo -e "${RED}${line}${NC}"
+        elif [[ "$line" =~ ^ok ]]; then
+            echo -e "${GREEN}${line}${NC}"
+        elif [[ "$line" =~ ^=== ]]; then
+            # Show other test framework output in gray
+            echo -e "${GRAY}${line}${NC}"
+        elif [[ "$line" =~ (Error|error|FAIL|fail) ]]; then
+            # Highlight errors
+            echo -e "${RED}${line}${NC}"
+        else
+            # Indent regular output slightly
+            echo "    ${line}"
+        fi
+    done
+    
+    # Read exit code from temp file
+    local exit_code=$(cat "$tmpfile")
+    rm -f "$tmpfile"
+    
+    echo ""
+    if [ "$exit_code" -eq 0 ]; then
         echo -e "${GREEN}✅ $backend PASSED${NC}"
         cd ..
         return 0
