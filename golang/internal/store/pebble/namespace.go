@@ -65,7 +65,7 @@ func (s *PebbleStore) CreateNamespace(ctx context.Context, id, tokenHash, descri
 	if s.config != nil && (s.config.TestMode || s.config.InMemory) {
 		writeOpts = pebble.NoSync
 	}
-	
+
 	if err := s.metadataDB.Set(key, value, writeOpts); err != nil {
 		// Clean up directory on failure
 		if !s.config.InMemory {
@@ -167,7 +167,7 @@ func (s *PebbleStore) DeleteNamespace(ctx context.Context, id string) error {
 	if s.config != nil && (s.config.TestMode || s.config.InMemory) {
 		writeOpts = pebble.NoSync
 	}
-	
+
 	if err := s.metadataDB.Delete(key, writeOpts); err != nil {
 		return fmt.Errorf("failed to delete namespace metadata: %w", err)
 	}
