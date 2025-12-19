@@ -31,17 +31,17 @@ func (s *TimescaleStore) GetStreamMessages(ctx context.Context, namespace, strea
 			 ORDER BY position ASC`,
 			schemaName,
 		)
-		
+
 		if opts.BatchSize > 0 {
 			query += fmt.Sprintf(` LIMIT %d`, opts.BatchSize)
 		}
-		
+
 		rows, err := s.db.QueryContext(ctx, query, streamName, *opts.GlobalPosition)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query stream messages: %w", err)
 		}
 		defer rows.Close()
-		
+
 		return s.scanMessages(rows, opts.BatchSize)
 	}
 

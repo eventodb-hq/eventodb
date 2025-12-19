@@ -61,7 +61,7 @@ func TestCATEGORY002_ReadCategoryWithPositionFilter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to write message %d: %v", i, err)
 		}
-		
+
 		resultMap := result.(map[string]interface{})
 		gpos := int64(resultMap["globalPosition"].(float64))
 		globalPositions = append(globalPositions, gpos)
