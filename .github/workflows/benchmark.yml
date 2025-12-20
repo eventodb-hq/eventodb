@@ -1,7 +1,7 @@
 # Message DB CI - Performance Benchmark Workflow
 # Runs performance benchmarks and checks for regressions
 
-name: Benchmark
+name: Performance Benchmarks
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
   # Performance Benchmarks
   # ============================================================================
   benchmark:
-    name: Performance Benchmarks
+    name: Benchmarks
     runs-on: ubuntu-latest
     
     steps:
@@ -29,9 +29,9 @@ jobs:
           cache: true
           cache-dependency-path: golang/go.sum
       
-      - name: Build MessageDB server
+      - name: Build EventoDB server
         working-directory: ./golang
-        run: go build -o messagedb ./cmd/messagedb
+        run: go build -o eventodb ./cmd/eventodb
       
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -46,7 +46,7 @@ jobs:
         working-directory: ./test_external
         run: bun test benchmarks/ --timeout 120000
         env:
-          MESSAGEDB_BIN: ../golang/messagedb
+          EVENTODB_BIN: ../golang/eventodb
       
       # Optional: Store benchmark results as artifact
       - name: Upload benchmark results
