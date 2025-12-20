@@ -2,7 +2,7 @@
 
 ## Test Summary
 
-Total tests: **61**
+Total tests: **71**
 
 All tests passing ✅
 
@@ -89,6 +89,18 @@ All tests passing ✅
 - ✅ ENCODING-009: Arrays in data
 - ✅ ENCODING-010: Large message payload
 
+### SSE Tests (10 tests)
+- ✅ SSE-001: Subscribe to stream
+- ✅ SSE-002: Subscribe to category
+- ✅ SSE-003: Subscribe with position
+- ✅ SSE-004: Subscribe without authentication
+- ✅ SSE-005: Subscribe with consumer group
+- ✅ SSE-006: Multiple subscriptions
+- ✅ SSE-007: Reconnection handling
+- ✅ SSE-008: Poke event parsing
+- ✅ SSE-009: Multiple consumers in same consumer group
+- ✅ SSE-010: Close subscription
+
 ## Running Tests
 
 ### Quick Test
@@ -120,7 +132,7 @@ go test -v -race
 
 ✅ **Tier 2 (Should Have)**: 100% - All CATEGORY, NS, SYS, LAST, VERSION tests passing
 
-✅ **Tier 3 (Nice to Have)**: 100% - All ENCODING tests passing
+✅ **Tier 3 (Nice to Have)**: 100% - All ENCODING and SSE tests passing
 
 ## Notes
 

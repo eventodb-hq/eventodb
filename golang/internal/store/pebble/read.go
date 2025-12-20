@@ -247,13 +247,8 @@ func (s *PebbleStore) GetCategoryMessages(ctx context.Context, namespace, catego
 
 		// Apply consumer group filter if specified
 		if hasConsumerGroup {
-			cardinalID := extractCardinalID(streamName)
-			if cardinalID != "" {
-				hash := hashCardinalID(cardinalID)
-				member := int64(hash % uint64(*consumerSize))
-				if member != *consumerMember {
-					continue // Skip this message
-				}
+			if !store.IsAssignedToConsumerMember(streamName, *consumerMember, *consumerSize) {
+				continue // Skip this message
 			}
 		}
 

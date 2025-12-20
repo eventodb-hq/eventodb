@@ -60,8 +60,34 @@ func main() {
         log.Fatal(err)
     }
     fmt.Printf("Category has %d messages\n", len(catMessages))
+    
+    // Subscribe to real-time events
+    sub, err := client.SubscribeStream(ctx, "account-123", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer sub.Close()
+    
+    // Listen for poke events in background
+    go func() {
+        for poke := range sub.Events {
+            fmt.Printf("New message at position %d\n", poke.Position)
+        }
+    }()
 }
 ```
+
+## Features
+
+- ✅ **Stream Operations**: Write, read, get last message, check version
+- ✅ **Category Operations**: Read with filtering, consumer groups, correlation
+- ✅ **Namespace Operations**: Create, delete, list, get info
+- ✅ **System Operations**: Version, health checks
+- ✅ **Server-Sent Events**: Real-time subscriptions to streams and categories
+- ✅ **Zero Dependencies**: Uses only Go standard library
+- ✅ **Type-Safe**: Strongly typed message structures
+- ✅ **Context-Aware**: All operations support context cancellation
+- ✅ **Well-Tested**: 71 tests covering all functionality
 
 ## API
 
@@ -170,6 +196,54 @@ fmt.Printf("Server version: %s\n", version)
 // Get server health
 health, err := client.SystemHealth(ctx)
 fmt.Printf("Health status: %s\n", health.Status)
+```
+
+### Server-Sent Events (SSE)
+
+```go
+// Subscribe to stream
+sub, err := client.SubscribeStream(ctx, "account-123", nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer sub.Close()
+
+// Listen for poke events
+go func() {
+    for {
+        select {
+        case poke := <-sub.Events:
+            fmt.Printf("New message: stream=%s, position=%d, gpos=%d\n",
+                poke.Stream, poke.Position, poke.GlobalPosition)
+            
+            // Fetch the new message
+            messages, _ := client.StreamGet(ctx, poke.Stream, &messagedb.GetStreamOptions{
+                Position: &poke.Position,
+                BatchSize: messagedb.IntPtr(1),
+            })
+            
+        case err := <-sub.Errors:
+            log.Printf("Subscription error: %v", err)
+            return
+        }
+    }
+}()
+
+// Subscribe to category
+sub, err := client.SubscribeCategory(ctx, "account", nil)
+
+// Subscribe to category with consumer group
+sub, err := client.SubscribeCategory(ctx, "account", &messagedb.SubscribeCategoryOptions{
+    ConsumerGroup: &messagedb.ConsumerGroup{
+        Member: 0,
+        Size: 4,
+    },
+})
+
+// Subscribe from specific position
+sub, err := client.SubscribeStream(ctx, "account-123", &messagedb.SubscribeStreamOptions{
+    Position: messagedb.Int64Ptr(10),
+})
 ```
 
 ### Error Handling

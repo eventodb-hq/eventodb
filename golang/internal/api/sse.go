@@ -246,10 +246,7 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 
 	lastGlobalPosition := startPosition
 	for _, msg := range messages {
-		// Apply consumer group filter if needed
-		if consumerSize > 0 && !h.matchesConsumerGroup(msg.StreamName, consumerMember, consumerSize) {
-			continue
-		}
+		// Note: consumer group filtering already done by GetCategoryMessages
 		poke := pokePool.Get().(*Poke)
 		poke.Stream = msg.StreamName
 		poke.Position = msg.Position
@@ -303,12 +300,7 @@ func (h *SSEHandler) subscribeToCategory(ctx context.Context, w http.ResponseWri
 
 // matchesConsumerGroup checks if a stream belongs to a consumer group member
 func (h *SSEHandler) matchesConsumerGroup(streamName string, member, size int64) bool {
-	// Hash the stream name to determine which consumer it belongs to
-	hash := uint64(0)
-	for _, c := range streamName {
-		hash = hash*31 + uint64(c)
-	}
-	return int64(hash%uint64(size)) == member
+	return store.IsAssignedToConsumerMember(streamName, member, size)
 }
 
 // sendPoke sends a poke event via SSE
