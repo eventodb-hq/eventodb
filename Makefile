@@ -1,4 +1,7 @@
-.PHONY: help build test profile-baseline profile-compare benchmark-all clean
+.PHONY: help build test test-race profile-baseline profile-compare benchmark-all clean
+
+# Fix for Xcode 16 + Go race detector compatibility
+export CGO_CFLAGS := -Wno-error=nullability-completeness -Wno-error=availability
 
 help: ## Show this help message
 	@echo "EventoDB - Development Commands"
@@ -13,6 +16,10 @@ build: ## Build the server binary
 test: ## Run all tests
 	@echo "Running tests..."
 	cd golang && CGO_ENABLED=0 go test -v ./...
+
+test-race: ## Run tests with race detector
+	@echo "Running tests with race detector..."
+	cd golang && go test -race -v ./...
 
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
