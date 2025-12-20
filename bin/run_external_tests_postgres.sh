@@ -28,7 +28,7 @@ POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
-POSTGRES_DB="${POSTGRES_DB:-message_store}"
+POSTGRES_DB="${POSTGRES_DB:-eventodb_store}"
 
 # Build the connection URL
 DB_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
@@ -88,15 +88,15 @@ if command -v psql &> /dev/null; then
             ns RECORD;
         BEGIN
             -- Drop test schemas
-            FOR ns IN SELECT schema_name FROM message_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default'
+            FOR ns IN SELECT schema_name FROM eventodb_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default'
             LOOP
                 EXECUTE 'DROP SCHEMA IF EXISTS \"' || ns.schema_name || '\" CASCADE';
             END LOOP;
             -- Delete from registry
-            DELETE FROM message_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default';
+            DELETE FROM eventodb_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default';
         EXCEPTION
             WHEN undefined_table THEN
-                -- message_store.namespaces doesn't exist yet, that's fine
+                -- eventodb_store.namespaces doesn't exist yet, that's fine
                 NULL;
             WHEN invalid_schema_name THEN
                 -- Schema doesn't exist, that's fine
@@ -123,11 +123,11 @@ cleanup() {
             DECLARE
                 ns RECORD;
             BEGIN
-                FOR ns IN SELECT schema_name FROM message_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default'
+                FOR ns IN SELECT schema_name FROM eventodb_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default'
                 LOOP
                     EXECUTE 'DROP SCHEMA IF EXISTS \"' || ns.schema_name || '\" CASCADE';
                 END LOOP;
-                DELETE FROM message_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default';
+                DELETE FROM eventodb_store.namespaces WHERE id LIKE 'test_%' OR id LIKE 'bench_%' OR id = 'default';
             EXCEPTION
                 WHEN undefined_table THEN NULL;
                 WHEN invalid_schema_name THEN NULL;

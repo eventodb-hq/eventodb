@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/google/uuid"
 	"github.com/eventodb/eventodb/internal/store"
+	"github.com/google/uuid"
 )
 
 // WriteMessage writes a message to a stream in the specified namespace

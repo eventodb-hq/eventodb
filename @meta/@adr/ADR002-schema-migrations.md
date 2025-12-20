@@ -13,7 +13,7 @@ Current EventoDB installation approach:
 ### Issues
 1. **Bash scripts everywhere**: `install.sh`, `update.sh`, multiple shell scripts
 2. **No migration history**: No table tracking which migrations have run
-3. **Version stored in function**: `message_store_version()` returns hardcoded string
+3. **Version stored in function**: `eventodb_store_version()` returns hardcoded string
 4. **Fragile**: Requires bash, psql, specific environment variables
 5. **No rollback**: Cannot undo migrations
 6. **Poor developer experience**: Hard to debug, test, or extend
@@ -56,7 +56,7 @@ Implement a **Go-based migration system** that runs **automatically on boot**.
 ### 1. Migration Tracking Table
 
 ```sql
-CREATE TABLE IF NOT EXISTS message_store.schema_migrations (
+CREATE TABLE IF NOT EXISTS eventodb_store.schema_migrations (
   version VARCHAR(255) PRIMARY KEY,
   applied_at TIMESTAMP NOT NULL DEFAULT NOW(),
   checksum VARCHAR(64) NOT NULL,
@@ -100,7 +100,7 @@ migrations/
 **migrations/postgres/001_initial_schema.sql:**
 ```sql
 -- Migration: 001_initial_schema
--- Description: Creates core message_store schema, tables, and functions (Postgres)
+-- Description: Creates core eventodb_store schema, tables, and functions (Postgres)
 
 -- Schema migrations tracking
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -110,10 +110,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 
 -- Create schema
-CREATE SCHEMA IF NOT EXISTS message_store;
+CREATE SCHEMA IF NOT EXISTS eventodb_store;
 
 -- Create message table
-CREATE TABLE IF NOT EXISTS message_store.messages (
+CREATE TABLE IF NOT EXISTS eventodb_store.messages (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   stream_name VARCHAR NOT NULL,
   type VARCHAR NOT NULL,
@@ -126,16 +126,16 @@ CREATE TABLE IF NOT EXISTS message_store.messages (
 );
 
 -- Create indexes
-CREATE UNIQUE INDEX IF NOT EXISTS messages_id ON message_store.messages (id);
-CREATE UNIQUE INDEX IF NOT EXISTS messages_stream ON message_store.messages (stream_name, position);
-CREATE INDEX IF NOT EXISTS messages_category ON message_store.messages (
+CREATE UNIQUE INDEX IF NOT EXISTS messages_id ON eventodb_store.messages (id);
+CREATE UNIQUE INDEX IF NOT EXISTS messages_stream ON eventodb_store.messages (stream_name, position);
+CREATE INDEX IF NOT EXISTS messages_category ON eventodb_store.messages (
   (SPLIT_PART(stream_name, '-', 1)),
   global_position,
   (metadata->>'correlationStreamName')
 );
 
 -- Create write_message function (stored procedure)
-CREATE OR REPLACE FUNCTION message_store.write_message(
+CREATE OR REPLACE FUNCTION eventodb_store.write_message(
   _id VARCHAR,
   _stream_name VARCHAR,
   _type VARCHAR,
@@ -157,7 +157,7 @@ $$ LANGUAGE plpgsql;
 **migrations/sqlite/001_initial_schema.sql:**
 ```sql
 -- Migration: 001_initial_schema
--- Description: Creates core message_store tables (SQLite - no stored procedures)
+-- Description: Creates core eventodb_store tables (SQLite - no stored procedures)
 
 -- Schema migrations tracking
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -377,7 +377,7 @@ func (m *Migrator) applyMigration(mig Migration) error {
 | Feature | Postgres | SQLite | Solution |
 |---------|----------|--------|----------|
 | **Stored Procedures** | YES (PL/pgSQL) | NO | Implement in Go for SQLite |
-| **Schemas** | `message_store.messages` | Single namespace | Use table prefix or omit |
+| **Schemas** | `eventodb_store.messages` | Single namespace | Use table prefix or omit |
 | **UUID Type** | `UUID` | `TEXT` | Store as TEXT in SQLite |
 | **JSONB** | `JSONB` | `TEXT` | Store as TEXT, parse in Go |
 | **BIGSERIAL** | Auto-increment 64-bit | `INTEGER AUTOINCREMENT` | Different syntax |
@@ -404,7 +404,7 @@ substr(stream_name, 1, instr(stream_name || '-', '-') - 1)
 **Postgres approach:**
 ```sql
 -- migrations/postgres/001_initial_schema.sql
-CREATE OR REPLACE FUNCTION message_store.write_message(...)
+CREATE OR REPLACE FUNCTION eventodb_store.write_message(...)
 RETURNS BIGINT AS $$
   -- Full implementation in PL/pgSQL
 $$ LANGUAGE plpgsql;
@@ -502,15 +502,15 @@ SELECT pg_advisory_lock(123456789);
 ```bash
 MESSAGEDB_DB_HOST=localhost
 MESSAGEDB_DB_PORT=5432
-MESSAGEDB_DB_NAME=message_store
-MESSAGEDB_DB_USER=message_store
+MESSAGEDB_DB_NAME=eventodb_store
+MESSAGEDB_DB_USER=eventodb_store
 MESSAGEDB_DB_PASSWORD=secret
 MESSAGEDB_DB_SSLMODE=disable
 ```
 
 **Or connection string:**
 ```bash
-eventodb migrate up --dsn="postgres://user:pass@localhost/message_store"
+eventodb migrate up --dsn="postgres://user:pass@localhost/eventodb_store"
 ```
 
 **Or config file:**
@@ -519,8 +519,8 @@ eventodb migrate up --dsn="postgres://user:pass@localhost/message_store"
 database:
   host: localhost
   port: 5432
-  name: message_store
-  user: message_store
+  name: eventodb_store
+  user: eventodb_store
   password: secret
   sslmode: disable
 ```

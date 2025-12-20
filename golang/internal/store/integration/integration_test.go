@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/eventodb/eventodb/internal/store"
 	"github.com/eventodb/eventodb/internal/store/postgres"
 	"github.com/eventodb/eventodb/internal/store/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
 

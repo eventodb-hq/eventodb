@@ -4,7 +4,7 @@
 
 - **Duration**: 30 seconds
 - **Workers**: 10 concurrent workers
-- **Database**: PostgreSQL (message_store)
+- **Database**: PostgreSQL (eventodb_store)
 - **Workload**: Mixed read/write operations with authentication attempts
 
 ## Overall Metrics

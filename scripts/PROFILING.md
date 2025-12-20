@@ -60,7 +60,7 @@ Profiles SQLite, PostgreSQL, or TimescaleDB backends.
 - `POSTGRES_PORT` - PostgreSQL port (default: `5432`)
 - `POSTGRES_USER` - PostgreSQL user (default: `postgres`)
 - `POSTGRES_PASSWORD` - PostgreSQL password (default: `postgres`)
-- `POSTGRES_DB` - PostgreSQL database (default: `message_store`)
+- `POSTGRES_DB` - PostgreSQL database (default: `eventodb_store`)
 
 ### 3. `profile-compare.sh` - SQLite vs Pebble Comparison
 

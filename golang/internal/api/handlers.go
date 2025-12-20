@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/eventodb/eventodb/internal/auth"
 	"github.com/eventodb/eventodb/internal/store"
+	"github.com/google/uuid"
 )
 
 // handleStreamWrite writes a message to a stream

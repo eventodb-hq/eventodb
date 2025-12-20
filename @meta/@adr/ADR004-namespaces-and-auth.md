@@ -202,7 +202,7 @@ Response:
 1. Generate token and hash
 2. Create schema: `CREATE SCHEMA "eventodb_tenant_a"`
 3. Run namespace migrations (create tables, indexes, functions)
-4. Insert record into `message_store.namespaces`
+4. Insert record into `eventodb_store.namespaces`
 
 **SQLite:**
 1. Generate token and hash
@@ -233,9 +233,9 @@ Response:
 
 **Postgres:**
 1. Verify token matches namespace
-2. Get schema name from `message_store.namespaces`
+2. Get schema name from `eventodb_store.namespaces`
 3. `DROP SCHEMA "eventodb_tenant_a" CASCADE` (deletes everything)
-4. Delete from `message_store.namespaces`
+4. Delete from `eventodb_store.namespaces`
 
 **SQLite:**
 1. Verify token matches namespace
@@ -339,7 +339,7 @@ Response:
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌──────────────────────────────────────┐                  │
-│  │ message_store (metadata schema)      │                  │
+│  │ eventodb_store (metadata schema)      │                  │
 │  ├──────────────────────────────────────┤                  │
 │  │ namespaces table:                    │                  │
 │  │  - id: 'default'                     │                  │
@@ -443,15 +443,15 @@ VALUES ('account-123', ...);
 
 ## Database Structure (Postgres)
 
-### Default Schema (message_store)
+### Default Schema (eventodb_store)
 
-The `message_store` schema contains **only namespace metadata**:
+The `eventodb_store` schema contains **only namespace metadata**:
 
 ```sql
-CREATE SCHEMA IF NOT EXISTS message_store;
+CREATE SCHEMA IF NOT EXISTS eventodb_store;
 
 -- Namespace registry (tokens + metadata)
-CREATE TABLE message_store.namespaces (
+CREATE TABLE eventodb_store.namespaces (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
   schema_name TEXT NOT NULL UNIQUE,  -- Points to data schema
@@ -461,11 +461,11 @@ CREATE TABLE message_store.namespaces (
 );
 
 -- Default namespace entry
-INSERT INTO message_store.namespaces (id, token_hash, schema_name, description, created_at)
+INSERT INTO eventodb_store.namespaces (id, token_hash, schema_name, description, created_at)
 VALUES ('default', '<hash>', 'eventodb_default', 'Default namespace', <timestamp>);
 ```
 
-**Key point:** No message data in `message_store` schema!
+**Key point:** No message data in `eventodb_store` schema!
 
 ---
 
@@ -519,7 +519,7 @@ $$ LANGUAGE plpgsql;
 DROP SCHEMA "eventodb_tenant_a" CASCADE;
 
 -- Remove from registry
-DELETE FROM message_store.namespaces WHERE id = 'tenant-a';
+DELETE FROM eventodb_store.namespaces WHERE id = 'tenant-a';
 ```
 
 ---
@@ -834,7 +834,7 @@ await fetch(`${server.url}/rpc`, {
 
 ### Two-Level Migration System
 
-#### Level 1: Metadata Schema (message_store)
+#### Level 1: Metadata Schema (eventodb_store)
 
 ```
 migrations/
@@ -848,10 +848,10 @@ migrations/
 **migrations/metadata/postgres/001_namespace_registry.sql:**
 ```sql
 -- Create namespace registry schema
-CREATE SCHEMA IF NOT EXISTS message_store;
+CREATE SCHEMA IF NOT EXISTS eventodb_store;
 
 -- Namespace registry
-CREATE TABLE IF NOT EXISTS message_store.namespaces (
+CREATE TABLE IF NOT EXISTS eventodb_store.namespaces (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
   schema_name TEXT NOT NULL UNIQUE,  -- For Postgres
@@ -1003,7 +1003,7 @@ func ensureDefaultNamespace(db *sql.DB, cfg Config) string {
             
             // Create namespace record
             db.Exec(`
-                INSERT INTO message_store.namespaces (id, token_hash, schema_name, description, created_at)
+                INSERT INTO eventodb_store.namespaces (id, token_hash, schema_name, description, created_at)
                 VALUES ('default', $1, $2, 'Default namespace', $3)
             `, hash, schemaName, time.Now().Unix())
             

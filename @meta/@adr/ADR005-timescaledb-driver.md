@@ -50,7 +50,7 @@ Implement a **TimescaleDB driver** that uses **hypertables** with time-based par
 │  Database: eventodb_timescale_test                                     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  public.schema_migrations      → Migration tracking                     │
-│  message_store.namespaces      → Namespace registry                     │
+│  eventodb_store.namespaces      → Namespace registry                     │
 │  tsdb_<namespace>.messages     → Hypertable (partitioned by time)       │
 │  _timescaledb_internal.*       → TimescaleDB chunk storage              │
 └─────────────────────────────────────────────────────────────────────────┘

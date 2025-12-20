@@ -17,7 +17,7 @@ POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
-POSTGRES_DB="${POSTGRES_DB:-message_store}"
+POSTGRES_DB="${POSTGRES_DB:-eventodb_store}"
 
 PROFILE_DIR="./profiles/$(date +%Y%m%d_%H%M%S)-${PROFILE_SUFFIX}"
 mkdir -p "$PROFILE_DIR"
@@ -54,11 +54,11 @@ elif [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
       DECLARE
         ns RECORD;
       BEGIN
-        FOR ns IN SELECT schema_name FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%'
+        FOR ns IN SELECT schema_name FROM eventodb_store.namespaces WHERE id = 'default' OR id LIKE 'test_%'
         LOOP
           EXECUTE 'DROP SCHEMA IF EXISTS \"' || ns.schema_name || '\" CASCADE';
         END LOOP;
-        DELETE FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%';
+        DELETE FROM eventodb_store.namespaces WHERE id = 'default' OR id LIKE 'test_%';
       EXCEPTION
         WHEN undefined_table THEN NULL;
         WHEN invalid_schema_name THEN NULL;
@@ -106,11 +106,11 @@ cleanup() {
         DECLARE
           ns RECORD;
         BEGIN
-          FOR ns IN SELECT schema_name FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%'
+          FOR ns IN SELECT schema_name FROM eventodb_store.namespaces WHERE id = 'default' OR id LIKE 'test_%'
           LOOP
             EXECUTE 'DROP SCHEMA IF EXISTS \"' || ns.schema_name || '\" CASCADE';
           END LOOP;
-          DELETE FROM message_store.namespaces WHERE id = 'default' OR id LIKE 'test_%';
+          DELETE FROM eventodb_store.namespaces WHERE id = 'default' OR id LIKE 'test_%';
         EXCEPTION
           WHEN undefined_table THEN NULL;
           WHEN invalid_schema_name THEN NULL;

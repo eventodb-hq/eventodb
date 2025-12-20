@@ -644,8 +644,8 @@ services:
     environment:
       - MESSAGEDB_DB_HOST=postgres
       - MESSAGEDB_DB_PORT=5432
-      - MESSAGEDB_DB_NAME=message_store
-      - MESSAGEDB_DB_USER=message_store
+      - MESSAGEDB_DB_NAME=eventodb_store
+      - MESSAGEDB_DB_USER=eventodb_store
       - MESSAGEDB_DB_PASSWORD=secret
     depends_on:
       - postgres
@@ -653,8 +653,8 @@ services:
   postgres:
     image: postgres:14
     environment:
-      - POSTGRES_DB=message_store
-      - POSTGRES_USER=message_store
+      - POSTGRES_DB=eventodb_store
+      - POSTGRES_USER=eventodb_store
       - POSTGRES_PASSWORD=secret
     volumes:
       - pgdata:/var/lib/postgresql/data

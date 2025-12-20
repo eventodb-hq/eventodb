@@ -73,8 +73,8 @@ Example: ns_dGVuYW50LWE_a7f3c8d9e2b1f4a6c8e9d2b3f5a7c9e1
 
 **Token Storage:**
 ```sql
--- Postgres: message_store.namespaces
-CREATE TABLE message_store.namespaces (
+-- Postgres: eventodb_store.namespaces
+CREATE TABLE eventodb_store.namespaces (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,  -- SHA-256 of token
   schema_name TEXT NOT NULL UNIQUE,
@@ -253,7 +253,7 @@ Consumer groups partition streams using `cardinal_id` (the part before `+` in co
 1. Generate token and hash
 2. Create schema: `CREATE SCHEMA "eventodb_tenant_a"`
 3. Run namespace migrations (tables, indexes, functions)
-4. Insert record into `message_store.namespaces`
+4. Insert record into `eventodb_store.namespaces`
 
 **Server Operations (SQLite):**
 1. Generate token and hash
@@ -276,7 +276,7 @@ Consumer groups partition streams using `cardinal_id` (the part before `+` in co
 **Server Operations (Postgres):**
 1. Verify token matches namespace
 2. `DROP SCHEMA "eventodb_tenant_a" CASCADE`
-3. Delete from `message_store.namespaces`
+3. Delete from `eventodb_store.namespaces`
 
 **Server Operations (SQLite):**
 1. Verify token matches namespace

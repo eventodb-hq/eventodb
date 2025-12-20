@@ -99,7 +99,7 @@ test('write and read message', async () => {
 
 **Key Decisions:**
 - **Postgres:** Each namespace = separate schema
-  - `message_store` schema: namespace registry (tokens only)
+  - `eventodb_store` schema: namespace registry (tokens only)
   - `eventodb_default` schema: default namespace data
   - `eventodb_tenant_a` schema: tenant-a data
 - **SQLite:** Each namespace = separate database file/in-memory DB
@@ -113,7 +113,7 @@ test('write and read message', async () => {
 **Architecture:**
 ```
 Postgres:
-  message_store schema (metadata)
+  eventodb_store schema (metadata)
     ├── namespaces table
   eventodb_default schema (data)
     ├── messages table

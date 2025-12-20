@@ -56,7 +56,7 @@ Create a **Go-based HTTP API server** that wraps EventoDB (PostgreSQL event sour
 ┌─────────────────┐    ┌─────────────────┐
 │   PostgreSQL    │    │ SQLite Files/   │
 │                 │    │   In-Memory     │
-│ message_store   │    │ ┌─────────────┐ │
+│ eventodb_store   │    │ ┌─────────────┐ │
 │ ├─ namespaces   │    │ │ metadata.db │ │
 │                 │    │ │ default.db  │ │
 │ eventodb_*     │    │ │ tenant-a.db │ │
@@ -97,7 +97,7 @@ Create a **Go-based HTTP API server** that wraps EventoDB (PostgreSQL event sour
 **Physical isolation** - not just logical partitioning:
 
 **Postgres:**
-- `message_store` schema: Namespace registry (tokens)
+- `eventodb_store` schema: Namespace registry (tokens)
 - `eventodb_default` schema: Default namespace data
 - `eventodb_tenant_a` schema: Tenant A data
 - Each schema has full EventoDB structure (tables + functions)
@@ -197,7 +197,7 @@ Client                    Server                    Postgres
   │                         │     from token          │
   │                         │                          │
   │                         │  SELECT * FROM          │
-  │                         │  message_store.namespaces│
+  │                         │  eventodb_store.namespaces│
   │                         │  WHERE token_hash=?     │
   │                         │─────────────────────────>│
   │                         │<─────────────────────────│
@@ -250,7 +250,7 @@ Client                    Server                    Postgres
   │                         │                          │
   │                         │  7. Insert namespace    │
   │                         │  INSERT INTO            │
-  │                         │   message_store         │
+  │                         │   eventodb_store         │
   │                         │   .namespaces (...)     │
   │                         │─────────────────────────>│
   │<────────────────────────│                          │
@@ -390,7 +390,7 @@ eventodb-go/
 1. **Namespace management:**
    - Create: Execute template migration with schema name substitution
    - Delete: `DROP SCHEMA "eventodb_xyz" CASCADE`
-   - List: Query `message_store.namespaces`
+   - List: Query `eventodb_store.namespaces`
 
 2. **Write/Read:**
    - Call stored procedures in namespace schema

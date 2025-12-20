@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/eventodb/eventodb/internal/store"
+	"github.com/google/uuid"
 )
 
 // GetStreamMessages retrieves messages from a stream

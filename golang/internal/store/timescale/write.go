@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/eventodb/eventodb/internal/store"
+	"github.com/google/uuid"
 )
 
 // WriteMessage writes a message to a stream with optimistic locking support

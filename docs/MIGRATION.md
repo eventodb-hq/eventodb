@@ -157,7 +157,7 @@ If you have existing data in PostgreSQL EventoDB:
 
 ```bash
 # Export messages from PostgreSQL
-psql -d message_store -c "
+psql -d eventodb_store -c "
   COPY (
     SELECT id, stream_name, type, position, global_position, 
            data::text, metadata::text, time

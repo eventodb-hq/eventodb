@@ -12,8 +12,8 @@ set -e
 # Configuration
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
-DB_NAME="${DB_NAME:-message_store}"
-DB_USER="${DB_USER:-message_store}"
+DB_NAME="${DB_NAME:-eventodb_store}"
+DB_USER="${DB_USER:-eventodb_store}"
 DB_PASSWORD="${DB_PASSWORD:-postgres}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 

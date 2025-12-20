@@ -45,7 +45,7 @@
 ┌────────────────────┐        ┌────────────────────┐
 │ PostgreSQL         │        │ SQLite Files       │
 │                    │        │                    │
-│ message_store      │        │ metadata.db        │
+│ eventodb_store      │        │ metadata.db        │
 │ ├─ namespaces      │        │ default.db         │
 │                    │        │ tenant-a.db        │
 │ eventodb_default  │        └────────────────────┘
@@ -66,9 +66,9 @@
 
 **Postgres - Metadata Schema:**
 ```sql
-CREATE SCHEMA IF NOT EXISTS message_store;
+CREATE SCHEMA IF NOT EXISTS eventodb_store;
 
-CREATE TABLE message_store.namespaces (
+CREATE TABLE eventodb_store.namespaces (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
   schema_name TEXT NOT NULL UNIQUE,
@@ -477,9 +477,9 @@ func (s *PostgresStore) CreateNamespace(ctx context.Context, id, tokenHash, desc
     migrator := migrate.New(tx, "postgres", migrations.NamespaceFS)
     err = migrator.ApplyNamespaceMigration(schemaName)
     
-    // 4. Insert into message_store.namespaces
+    // 4. Insert into eventodb_store.namespaces
     _, err = tx.ExecContext(ctx,
-        `INSERT INTO message_store.namespaces (id, token_hash, schema_name, description, created_at)
+        `INSERT INTO eventodb_store.namespaces (id, token_hash, schema_name, description, created_at)
          VALUES ($1, $2, $3, $4, $5)`,
         id, tokenHash, schemaName, description, time.Now().Unix(),
     )
@@ -494,7 +494,7 @@ func (s *PostgresStore) DeleteNamespace(ctx context.Context, id string) error {
     // 1. Get schema name
     var schemaName string
     err := tx.QueryRowContext(ctx,
-        `SELECT schema_name FROM message_store.namespaces WHERE id = $1`,
+        `SELECT schema_name FROM eventodb_store.namespaces WHERE id = $1`,
         id,
     ).Scan(&schemaName)
     
@@ -503,7 +503,7 @@ func (s *PostgresStore) DeleteNamespace(ctx context.Context, id string) error {
     
     // 3. Remove from registry
     _, err = tx.ExecContext(ctx,
-        `DELETE FROM message_store.namespaces WHERE id = $1`,
+        `DELETE FROM eventodb_store.namespaces WHERE id = $1`,
         id,
     )
     

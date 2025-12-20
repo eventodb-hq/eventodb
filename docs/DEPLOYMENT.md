@@ -89,8 +89,8 @@ services:
     environment:
       - MESSAGEDB_DB_HOST=postgres
       - MESSAGEDB_DB_PORT=5432
-      - MESSAGEDB_DB_NAME=message_store
-      - MESSAGEDB_DB_USER=message_store
+      - MESSAGEDB_DB_NAME=eventodb_store
+      - MESSAGEDB_DB_USER=eventodb_store
       - MESSAGEDB_DB_PASSWORD=${DB_PASSWORD}
     depends_on:
       postgres:
@@ -105,13 +105,13 @@ services:
   postgres:
     image: postgres:14-alpine
     environment:
-      - POSTGRES_DB=message_store
-      - POSTGRES_USER=message_store
+      - POSTGRES_DB=eventodb_store
+      - POSTGRES_USER=eventodb_store
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U message_store -d message_store"]
+      test: ["CMD-SHELL", "pg_isready -U eventodb_store -d eventodb_store"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -283,8 +283,8 @@ kubectl logs -f deployment/eventodb -n eventodb
 | `MESSAGEDB_TEST_MODE` | false | Enable test mode |
 | `MESSAGEDB_DB_HOST` | - | PostgreSQL host |
 | `MESSAGEDB_DB_PORT` | 5432 | PostgreSQL port |
-| `MESSAGEDB_DB_NAME` | message_store | PostgreSQL database |
-| `MESSAGEDB_DB_USER` | message_store | PostgreSQL user |
+| `MESSAGEDB_DB_NAME` | eventodb_store | PostgreSQL database |
+| `MESSAGEDB_DB_USER` | eventodb_store | PostgreSQL user |
 | `MESSAGEDB_DB_PASSWORD` | - | PostgreSQL password |
 
 ### Command Line Flags
@@ -309,8 +309,8 @@ environment:
   # PostgreSQL connection
   - MESSAGEDB_DB_HOST=postgres
   - MESSAGEDB_DB_PORT=5432
-  - MESSAGEDB_DB_NAME=message_store
-  - MESSAGEDB_DB_USER=message_store
+  - MESSAGEDB_DB_NAME=eventodb_store
+  - MESSAGEDB_DB_USER=eventodb_store
   - MESSAGEDB_DB_PASSWORD=${DB_PASSWORD}
   
   # Connection pool settings
@@ -440,7 +440,7 @@ Use standard PostgreSQL backup strategies:
 
 ```bash
 # Logical backup
-pg_dump -h localhost -U message_store message_store > backup.sql
+pg_dump -h localhost -U eventodb_store eventodb_store > backup.sql
 
 # Point-in-time recovery with WAL archiving
 # Configure in postgresql.conf:
@@ -448,7 +448,7 @@ archive_mode = on
 archive_command = 'cp %p /backup/wal/%f'
 
 # Restore
-psql -h localhost -U message_store message_store < backup.sql
+psql -h localhost -U eventodb_store eventodb_store < backup.sql
 ```
 
 ### Automated Backups (Kubernetes)
