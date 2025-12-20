@@ -43,7 +43,7 @@ if [[ ! "$SDK" =~ ^(elixir|js|all)$ ]]; then
 fi
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   MessageDB SDK Test Runner           ║${NC}"
+echo -e "${BLUE}║   MessageDB SDK Test Runner            ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
