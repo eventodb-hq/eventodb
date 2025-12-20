@@ -46,8 +46,8 @@ type dbConfig struct {
 
 // parseDBConfig parses the database URL and returns configuration
 func parseDBConfig(dbURL, dataDir, dbTypeOverride string, testMode bool) (*dbConfig, error) {
-	// Test mode: use in-memory SQLite
-	if testMode {
+	// Test mode without explicit db-url: use in-memory SQLite
+	if testMode && dbURL == "" {
 		return &dbConfig{
 			dbType:   "sqlite",
 			connStr:  "file:eventodb_metadata?mode=memory&cache=shared",
@@ -56,7 +56,7 @@ func parseDBConfig(dbURL, dataDir, dbTypeOverride string, testMode bool) (*dbCon
 		}, nil
 	}
 
-	// No URL provided: error
+	// No URL provided and not in test mode: error
 	if dbURL == "" {
 		return nil, fmt.Errorf("--db-url is required (use --test-mode for in-memory testing)")
 	}
@@ -118,16 +118,19 @@ func parseDBConfig(dbURL, dataDir, dbTypeOverride string, testMode bool) (*dbCon
 			pebbleDir = "./data/pebble"
 		}
 
-		// Ensure data directory exists
-		if err := os.MkdirAll(pebbleDir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create Pebble data directory: %w", err)
+		// In test mode, don't create directory (will use in-memory)
+		if !testMode {
+			// Ensure data directory exists
+			if err := os.MkdirAll(pebbleDir, 0755); err != nil {
+				return nil, fmt.Errorf("failed to create Pebble data directory: %w", err)
+			}
 		}
 
 		return &dbConfig{
 			dbType:   "pebble",
 			connStr:  "", // Not used for Pebble
 			dataDir:  pebbleDir,
-			testMode: false,
+			testMode: testMode,
 		}, nil
 
 	default:
@@ -244,15 +247,25 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 		return st, cleanup, nil
 
 	case "pebble":
-		st, err := pebble.New(cfg.dataDir)
+		st, err := pebble.NewWithConfig(cfg.dataDir, &pebble.Config{
+			TestMode: cfg.testMode,
+			InMemory: cfg.testMode, // Use in-memory when in test mode
+		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create Pebble store: %w", err)
 		}
 
-		logger.Get().Info().
-			Str("db_type", "pebble").
-			Str("path", cfg.dataDir).
-			Msg("Connected to Pebble database")
+		if cfg.testMode {
+			logger.Get().Info().
+				Str("db_type", "pebble").
+				Bool("in_memory", true).
+				Msg("Using in-memory Pebble")
+		} else {
+			logger.Get().Info().
+				Str("db_type", "pebble").
+				Str("path", cfg.dataDir).
+				Msg("Connected to Pebble database")
+		}
 
 		cleanup := func() {
 			st.Close()
