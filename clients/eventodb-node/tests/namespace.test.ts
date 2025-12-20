@@ -1,7 +1,7 @@
 import { describe, test, expect, afterEach } from 'vitest';
 import { getEventoDBURL } from './helpers.js';
-import { MessageDBClient } from '../src/client.js';
-import { MessageDBError } from '../src/errors.js';
+import { EventoDBClient } from '../src/client.js';
+import { EventoDBError } from '../src/errors.js';
 
 describe('NS Tests', () => {
   const ADMIN_TOKEN = process.env.EVENTODB_ADMIN_TOKEN;
@@ -10,7 +10,7 @@ describe('NS Tests', () => {
   afterEach(async () => {
     // Cleanup created namespaces
     if (ADMIN_TOKEN) {
-      const adminClient = new MessageDBClient(getEventoDBURL(), {
+      const adminClient = new EventoDBClient(getEventoDBURL(), {
         token: ADMIN_TOKEN
       });
       
@@ -26,7 +26,7 @@ describe('NS Tests', () => {
   });
 
   test('NS-001: Create namespace', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
@@ -46,7 +46,7 @@ describe('NS Tests', () => {
   test.skip('NS-002: Create namespace with custom token (requires proper token format)', async () => {
     // Note: Custom tokens must follow specific format requirements
     // Skipping this test as it requires generating a properly formatted token
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
@@ -65,7 +65,7 @@ describe('NS Tests', () => {
   });
 
   test('NS-003: Create duplicate namespace', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
@@ -78,11 +78,11 @@ describe('NS Tests', () => {
     // Try to create again
     await expect(
       adminClient.namespaceCreate(nsId)
-    ).rejects.toThrow(MessageDBError);
+    ).rejects.toThrow(EventoDBError);
   });
 
   test('NS-004: Delete namespace', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
@@ -100,17 +100,17 @@ describe('NS Tests', () => {
   });
 
   test('NS-005: Delete non-existent namespace', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
     await expect(
       adminClient.namespaceDelete('does-not-exist-' + Date.now())
-    ).rejects.toThrow(MessageDBError);
+    ).rejects.toThrow(EventoDBError);
   });
 
   test('NS-006: List namespaces', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
@@ -133,7 +133,7 @@ describe('NS Tests', () => {
   });
 
   test('NS-007: Get namespace info', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
@@ -144,7 +144,7 @@ describe('NS Tests', () => {
     const createResult = await adminClient.namespaceCreate(nsId);
     
     // Write 5 messages to the namespace
-    const nsClient = new MessageDBClient(getEventoDBURL(), {
+    const nsClient = new EventoDBClient(getEventoDBURL(), {
       token: createResult.token
     });
     
@@ -167,12 +167,12 @@ describe('NS Tests', () => {
   });
 
   test('NS-008: Get info for non-existent namespace', async () => {
-    const adminClient = new MessageDBClient(getEventoDBURL(), {
+    const adminClient = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
 
     await expect(
       adminClient.namespaceInfo('does-not-exist-' + Date.now())
-    ).rejects.toThrow(MessageDBError);
+    ).rejects.toThrow(EventoDBError);
   });
 });

@@ -1,4 +1,4 @@
-import { MessageDBError, NetworkError } from './errors.js';
+import { EventoDBError, NetworkError } from './errors.js';
 import type {
   Message,
   WriteOptions,
@@ -22,7 +22,7 @@ import type {
  * 
  * Core client for interacting with MessageDB via RPC API.
  */
-export class MessageDBClient {
+export class EventoDBClient {
   private token?: string;
 
   constructor(
@@ -67,9 +67,9 @@ export class MessageDBClient {
     if (!response.ok) {
       const errorData = await response.json() as any;
       if (errorData.error) {
-        throw MessageDBError.fromResponse(errorData.error);
+        throw EventoDBError.fromResponse(errorData.error);
       }
-      throw new MessageDBError(
+      throw new EventoDBError(
         'UNKNOWN_ERROR',
         `HTTP ${response.status}: ${response.statusText}`
       );

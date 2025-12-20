@@ -1,13 +1,13 @@
 import { describe, test, expect } from 'vitest';
 import { getEventoDBURL } from './helpers.js';
-import { MessageDBClient } from '../src/client.js';
+import { EventoDBClient } from '../src/client.js';
 
 const ADMIN_TOKEN = process.env.EVENTODB_ADMIN_TOKEN;
 
 describe('SYS Tests', () => {
   test('SYS-001: Get server version', async () => {
     // System endpoints may require authentication in production mode
-    const client = new MessageDBClient(getEventoDBURL(), {
+    const client = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
     
@@ -20,7 +20,7 @@ describe('SYS Tests', () => {
 
   test('SYS-002: Get server health', async () => {
     // System endpoints may require authentication in production mode
-    const client = new MessageDBClient(getEventoDBURL(), {
+    const client = new EventoDBClient(getEventoDBURL(), {
       token: ADMIN_TOKEN
     });
     

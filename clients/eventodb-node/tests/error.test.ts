@@ -1,7 +1,7 @@
 import { describe, test, expect, afterEach } from 'vitest';
 import { setupTest, randomStreamName, type TestContext, getEventoDBURL } from './helpers.js';
-import { MessageDBClient } from '../src/client.js';
-import { NetworkError, MessageDBError } from '../src/errors.js';
+import { EventoDBClient } from '../src/client.js';
+import { NetworkError, EventoDBError } from '../src/errors.js';
 
 describe('ERROR Tests', () => {
   const contexts: TestContext[] = [];
@@ -36,7 +36,7 @@ describe('ERROR Tests', () => {
   });
 
   test('ERROR-004: Connection refused', async () => {
-    const client = new MessageDBClient('http://localhost:99999');
+    const client = new EventoDBClient('http://localhost:99999');
     const stream = randomStreamName();
 
     await expect(

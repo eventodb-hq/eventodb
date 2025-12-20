@@ -1,14 +1,14 @@
 /**
  * Base error for MessageDB operations
  */
-export class MessageDBError extends Error {
+export class EventoDBError extends Error {
   constructor(
     public code: string,
     message: string,
     public details?: Record<string, any>
   ) {
     super(message);
-    this.name = 'MessageDBError';
+    this.name = 'EventoDBError';
   }
 
   /**
@@ -18,8 +18,8 @@ export class MessageDBError extends Error {
     code: string;
     message: string;
     details?: Record<string, any>;
-  }): MessageDBError {
-    return new MessageDBError(
+  }): EventoDBError {
+    return new EventoDBError(
       errorData.code,
       errorData.message,
       errorData.details
@@ -30,7 +30,7 @@ export class MessageDBError extends Error {
 /**
  * Network/connection errors
  */
-export class NetworkError extends MessageDBError {
+export class NetworkError extends EventoDBError {
   constructor(message: string, cause?: Error) {
     super('NETWORK_ERROR', message, { cause });
     this.name = 'NetworkError';
@@ -40,7 +40,7 @@ export class NetworkError extends MessageDBError {
 /**
  * Authentication errors
  */
-export class AuthError extends MessageDBError {
+export class AuthError extends EventoDBError {
   constructor(code: string, message: string) {
     super(code, message);
     this.name = 'AuthError';

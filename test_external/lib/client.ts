@@ -95,7 +95,7 @@ export interface Subscription {
 /**
  * MessageDB Client - HTTP client for RPC API
  */
-export class MessageDBClient {
+export class EventoDBClient {
   private token?: string;
 
   constructor(

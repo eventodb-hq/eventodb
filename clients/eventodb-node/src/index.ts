@@ -1,5 +1,5 @@
-export { MessageDBClient } from './client.js';
-export { MessageDBError, NetworkError, AuthError } from './errors.js';
+export { EventoDBClient } from './client.js';
+export { EventoDBError, NetworkError, AuthError } from './errors.js';
 export type {
   Message,
   WriteOptions,

@@ -15,7 +15,7 @@ import {
   createAdminClient,
   randomStreamName
 } from '../lib';
-import { MessageDBClient } from '../lib/client';
+import { EventoDBClient } from '../lib/client';
 
 afterAll(async () => {
   await stopSharedServer();
@@ -75,7 +75,7 @@ describe('MDB003_3B: Namespace Operations', () => {
       expect(result.token).toBe(customToken);
 
       // Verify the custom token works
-      const client = new MessageDBClient(server.url, { token: customToken });
+      const client = new EventoDBClient(server.url, { token: customToken });
       await client.writeMessage('test-stream', { type: 'Test', data: {} });
       
       const msgs = await client.getStream('test-stream');
@@ -128,7 +128,7 @@ describe('MDB003_3B: Namespace Operations', () => {
     
     try {
       const result = await admin.createNamespace(ns, {});
-      const client = new MessageDBClient(server.url, { token: result.token });
+      const client = new EventoDBClient(server.url, { token: result.token });
 
       // Initial state - empty
       let info = await admin.getNamespaceInfo(ns);
@@ -167,7 +167,7 @@ describe('MDB003_3B: Namespace Operations', () => {
     
     try {
       const result = await admin.createNamespace(ns, {});
-      const client = new MessageDBClient(server.url, { token: result.token });
+      const client = new EventoDBClient(server.url, { token: result.token });
 
       // Write 5 messages
       for (let i = 0; i < 5; i++) {
@@ -191,7 +191,7 @@ describe('MDB003_3B: Namespace Operations', () => {
     
     try {
       const result = await admin.createNamespace(ns, {});
-      const client = new MessageDBClient(server.url, { token: result.token });
+      const client = new EventoDBClient(server.url, { token: result.token });
 
       // Write data
       await client.writeMessage('stream', { type: 'Event', data: {} });
@@ -249,7 +249,7 @@ describe('MDB003_3B: Namespace Operations', () => {
     const server = await getSharedServer();
     
     try {
-      const client = new MessageDBClient(server.url, { token: 'invalid-token-format' });
+      const client = new EventoDBClient(server.url, { token: 'invalid-token-format' });
       
       try {
         await client.writeMessage('stream', { type: 'Event', data: {} });
@@ -274,8 +274,8 @@ describe('MDB003_3B: Namespace Operations', () => {
       const result1 = await admin.createNamespace(ns1, {});
       const result2 = await admin.createNamespace(ns2, {});
       
-      const client1 = new MessageDBClient(server.url, { token: result1.token });
-      const client2 = new MessageDBClient(server.url, { token: result2.token });
+      const client1 = new EventoDBClient(server.url, { token: result1.token });
+      const client2 = new EventoDBClient(server.url, { token: result2.token });
 
       // Write 10 messages to namespace 1
       for (let i = 0; i < 10; i++) {
@@ -312,8 +312,8 @@ describe('MDB003_3B: Namespace Operations', () => {
       const result1 = await admin.createNamespace(ns1, {});
       const result2 = await admin.createNamespace(ns2, {});
       
-      const client1 = new MessageDBClient(server.url, { token: result1.token });
-      const client2 = new MessageDBClient(server.url, { token: result2.token });
+      const client1 = new EventoDBClient(server.url, { token: result1.token });
+      const client2 = new EventoDBClient(server.url, { token: result2.token });
 
       // Use the SAME category name in both namespaces
       const category = 'account';
@@ -359,8 +359,8 @@ describe('MDB003_3B: Namespace Operations', () => {
       const result1 = await admin.createNamespace(ns1, {});
       const result2 = await admin.createNamespace(ns2, {});
       
-      const client1 = new MessageDBClient(server.url, { token: result1.token });
-      const client2 = new MessageDBClient(server.url, { token: result2.token });
+      const client1 = new EventoDBClient(server.url, { token: result1.token });
+      const client2 = new EventoDBClient(server.url, { token: result2.token });
 
       const category = 'order';
       
@@ -413,8 +413,8 @@ describe('MDB003_3B: Namespace Operations', () => {
       const result1 = await admin.createNamespace(ns1, {});
       const result2 = await admin.createNamespace(ns2, {});
       
-      const client1 = new MessageDBClient(server.url, { token: result1.token });
-      const client2 = new MessageDBClient(server.url, { token: result2.token });
+      const client1 = new EventoDBClient(server.url, { token: result1.token });
+      const client2 = new EventoDBClient(server.url, { token: result2.token });
 
       const streamName = 'same-stream-name';
       

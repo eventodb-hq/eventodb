@@ -4,7 +4,7 @@
  * Phase MDB003_1A: External Test Client
  */
 
-export { MessageDBClient } from './client';
+export { EventoDBClient } from './client';
 export type {
   Message,
   WriteOptions,

@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach } from 'vitest';
 import { setupTest, randomStreamName, type TestContext } from './helpers.js';
-import { MessageDBError } from '../src/errors.js';
+import { EventoDBError } from '../src/errors.js';
 
 describe('WRITE Tests', () => {
   const contexts: TestContext[] = [];

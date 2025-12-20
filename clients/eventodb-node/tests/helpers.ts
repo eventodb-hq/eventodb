@@ -1,4 +1,4 @@
-import { MessageDBClient } from '../src/client.js';
+import { EventoDBClient } from '../src/client.js';
 
 const EVENTODB_URL = process.env.EVENTODB_URL || 'http://localhost:8080';
 const ADMIN_TOKEN = process.env.EVENTODB_ADMIN_TOKEN;
@@ -7,7 +7,7 @@ const ADMIN_TOKEN = process.env.EVENTODB_ADMIN_TOKEN;
  * Test context with isolated namespace
  */
 export interface TestContext {
-  client: MessageDBClient;
+  client: EventoDBClient;
   namespaceId: string;
   token: string;
   cleanup: () => Promise<void>;
@@ -18,7 +18,7 @@ export interface TestContext {
  */
 export async function setupTest(testName: string): Promise<TestContext> {
   // Create admin client for namespace management
-  const adminClient = new MessageDBClient(EVENTODB_URL, { 
+  const adminClient = new EventoDBClient(EVENTODB_URL, { 
     token: ADMIN_TOKEN 
   });
 
@@ -29,7 +29,7 @@ export async function setupTest(testName: string): Promise<TestContext> {
   });
 
   // Create client with namespace token
-  const client = new MessageDBClient(EVENTODB_URL, { 
+  const client = new EventoDBClient(EVENTODB_URL, { 
     token: result.token 
   });
 

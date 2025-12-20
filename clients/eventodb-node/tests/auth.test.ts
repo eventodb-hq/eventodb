@@ -1,7 +1,7 @@
 import { describe, test, expect, afterEach } from 'vitest';
 import { setupTest, randomStreamName, type TestContext, getEventoDBURL } from './helpers.js';
-import { MessageDBClient } from '../src/client.js';
-import { MessageDBError } from '../src/errors.js';
+import { EventoDBClient } from '../src/client.js';
+import { EventoDBError } from '../src/errors.js';
 
 describe('AUTH Tests', () => {
   const contexts: TestContext[] = [];
@@ -27,7 +27,7 @@ describe('AUTH Tests', () => {
   test.skip('AUTH-002: Missing token (skipped in test mode)', async () => {
     // Note: In test mode, server auto-creates namespaces
     // This test would only work in production mode
-    const client = new MessageDBClient(getEventoDBURL());
+    const client = new EventoDBClient(getEventoDBURL());
     const stream = randomStreamName();
 
     await expect(
@@ -35,13 +35,13 @@ describe('AUTH Tests', () => {
         type: 'TestEvent',
         data: { foo: 'bar' }
       })
-    ).rejects.toThrow(MessageDBError);
+    ).rejects.toThrow(EventoDBError);
   });
 
   test.skip('AUTH-003: Invalid token format (skipped in test mode)', async () => {
     // Note: In test mode, server auto-creates namespaces
     // This test would only work in production mode
-    const client = new MessageDBClient(getEventoDBURL(), {
+    const client = new EventoDBClient(getEventoDBURL(), {
       token: 'invalid-token'
     });
     const stream = randomStreamName();
@@ -51,7 +51,7 @@ describe('AUTH Tests', () => {
         type: 'TestEvent',
         data: { foo: 'bar' }
       })
-    ).rejects.toThrow(MessageDBError);
+    ).rejects.toThrow(EventoDBError);
   });
 
   test('AUTH-004: Token namespace isolation', async () => {

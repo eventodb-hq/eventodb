@@ -20,7 +20,7 @@ import {
   createAdminClient,
   type TestContext 
 } from '../lib';
-import { MessageDBClient } from '../lib/client';
+import { EventoDBClient } from '../lib/client';
 
 afterAll(async () => {
   await stopSharedServer();
@@ -122,11 +122,11 @@ describe('MDB003_3B: Concurrency & Isolation', () => {
     try {
       // Create namespace 1
       const result1 = await admin.createNamespace(ns1, {});
-      const client1 = new MessageDBClient(server.url, { token: result1.token });
+      const client1 = new EventoDBClient(server.url, { token: result1.token });
 
       // Create namespace 2
       const result2 = await admin.createNamespace(ns2, {});
-      const client2 = new MessageDBClient(server.url, { token: result2.token });
+      const client2 = new EventoDBClient(server.url, { token: result2.token });
 
       // Write to the SAME stream name in both namespaces
       const streamName = 'shared-stream-name';
@@ -173,7 +173,7 @@ describe('MDB003_3B: Concurrency & Isolation', () => {
     try {
       // In test mode, requests without a token use the default namespace
       // The default token is used implicitly
-      const client = new MessageDBClient(server.url);
+      const client = new EventoDBClient(server.url);
 
       // The first request should work using the default namespace
       // Note: In test mode, the server uses the "default" namespace
@@ -220,7 +220,7 @@ describe('MDB003_3B: Concurrency & Isolation', () => {
     try {
       // Create namespace
       const createResult = await admin.createNamespace(ns, {});
-      const client = new MessageDBClient(server.url, { token: createResult.token });
+      const client = new EventoDBClient(server.url, { token: createResult.token });
 
       // Write some data
       for (let i = 0; i < 10; i++) {
@@ -438,7 +438,7 @@ describe('MDB003_3B: Concurrency & Isolation', () => {
 
       // Each token should contain its namespace encoded
       for (let i = 0; i < namespaces.length; i++) {
-        const client = new MessageDBClient(server.url, { token: tokens[i] });
+        const client = new EventoDBClient(server.url, { token: tokens[i] });
         const parsed = client.parseNamespaceFromToken(tokens[i]);
         expect(parsed).toBe(namespaces[i]);
       }

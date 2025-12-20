@@ -17,7 +17,7 @@ import {
   createAdminClient,
   type PokeEvent
 } from '../lib';
-import { MessageDBClient } from '../lib/client';
+import { EventoDBClient } from '../lib/client';
 
 // =========================================
 // Performance Configuration
@@ -219,7 +219,7 @@ describe('MDB003_4A: Performance Benchmarks', () => {
   let server: Awaited<ReturnType<typeof getSharedServer>>;
   let benchNamespace: string;
   let benchToken: string;
-  let benchClient: MessageDBClient;
+  let benchClient: EventoDBClient;
 
   beforeAll(async () => {
     server = await getSharedServer();
@@ -232,7 +232,7 @@ describe('MDB003_4A: Performance Benchmarks', () => {
     const admin = createAdminClient(server.url);
     await admin.createNamespace(benchNamespace, { token: benchToken });
     
-    benchClient = new MessageDBClient(server.url, { token: benchToken });
+    benchClient = new EventoDBClient(server.url, { token: benchToken });
     
     console.log('\n🚀 Performance Benchmarks Starting...');
     console.log(`   Server: ${server.url}`);

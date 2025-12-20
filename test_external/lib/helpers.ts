@@ -9,7 +9,7 @@
  * - Server health detection
  */
 
-import { MessageDBClient } from './client';
+import { EventoDBClient } from './client';
 
 // Configuration
 const DEFAULT_PORT = 6789;
@@ -35,7 +35,7 @@ export interface TestServer {
 export interface TestContext {
   namespace: string;
   token: string;
-  client: MessageDBClient;
+  client: EventoDBClient;
   cleanup: () => Promise<void>;
 }
 
@@ -149,8 +149,8 @@ export async function stopSharedServer(): Promise<void> {
  * Create admin client for namespace management.
  * Uses the default token.
  */
-export function createAdminClient(serverUrl: string): MessageDBClient {
-  return new MessageDBClient(serverUrl, { token: DEFAULT_TOKEN });
+export function createAdminClient(serverUrl: string): EventoDBClient {
+  return new EventoDBClient(serverUrl, { token: DEFAULT_TOKEN });
 }
 
 /**
@@ -206,7 +206,7 @@ export async function setupTest(testName: string): Promise<TestContext> {
   await admin.createNamespace(namespace, { token });
   
   // Create client for this namespace
-  const client = new MessageDBClient(server.url, { token });
+  const client = new EventoDBClient(server.url, { token });
   
   return {
     namespace,
