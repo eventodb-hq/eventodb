@@ -488,6 +488,16 @@ Each test case has:
 - **Action**: Write message and receive poke
 - **Expected**: Poke data is valid JSON with required fields: `stream` (or category), `position`, `globalPosition`
 
+### SSE-009: Multiple consumers in same consumer group
+- **Setup**: Category "sse-test" with 4 streams
+- **Action**: 
+  - Create two subscriptions to the same category with consumer group settings: member 0 of size 2 and member 1 of size 2
+  - Write messages to all 4 streams in the category
+- **Expected**: 
+  - Each consumer receives pokes only for their assigned partition of streams (based on hash of cardinal ID)
+  - No stream's messages are received by both consumers
+  - All messages are received by exactly one consumer (load balancing verification)
+
 ---
 
 ## Implementation Notes

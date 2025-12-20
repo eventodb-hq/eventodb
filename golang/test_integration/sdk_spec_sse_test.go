@@ -567,3 +567,127 @@ func TestSSE008_PokeEventParsing(t *testing.T) {
 	assert.IsType(t, float64(0), event["position"], "position should be number")
 	assert.IsType(t, float64(0), event["globalPosition"], "globalPosition should be number")
 }
+
+// TestSSE009_MultipleConsumersInSameGroup validates multiple consumers in same consumer group
+func TestSSE009_MultipleConsumersInSameGroup(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
+
+	// Use a unique category
+	category := fmt.Sprintf("ssetest%d", time.Now().UnixNano()%1000000)
+
+	// Create two consumers in the same consumer group (size 2)
+	// Member 0
+	subscribeURL0 := fmt.Sprintf("%s/subscribe?category=%s&consumer=0&size=2&token=%s",
+		ts.URL(), category, ts.Token)
+	client0, err := NewSSEClient(subscribeURL0, ts.Token)
+	require.NoError(t, err)
+	defer client0.Close()
+
+	// Member 1
+	subscribeURL1 := fmt.Sprintf("%s/subscribe?category=%s&consumer=1&size=2&token=%s",
+		ts.URL(), category, ts.Token)
+	client1, err := NewSSEClient(subscribeURL1, ts.Token)
+	require.NoError(t, err)
+	defer client1.Close()
+
+	// Wait for both subscriptions to be ready
+	err = client0.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Consumer 0 should be ready")
+	err = client1.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Consumer 1 should be ready")
+
+	// Write messages to 4 different streams in the category
+	streams := make([]string, 4)
+	for i := 0; i < 4; i++ {
+		streams[i] = fmt.Sprintf("%s-%d", category, i+1)
+		msg := map[string]interface{}{
+			"type": "TestEvent",
+			"data": map[string]interface{}{"streamId": i + 1},
+		}
+		_, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", streams[i], msg)
+		require.NoError(t, err)
+	}
+
+	// Collect events from both consumers
+	consumer0Streams := make(map[string]bool)
+	consumer1Streams := make(map[string]bool)
+
+	// Collect events from consumer 0 (with timeout)
+	timeout := time.After(3 * time.Second)
+	done0 := false
+	for !done0 {
+		select {
+		case <-timeout:
+			done0 = true
+		default:
+			event, err := client0.WaitForEvent(500 * time.Millisecond)
+			if err != nil {
+				done0 = true
+			} else {
+				streamName := event["stream"].(string)
+				consumer0Streams[streamName] = true
+			}
+		}
+	}
+
+	// Collect events from consumer 1 (with timeout)
+	timeout = time.After(3 * time.Second)
+	done1 := false
+	for !done1 {
+		select {
+		case <-timeout:
+			done1 = true
+		default:
+			event, err := client1.WaitForEvent(500 * time.Millisecond)
+			if err != nil {
+				done1 = true
+			} else {
+				streamName := event["stream"].(string)
+				consumer1Streams[streamName] = true
+			}
+		}
+	}
+
+	// Verify that:
+	// 1. Both consumers received some events
+	assert.Greater(t, len(consumer0Streams), 0, "Consumer 0 should receive some pokes")
+	assert.Greater(t, len(consumer1Streams), 0, "Consumer 1 should receive some pokes")
+
+	// 2. No stream is received by both consumers (exclusive partitioning)
+	for stream := range consumer0Streams {
+		assert.NotContains(t, consumer1Streams, stream,
+			"Stream %s should not be received by both consumers", stream)
+	}
+
+	for stream := range consumer1Streams {
+		assert.NotContains(t, consumer0Streams, stream,
+			"Stream %s should not be received by both consumers", stream)
+	}
+
+	// 3. All streams are covered by at least one consumer
+	allStreamsReceived := make(map[string]bool)
+	for stream := range consumer0Streams {
+		allStreamsReceived[stream] = true
+	}
+	for stream := range consumer1Streams {
+		allStreamsReceived[stream] = true
+	}
+
+	for _, stream := range streams {
+		assert.Contains(t, allStreamsReceived, stream,
+			"Stream %s should be received by at least one consumer", stream)
+	}
+
+	t.Logf("Consumer 0 received pokes from streams: %v", getKeys(consumer0Streams))
+	t.Logf("Consumer 1 received pokes from streams: %v", getKeys(consumer1Streams))
+}
+
+// Helper function to get map keys as a slice
+func getKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}

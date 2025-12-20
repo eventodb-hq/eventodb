@@ -272,4 +272,74 @@ defmodule MessagedbEx.SseTest do
   test "Close non-existent subscription", %{client: _client} do
     assert {:error, :not_found} = MessagedbEx.Subscription.close("does-not-exist")
   end
+
+  test "SSE-009: Multiple consumers in same consumer group", %{client: client} do
+    category = "test#{unique_suffix()}"
+    test_pid = self()
+
+    # Create two consumers in the same consumer group (size 2)
+    {:ok, _pid0} =
+      MessagedbEx.subscribe_to_category(client, category,
+        name: "sse-009-consumer-0",
+        consumer_group: %{member: 0, size: 2},
+        on_poke: fn poke -> send(test_pid, {:poke0, poke}) end
+      )
+
+    {:ok, _pid1} =
+      MessagedbEx.subscribe_to_category(client, category,
+        name: "sse-009-consumer-1",
+        consumer_group: %{member: 1, size: 2},
+        on_poke: fn poke -> send(test_pid, {:poke1, poke}) end
+      )
+
+    # Write messages to 4 different streams in the category
+    streams = ["#{category}-1", "#{category}-2", "#{category}-3", "#{category}-4"]
+    message = %{type: "TestEvent", data: %{}}
+
+    Enum.each(streams, fn stream ->
+      {:ok, _result, _client} = MessagedbEx.stream_write(client, stream, message)
+      Process.sleep(10)
+    end)
+
+    # Collect pokes from both consumers
+    consumer0_streams =
+      Enum.reduce_while(1..10, MapSet.new(), fn _, acc ->
+        receive do
+          {:poke0, poke} -> {:cont, MapSet.put(acc, poke.stream)}
+        after
+          50 -> {:halt, acc}
+        end
+      end)
+
+    consumer1_streams =
+      Enum.reduce_while(1..10, MapSet.new(), fn _, acc ->
+        receive do
+          {:poke1, poke} -> {:cont, MapSet.put(acc, poke.stream)}
+        after
+          50 -> {:halt, acc}
+        end
+      end)
+
+    # Verify both consumers received some pokes
+    assert MapSet.size(consumer0_streams) > 0, "Consumer 0 should receive some pokes"
+    assert MapSet.size(consumer1_streams) > 0, "Consumer 1 should receive some pokes"
+
+    # Verify no stream is received by both consumers (exclusive partitioning)
+    intersection = MapSet.intersection(consumer0_streams, consumer1_streams)
+
+    assert MapSet.size(intersection) == 0,
+           "No stream should be received by both consumers, but got: #{inspect(MapSet.to_list(intersection))}"
+
+    # Verify all streams are covered by at least one consumer
+    all_streams_received = MapSet.union(consumer0_streams, consumer1_streams)
+
+    Enum.each(streams, fn stream ->
+      assert MapSet.member?(all_streams_received, stream),
+             "Stream #{stream} should be received by at least one consumer"
+    end)
+
+    # Cleanup
+    MessagedbEx.Subscription.close("sse-009-consumer-0")
+    MessagedbEx.Subscription.close("sse-009-consumer-1")
+  end
 end

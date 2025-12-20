@@ -346,8 +346,8 @@ defmodule MessagedbEx do
         %{member: m, size: s} ->
           params ++
             [
-              {"consumerGroupMember", to_string(m)},
-              {"consumerGroupSize", to_string(s)}
+              {"consumer", to_string(m)},
+              {"size", to_string(s)}
             ]
 
         _ ->
