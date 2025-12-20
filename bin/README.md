@@ -1,5 +1,121 @@
 # EventoDB Test Runners
 
+## Quick Reference
+
+```bash
+# Blackbox tests (external API via HTTP)
+bin/run_blackbox.sh sqlite       # Fast, in-memory
+bin/run_blackbox.sh postgres     # PostgreSQL backend
+bin/run_blackbox.sh pebble       # Embedded KV store
+bin/run_blackbox.sh timescale    # TimescaleDB (optional)
+
+# Go SDK integration tests
+bin/run_golang_sdk_specs.sh sqlite
+bin/run_golang_sdk_specs.sh postgres
+bin/run_golang_sdk_specs.sh pebble
+bin/run_golang_sdk_specs.sh all  # Run all backends
+```
+
+---
+
+## run_blackbox.sh
+
+Run external (blackbox) tests against EventoDB HTTP API with different storage backends.
+
+### Usage
+
+```bash
+bin/run_blackbox.sh <backend>
+```
+
+### Backends
+
+- **sqlite** - In-memory SQLite (default, no setup required)
+- **postgres** - PostgreSQL (requires running PostgreSQL)
+- **pebble** - Pebble embedded KV store
+- **timescale** - TimescaleDB (requires TimescaleDB extension)
+
+### Examples
+
+```bash
+# Run with SQLite (fastest, no setup)
+bin/run_blackbox.sh sqlite
+
+# Run with PostgreSQL
+bin/run_blackbox.sh postgres
+
+# Run with Pebble
+bin/run_blackbox.sh pebble
+
+# Run with TimescaleDB (requires setup)
+TIMESCALE_PORT=6666 bin/run_blackbox.sh timescale
+```
+
+### Environment Variables
+
+**PostgreSQL:**
+- `POSTGRES_HOST` - Host (default: `localhost`)
+- `POSTGRES_PORT` - Port (default: `5432`)
+- `POSTGRES_USER` - User (default: `postgres`)
+- `POSTGRES_PASSWORD` - Password (default: `postgres`)
+- `POSTGRES_DB` - Database (default: `eventodb_store`)
+
+**TimescaleDB:**
+- `TIMESCALE_HOST` - Host (default: `localhost`)
+- `TIMESCALE_PORT` - Port (default: `6666`)
+- `TIMESCALE_USER` - User (default: `postgres`)
+- `TIMESCALE_PASSWORD` - Password (default: `postgres`)
+- `TIMESCALE_DB` - Database (default: `eventodb_timescale_test`)
+- `KEEP_TEST_DB` - Set to `1` to keep test database after run
+
+### Features
+
+- ✅ Single, simple script for all backends
+- ✅ Automatic server lifecycle management
+- ✅ Clean setup and teardown
+- ✅ Colorized output with backend-specific icons
+- ✅ Automatic database cleanup
+- ✅ Server health checks
+- ✅ Clear error messages with logs
+
+### Output
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  📦 EventoDB Blackbox Tests - SQLITE
+╚══════════════════════════════════════════════════════════════╝
+
+Backend: SQLite (in-memory)
+Starting server...
+Waiting for server to be ready...
+Server ready!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running tests...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ 95 pass
+ 0 fail
+
+╔══════════════════════════════════════════════════════════════╗
+║  📦 All tests PASSED with SQLITE backend!
+╚══════════════════════════════════════════════════════════════╝
+```
+
+### Requirements
+
+- **All:** `bun` installed, `dist/eventodb` binary built
+- **PostgreSQL:** PostgreSQL server running, `psql` client installed
+- **TimescaleDB:** TimescaleDB-enabled PostgreSQL, `psql` client installed
+- **Pebble:** No external dependencies
+
+### Exit Codes
+
+- `0` - All tests passed
+- `1` - Tests failed or setup error
+
+---
+
 ## run_golang_sdk_specs.sh
 
 Run Go SDK specification tests against one or all storage backends.
