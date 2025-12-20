@@ -18,7 +18,7 @@ type PostgresStore struct {
 
 // New creates a new PostgresStore instance
 // The provided db connection should already be connected to the database
-// and have the message_store metadata schema initialized
+// and have the eventodb_store metadata schema initialized
 func New(db *sql.DB) (*PostgresStore, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database connection cannot be nil")
@@ -29,7 +29,7 @@ func New(db *sql.DB) (*PostgresStore, error) {
 		ctx: context.Background(),
 	}
 
-	// Run metadata migrations to ensure message_store schema exists
+	// Run metadata migrations to ensure eventodb_store schema exists
 	migrator := migrate.New(db, "postgres", migrations.MetadataPostgresFS)
 	if err := migrator.AutoMigrate(); err != nil {
 		return nil, fmt.Errorf("failed to run metadata migrations: %w", err)
@@ -57,7 +57,7 @@ func (s *PostgresStore) WithContext(ctx context.Context) *PostgresStore {
 // getSchemaName retrieves the schema name for a given namespace
 func (s *PostgresStore) getSchemaName(namespace string) (string, error) {
 	var schemaName string
-	query := `SELECT schema_name FROM message_store.namespaces WHERE id = $1`
+	query := `SELECT schema_name FROM eventodb_store.namespaces WHERE id = $1`
 
 	err := s.db.QueryRowContext(s.ctx, query, namespace).Scan(&schemaName)
 	if err == sql.ErrNoRows {

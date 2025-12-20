@@ -48,7 +48,7 @@ func New(db *sql.DB) (*TimescaleStore, error) {
 		return nil, fmt.Errorf("TimescaleDB extension is not installed. Run: CREATE EXTENSION IF NOT EXISTS timescaledb")
 	}
 
-	// Run metadata migrations to ensure message_store schema exists
+	// Run metadata migrations to ensure eventodb_store schema exists
 	migrator := migrate.New(db, "timescale", migrations.MetadataTimescaleFS)
 	if err := migrator.AutoMigrate(); err != nil {
 		return nil, fmt.Errorf("failed to run metadata migrations: %w", err)
@@ -76,7 +76,7 @@ func (s *TimescaleStore) WithContext(ctx context.Context) *TimescaleStore {
 // getSchemaName retrieves the schema name for a given namespace
 func (s *TimescaleStore) getSchemaName(namespace string) (string, error) {
 	var schemaName string
-	query := `SELECT schema_name FROM message_store.namespaces WHERE id = $1`
+	query := `SELECT schema_name FROM eventodb_store.namespaces WHERE id = $1`
 
 	err := s.db.QueryRowContext(s.ctx, query, namespace).Scan(&schemaName)
 	if err == sql.ErrNoRows {

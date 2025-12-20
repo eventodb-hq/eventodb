@@ -25,7 +25,7 @@ func (s *PostgresStore) CreateNamespace(ctx context.Context, id, tokenHash, desc
 
 	// Check if namespace already exists
 	var exists bool
-	checkQuery := `SELECT EXISTS(SELECT 1 FROM message_store.namespaces WHERE id = $1 OR schema_name = $2)`
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM eventodb_store.namespaces WHERE id = $1 OR schema_name = $2)`
 	if err := tx.QueryRowContext(ctx, checkQuery, id, schemaName).Scan(&exists); err != nil {
 		return fmt.Errorf("failed to check namespace existence: %w", err)
 	}
@@ -39,9 +39,9 @@ func (s *PostgresStore) CreateNamespace(ctx context.Context, id, tokenHash, desc
 		return fmt.Errorf("failed to apply namespace migrations: %w", err)
 	}
 
-	// Insert into message_store.namespaces
+	// Insert into eventodb_store.namespaces
 	insertQuery := `
-		INSERT INTO message_store.namespaces (id, token_hash, schema_name, description, created_at, metadata)
+		INSERT INTO eventodb_store.namespaces (id, token_hash, schema_name, description, created_at, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	createdAt := time.Now().UTC().Unix()
@@ -85,7 +85,7 @@ func (s *PostgresStore) DeleteNamespace(ctx context.Context, id string) error {
 
 	// Get schema name
 	var schemaName string
-	getSchemaQuery := `SELECT schema_name FROM message_store.namespaces WHERE id = $1`
+	getSchemaQuery := `SELECT schema_name FROM eventodb_store.namespaces WHERE id = $1`
 	if err := tx.QueryRowContext(ctx, getSchemaQuery, id).Scan(&schemaName); err != nil {
 		if err == sql.ErrNoRows {
 			return store.ErrNamespaceNotFound
@@ -100,7 +100,7 @@ func (s *PostgresStore) DeleteNamespace(ctx context.Context, id string) error {
 	}
 
 	// Remove from registry
-	deleteQuery := `DELETE FROM message_store.namespaces WHERE id = $1`
+	deleteQuery := `DELETE FROM eventodb_store.namespaces WHERE id = $1`
 	if _, err := tx.ExecContext(ctx, deleteQuery, id); err != nil {
 		return fmt.Errorf("failed to delete namespace from registry: %w", err)
 	}
@@ -117,7 +117,7 @@ func (s *PostgresStore) DeleteNamespace(ctx context.Context, id string) error {
 func (s *PostgresStore) GetNamespace(ctx context.Context, id string) (*store.Namespace, error) {
 	query := `
 		SELECT id, token_hash, schema_name, description, created_at, metadata
-		FROM message_store.namespaces
+		FROM eventodb_store.namespaces
 		WHERE id = $1
 	`
 
@@ -160,7 +160,7 @@ func (s *PostgresStore) GetNamespace(ctx context.Context, id string) (*store.Nam
 func (s *PostgresStore) ListNamespaces(ctx context.Context) ([]*store.Namespace, error) {
 	query := `
 		SELECT id, token_hash, schema_name, description, created_at, metadata
-		FROM message_store.namespaces
+		FROM eventodb_store.namespaces
 		ORDER BY created_at DESC
 	`
 

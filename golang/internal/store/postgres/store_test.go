@@ -93,13 +93,13 @@ func TestMDB001_2A_T1_PostgresStore_Creation(t *testing.T) {
 
 	// Verify metadata schema exists
 	var schemaExists bool
-	query := `SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'message_store')`
+	query := `SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'eventodb_store')`
 	if err := db.QueryRow(query).Scan(&schemaExists); err != nil {
 		t.Fatalf("Failed to check schema existence: %v", err)
 	}
 
 	if !schemaExists {
-		t.Error("Expected message_store schema to exist")
+		t.Error("Expected eventodb_store schema to exist")
 	}
 }
 
@@ -258,7 +258,7 @@ func TestMDB001_2A_T5_CreateNamespace_InsertsIntoRegistry(t *testing.T) {
 
 	// Verify entry in registry
 	var count int
-	query := `SELECT COUNT(*) FROM message_store.namespaces WHERE id = $1`
+	query := `SELECT COUNT(*) FROM eventodb_store.namespaces WHERE id = $1`
 	if err := db.QueryRowContext(ctx, query, namespaceID).Scan(&count); err != nil {
 		t.Fatalf("Failed to query registry: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestMDB001_2A_T5_CreateNamespace_InsertsIntoRegistry(t *testing.T) {
 	// Verify all fields
 	var id, storedTokenHash, schemaName, storedDescription string
 	var createdAt int64
-	query = `SELECT id, token_hash, schema_name, description, created_at FROM message_store.namespaces WHERE id = $1`
+	query = `SELECT id, token_hash, schema_name, description, created_at FROM eventodb_store.namespaces WHERE id = $1`
 	if err := db.QueryRowContext(ctx, query, namespaceID).Scan(&id, &storedTokenHash, &schemaName, &storedDescription, &createdAt); err != nil {
 		t.Fatalf("Failed to scan registry entry: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestMDB001_2A_T7_DeleteNamespace_RemovesFromRegistry(t *testing.T) {
 
 	// Verify entry removed from registry
 	var count int
-	query := `SELECT COUNT(*) FROM message_store.namespaces WHERE id = $1`
+	query := `SELECT COUNT(*) FROM eventodb_store.namespaces WHERE id = $1`
 	if err := db.QueryRowContext(ctx, query, namespaceID).Scan(&count); err != nil {
 		t.Fatalf("Failed to query registry: %v", err)
 	}
