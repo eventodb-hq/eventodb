@@ -1,5 +1,5 @@
 defmodule MessagedbEx.AuthTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   import MessagedbEx.TestHelper
 
   test "AUTH-001: Valid token authentication" do

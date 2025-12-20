@@ -16,14 +16,16 @@ defmodule MessagedbEx.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger],
+      mod: {MessagedbEx.Application, []}
     ]
   end
 
   defp deps do
     [
       {:req, "~> 0.4.0"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:mint, "~> 1.5"}
     ]
   end
 

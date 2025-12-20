@@ -58,7 +58,7 @@ done
 echo -e "${YELLOW}Running tests...${NC}"
 export MESSAGEDB_URL
 export MESSAGEDB_ADMIN_TOKEN
-mix test
+mix test --trace
 
 TEST_EXIT_CODE=$?
 

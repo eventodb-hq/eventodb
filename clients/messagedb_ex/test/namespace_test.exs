@@ -1,5 +1,5 @@
 defmodule MessagedbEx.NamespaceTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   import MessagedbEx.TestHelper
 
   # Note: Most tests create their own namespace, so we test namespace operations separately

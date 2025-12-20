@@ -1,5 +1,5 @@
 defmodule MessagedbEx.WriteTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   import MessagedbEx.TestHelper
 
   setup do

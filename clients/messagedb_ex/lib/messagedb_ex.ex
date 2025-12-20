@@ -231,6 +231,146 @@ defmodule MessagedbEx do
     end
   end
 
+  # =======================
+  # Subscription Operations
+  # =======================
+
+  @doc """
+  Subscribes to real-time notifications for a stream.
+
+  Returns immediately with subscription reference. The `on_poke` callback
+  is invoked when new messages are written to the stream.
+
+  ## Options
+
+    * `:name` - Required. Unique string name for this subscription
+    * `:position` - Starting position (default: 0)
+    * `:on_poke` - Required. Callback function `fn poke -> ... end`
+    * `:on_error` - Optional. Error callback `fn error -> ... end`
+
+  ## Examples
+
+      {:ok, _pid} = MessagedbEx.subscribe_to_stream(
+        client,
+        "account-123",
+        name: "my-processor",
+        position: 0,
+        on_poke: fn poke ->
+          IO.inspect(poke)
+        end
+      )
+
+      # Close subscription
+      MessagedbEx.Subscription.close("my-processor")
+
+  """
+  @spec subscribe_to_stream(Client.t(), String.t(), keyword()) ::
+          {:ok, pid()} | {:error, term()}
+  def subscribe_to_stream(client, stream_name, opts) do
+    name = Keyword.fetch!(opts, :name)
+    on_poke = Keyword.fetch!(opts, :on_poke)
+    on_error = Keyword.get(opts, :on_error)
+    position = Keyword.get(opts, :position, 0)
+
+    params = [
+      {"stream", stream_name},
+      {"position", to_string(position)},
+      {"token", client.token}
+    ]
+
+    url = build_subscribe_url(client.base_url, params)
+
+    sub_opts = [
+      name: name,
+      url: url,
+      on_poke: on_poke,
+      on_error: on_error
+    ]
+
+    MessagedbEx.Subscription.start_link(sub_opts)
+  end
+
+  @doc """
+  Subscribes to real-time notifications for a category.
+
+  Returns immediately with subscription reference. The `on_poke` callback
+  is invoked when new messages are written to any stream in the category.
+
+  ## Options
+
+    * `:name` - Required. Unique string name for this subscription
+    * `:position` - Starting position (default: 0)
+    * `:consumer_group` - Map with `:member` and `:size` for partitioning
+    * `:on_poke` - Required. Callback function `fn poke -> ... end`
+    * `:on_error` - Optional. Error callback `fn error -> ... end`
+
+  ## Examples
+
+      {:ok, _pid} = MessagedbEx.subscribe_to_category(
+        client,
+        "account",
+        name: "account-processor",
+        consumer_group: %{member: 0, size: 4},
+        on_poke: fn poke ->
+          # Fetch and process new messages
+          {:ok, messages, _} = MessagedbEx.category_get(
+            client,
+            "account",
+            position: poke.global_position
+          )
+          process_messages(messages)
+        end
+      )
+
+      # Close subscription
+      MessagedbEx.Subscription.close("account-processor")
+
+  """
+  @spec subscribe_to_category(Client.t(), String.t(), keyword()) ::
+          {:ok, pid()} | {:error, term()}
+  def subscribe_to_category(client, category_name, opts) do
+    name = Keyword.fetch!(opts, :name)
+    on_poke = Keyword.fetch!(opts, :on_poke)
+    on_error = Keyword.get(opts, :on_error)
+    position = Keyword.get(opts, :position, 0)
+    consumer_group = Keyword.get(opts, :consumer_group)
+
+    params = [
+      {"category", category_name},
+      {"position", to_string(position)},
+      {"token", client.token}
+    ]
+
+    params =
+      case consumer_group do
+        %{member: m, size: s} ->
+          params ++
+            [
+              {"consumerGroupMember", to_string(m)},
+              {"consumerGroupSize", to_string(s)}
+            ]
+
+        _ ->
+          params
+      end
+
+    url = build_subscribe_url(client.base_url, params)
+
+    sub_opts = [
+      name: name,
+      url: url,
+      on_poke: on_poke,
+      on_error: on_error
+    ]
+
+    MessagedbEx.Subscription.start_link(sub_opts)
+  end
+
+  defp build_subscribe_url(base_url, params) do
+    query = URI.encode_query(params)
+    "#{base_url}/subscribe?#{query}"
+  end
+
   # ===================
   # System Operations
   # ===================
