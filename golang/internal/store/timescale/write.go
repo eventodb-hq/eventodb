@@ -19,7 +19,11 @@ func (s *TimescaleStore) WriteMessage(ctx context.Context, namespace, streamName
 
 	// 2. Generate UUID if not provided
 	if msg.ID == "" {
-		msg.ID = uuid.New().String()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate UUID: %w", err)
+		}
+		msg.ID = id.String()
 	}
 
 	// 3. Validate UUID format

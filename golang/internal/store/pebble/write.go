@@ -56,7 +56,11 @@ func (s *PebbleStore) WriteMessage(ctx context.Context, namespace, streamName st
 
 	// Generate ID if not provided
 	if msg.ID == "" {
-		msg.ID = uuid.New().String()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate UUID: %w", err)
+		}
+		msg.ID = id.String()
 	}
 
 	// Serialize message to JSON using jsoniter

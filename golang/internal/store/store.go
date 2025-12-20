@@ -173,7 +173,7 @@ type Store interface {
 
 // Message represents a message in the message store
 type Message struct {
-	ID             string                 // UUID v4 (RFC 4122)
+	ID             string                 // UUID v7 (RFC 9562) - time-ordered UUID
 	StreamName     string                 // Format: category-id or category-cardinalId+compoundPart
 	Type           string                 // Message type name
 	Position       int64                  // Stream position (gapless, 0-indexed)

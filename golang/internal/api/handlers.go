@@ -119,7 +119,14 @@ func (h *RPCHandler) handleStreamWrite(ctx context.Context, args []interface{}) 
 
 	// Generate ID if not provided
 	if msgID == "" {
-		msgID = uuid.New().String()
+		id, err := uuid.NewV7()
+		if err != nil {
+			return nil, &RPCError{
+				Code:    "INTERNAL_ERROR",
+				Message: fmt.Sprintf("failed to generate UUID: %v", err),
+			}
+		}
+		msgID = id.String()
 	}
 
 	// Create message
