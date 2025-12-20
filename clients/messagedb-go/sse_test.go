@@ -369,7 +369,7 @@ func TestSSE007_ReconnectionHandling(t *testing.T) {
 	// May receive poke for the old message at position 0 or the new one
 	receivedPoke := false
 	timeout := time.After(2 * time.Second)
-	
+
 	for !receivedPoke {
 		select {
 		case poke := <-sub2.Events:
