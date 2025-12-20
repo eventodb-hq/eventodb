@@ -2,7 +2,7 @@
 #
 # Run SDK tests against MessageDB server
 #
-# Usage: ./bin/run_sdk_tests.sh [elixir|js|all]
+# Usage: ./bin/run_sdk_tests.sh [elixir|js|node|all]
 #
 # This script:
 # 1. Builds the server (if needed)
@@ -28,16 +28,17 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 usage() {
-    echo "Usage: $0 [elixir|js|all]"
+    echo "Usage: $0 [elixir|js|node|all]"
     echo ""
     echo "Options:"
     echo "  elixir   - Run Elixir SDK tests only"
-    echo "  js       - Run JavaScript/TypeScript SDK tests only"
+    echo "  js       - Run Node.js SDK tests only (alias for 'node')"
+    echo "  node     - Run Node.js SDK tests only"
     echo "  all      - Run all SDK tests (default)"
     exit 1
 }
 
-if [[ ! "$SDK" =~ ^(elixir|js|all)$ ]]; then
+if [[ ! "$SDK" =~ ^(elixir|js|node|all)$ ]]; then
     echo -e "${RED}Invalid SDK: $SDK${NC}"
     usage
 fi
@@ -123,22 +124,22 @@ if [[ "$SDK" == "elixir" || "$SDK" == "all" ]]; then
     echo ""
 fi
 
-# Run JavaScript tests
-if [[ "$SDK" == "js" || "$SDK" == "all" ]]; then
+# Run Node.js SDK tests
+if [[ "$SDK" == "js" || "$SDK" == "node" || "$SDK" == "all" ]]; then
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  JavaScript/TypeScript SDK Tests${NC}"
+    echo -e "${BLUE}  Node.js SDK Tests${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    if [ -f "test_external/run_tests.sh" ]; then
-        cd test_external
-        if MESSAGEDB_URL="$MESSAGEDB_URL" ./run_tests.sh; then
+    if [ -f "clients/messagedb-node/run_tests.sh" ]; then
+        cd clients/messagedb-node
+        if MESSAGEDB_URL="$MESSAGEDB_URL" MESSAGEDB_ADMIN_TOKEN="$ADMIN_TOKEN" ./run_tests.sh; then
             PASSED=$((PASSED + 1))
         else
             FAILED=$((FAILED + 1))
         fi
-        cd ..
+        cd ../..
     else
-        echo -e "${RED}✗ JavaScript SDK test runner not found${NC}"
+        echo -e "${RED}✗ Node.js SDK test runner not found${NC}"
         FAILED=$((FAILED + 1))
     fi
     echo ""
