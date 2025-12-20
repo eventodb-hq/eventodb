@@ -17,11 +17,12 @@ afterAll(async () => {
 });
 
 /**
- * SSE Connection - collects pokes via fetch streams
+ * SSE Connection - collects pokes via EventSource
  */
 interface SSEConnection {
   close: () => void;
   waitForPokes: (count: number, timeoutMs?: number) => Promise<PokeEvent[]>;
+  ready: Promise<void>;
 }
 
 function createSSEConnection(
@@ -35,10 +36,19 @@ function createSSEConnection(
   }
 
   const pokes: PokeEvent[] = [];
-  const controller = new AbortController();
-  let closed = false;
+  let isReady = false;
+  let readyResolve: (() => void) | null = null;
+  const readyPromise = new Promise<void>((resolve) => { 
+    readyResolve = resolve;
+    // Fallback: assume ready after 100ms if no signal received
+    setTimeout(() => {
+      if (!isReady) {
+        isReady = true;
+        resolve();
+      }
+    }, 100);
+  });
   
-  // Waiters for pokes
   const waiters: { count: number; resolve: (p: PokeEvent[]) => void }[] = [];
   
   const checkWaiters = () => {
@@ -50,7 +60,10 @@ function createSSEConnection(
     }
   };
 
-  // Start SSE connection
+  const controller = new AbortController();
+  let closed = false;
+
+  // Start SSE connection  
   (async () => {
     try {
       const response = await fetch(url.toString(), {
@@ -59,7 +72,10 @@ function createSSEConnection(
         signal: controller.signal,
       });
 
-      if (!response.ok || !response.body) return;
+      if (!response.ok || !response.body) {
+        readyResolve?.();
+        return;
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -77,12 +93,19 @@ function createSSEConnection(
         let eventData = '';
 
         for (const line of lines) {
-          if (line.startsWith('event:')) {
+          if (line.startsWith(':')) {
+            // SSE comment - check for ready signal
+            if (line.includes('ready') && !isReady) {
+              isReady = true;
+              readyResolve?.();
+              readyResolve = null;
+            }
+          } else if (line.startsWith('event:')) {
             eventType = line.slice(6).trim();
           } else if (line.startsWith('data:')) {
             eventData = line.slice(5).trim();
-          } else if (line === '' && eventType && eventData) {
-            if (eventType === 'poke') {
+          } else if (line === '') {
+            if (eventType === 'poke' && eventData) {
               try {
                 const poke = JSON.parse(eventData) as PokeEvent;
                 pokes.push(poke);
@@ -103,8 +126,11 @@ function createSSEConnection(
       closed = true;
       controller.abort();
     },
-    waitForPokes: (count: number, timeoutMs: number = 500): Promise<PokeEvent[]> => {
-      if (pokes.length >= count) return Promise.resolve([...pokes]);
+    ready: readyPromise,
+    waitForPokes: async (count: number, timeoutMs: number = 500): Promise<PokeEvent[]> => {
+      await readyPromise;
+      
+      if (pokes.length >= count) return [...pokes];
       
       return new Promise((resolve) => {
         const waiter = { count, resolve };
@@ -132,6 +158,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { stream, position: '0', token: t.token }
     );
 
+    await sub.ready;
     await t.client.writeMessage(stream, { type: 'AccountOpened', data: { balance: 0 } });
 
     const pokes = await sub.waitForPokes(1);
@@ -154,6 +181,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { stream, position: '1', token: t.token }
     );
 
+    await sub.ready; // Wait for subscription to be ready
     const writeResult = await t.client.writeMessage(stream, { type: 'Event1', data: {} });
     const pokes = await sub.waitForPokes(1);
 
@@ -174,6 +202,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { stream, position: '0', token: t.token }
     );
 
+    await sub.ready;
     await t.client.writeMessage(stream, { type: 'Event1', data: { n: 1 } });
     await t.client.writeMessage(stream, { type: 'Event2', data: { n: 2 } });
     await t.client.writeMessage(stream, { type: 'Event3', data: { n: 3 } });
@@ -220,6 +249,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { category, position: '0', token: t.token }
     );
 
+    await sub.ready;
     await t.client.writeMessage(`${category}-1`, { type: 'Event', data: { stream: 1 } });
     await t.client.writeMessage(`${category}-2`, { type: 'Event', data: { stream: 2 } });
 
@@ -241,6 +271,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { category, position: '0', token: t.token }
     );
 
+    await sub.ready;
     await t.client.writeMessage(stream1, { type: 'Event', data: {} });
     await t.client.writeMessage(stream2, { type: 'Event', data: {} });
 
@@ -266,6 +297,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       () => pokeCount++
     );
 
+    await sub.ready;
     await t.client.writeMessage(stream, { type: 'Event1', data: {} });
     await sub.waitForPokes(1);
     const countBeforeClose = pokeCount;
@@ -290,6 +322,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { category, position: '0', token: t.token, consumer: '0', size: '2' }
     );
 
+    await sub.ready;
     for (let i = 0; i < 6; i++) {
       await t.client.writeMessage(`${category}-${i}`, { type: 'Event', data: { i } });
     }
@@ -362,6 +395,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { category, position: '0', token: t.token }
     );
 
+    await sub.ready;
     await t.client.writeMessage(`${category}-a`, { type: 'Event', data: {} });
     await t.client.writeMessage(`${category}-b`, { type: 'Event', data: {} });
     await t.client.writeMessage(`${category}-c`, { type: 'Event', data: {} });
@@ -387,6 +421,7 @@ describe('MDB003_3A: SSE Subscriptions', () => {
       { category: category1, position: '0', token: t.token }
     );
 
+    await sub.ready;
     await t.client.writeMessage(`${category1}-stream`, { type: 'Event1', data: {} });
     await t.client.writeMessage(`${category2}-stream`, { type: 'Event2', data: {} });
     await t.client.writeMessage(`${category1}-other`, { type: 'Event3', data: {} });
