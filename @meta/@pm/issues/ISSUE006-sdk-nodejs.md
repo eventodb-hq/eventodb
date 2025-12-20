@@ -1,30 +1,28 @@
-# ISSUE006: Node.js/TypeScript SDK for MessageDB
+# ISSUE006: Node.js SDK for MessageDB
 
-**Status**: Planned  
+**Status**: Not Started  
 **Priority**: High  
-**Effort**: 4-6 hours  
-**Created**: 2024-12-20  
-**Related**: `docs/SDK-TEST-SPEC.md`, `ISSUE004-sdk-elixir.md`
+**Effort**: 3-5 hours  
+**Created**: 2024-12-20
 
 ---
 
-## **Overview**
+## Overview
 
-Implement a production-ready, minimal Node.js/TypeScript SDK for MessageDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will be extracted from the existing `test_external/lib/client.ts` implementation and packaged as a standalone, publishable npm package.
+Implement a minimal, clean Node.js/TypeScript SDK for MessageDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use native `fetch` API and follow Node.js/TypeScript conventions.
 
 **Location**: `clients/messagedb-node/`
 
 **Key Principles**:
-- Keep it minimal - no over-engineering
-- Zero runtime dependencies (use native `fetch` and `EventSource`)
-- Full TypeScript support with comprehensive types
-- Follow Node.js/npm conventions
+- Zero external dependencies (use native Node.js APIs)
+- Dual CommonJS + ESM support
+- TypeScript with full type definitions
 - Tests run against live backend server
 - Each test creates its own namespace for isolation
 
 ---
 
-## **Implementation Plan**
+## Implementation Plan
 
 ### Phase 1: Project Setup (30 min)
 
@@ -36,73 +34,62 @@ cd messagedb-node
 npm init -y
 ```
 
-**1.2 Configure TypeScript and Build**
+**1.2 Configure Dependencies**
+```json
+{
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0",
+    "vitest": "^1.0.0"
+  }
+}
+```
+
+**1.3 TypeScript Configuration**
 Create `tsconfig.json`:
 ```json
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "ES2020",
-    "lib": ["ES2020"],
-    "moduleResolution": "node",
+    "target": "ES2022",
+    "module": "Node16",
+    "lib": ["ES2022"],
+    "moduleResolution": "Node16",
+    "outDir": "./dist",
+    "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test"]
+  "exclude": ["node_modules", "dist", "tests"]
 }
 ```
 
-**1.3 Configure package.json**
+**1.4 Package Configuration**
+Update `package.json`:
 ```json
 {
   "name": "@messagedb/client",
   "version": "0.1.0",
-  "description": "Official Node.js/TypeScript client for MessageDB",
-  "type": "module",
+  "description": "Node.js client for MessageDB",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test test/**/*.test.js",
-    "prepublishOnly": "npm run build",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "messagedb",
-    "event-sourcing",
-    "message-store",
-    "event-store",
-    "cqrs"
-  ],
-  "author": "MessageDB Team",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/messagedb.git",
-    "directory": "clients/messagedb-node"
-  },
-  "devDependencies": {
-    "@types/node": "^20.10.0",
-    "typescript": "^5.3.0"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -110,15 +97,15 @@ Create `tsconfig.json`:
 }
 ```
 
-**1.4 Project Structure**
+**1.5 Project Structure**
 ```
 clients/messagedb-node/
 ├── src/
 │   ├── index.ts              # Main exports
-│   ├── client.ts             # MessageDBClient class
-│   ├── types.ts              # TypeScript types & interfaces
+│   ├── client.ts             # Core client class
+│   ├── types.ts              # TypeScript types
 │   └── errors.ts             # Error classes
-├── test/
+├── tests/
 │   ├── helpers.ts            # Test utilities
 │   ├── write.test.ts         # WRITE-* tests
 │   ├── read.test.ts          # READ-* tests
@@ -129,46 +116,35 @@ clients/messagedb-node/
 │   ├── system.test.ts        # SYS-* tests
 │   ├── auth.test.ts          # AUTH-* tests
 │   ├── error.test.ts         # ERROR-* tests
-│   ├── encoding.test.ts      # ENCODING-* tests
-│   └── sse.test.ts           # SSE-* tests (optional)
+│   └── encoding.test.ts      # ENCODING-* tests
 ├── tsconfig.json
 ├── package.json
+├── vitest.config.ts
 ├── README.md
-├── CHANGELOG.md
-└── LICENSE
+└── run_tests.sh
 ```
 
 ---
 
-### Phase 2: Core SDK Implementation (2 hours)
+### Phase 2: Core Client Implementation (1.5 hours)
 
 **2.1 Types Module** (`src/types.ts`)
 
-Define comprehensive TypeScript types:
 ```typescript
 /**
  * Message to write to a stream
  */
 export interface Message {
-  /** Event type identifier */
   type: string;
-  /** Event payload data */
   data: Record<string, any>;
-  /** Optional metadata */
-  metadata?: {
-    correlationStreamName?: string;
-    causationMessageId?: string;
-    [key: string]: any;
-  };
+  metadata?: Record<string, any> | null;
 }
 
 /**
- * Options for writing a message
+ * Options for writing messages
  */
 export interface WriteOptions {
-  /** Custom message ID (UUID) */
   id?: string;
-  /** Expected stream version for optimistic locking (-1 = no stream) */
   expectedVersion?: number;
 }
 
@@ -176,9 +152,7 @@ export interface WriteOptions {
  * Result from writing a message
  */
 export interface WriteResult {
-  /** Position in the stream (0-indexed) */
   position: number;
-  /** Global position across all streams */
   globalPosition: number;
 }
 
@@ -186,21 +160,19 @@ export interface WriteResult {
  * Options for reading from a stream
  */
 export interface GetStreamOptions {
-  /** Start reading from this stream position */
   position?: number;
-  /** Start reading from this global position */
   globalPosition?: number;
-  /** Maximum number of messages to return (-1 for unlimited) */
   batchSize?: number;
 }
 
 /**
  * Options for reading from a category
  */
-export interface GetCategoryOptions extends GetStreamOptions {
-  /** Filter by correlation stream name prefix */
+export interface GetCategoryOptions {
+  position?: number;
+  globalPosition?: number;
+  batchSize?: number;
   correlation?: string;
-  /** Consumer group settings for load balancing */
   consumerGroup?: {
     member: number;
     size: number;
@@ -211,48 +183,15 @@ export interface GetCategoryOptions extends GetStreamOptions {
  * Options for getting last message
  */
 export interface GetLastOptions {
-  /** Filter by message type */
   type?: string;
 }
-
-/**
- * Stream message (8 fields)
- * [id, type, position, globalPosition, data, metadata, time]
- */
-export type StreamMessage = [
-  string,              // id
-  string,              // type
-  number,              // position
-  number,              // globalPosition
-  Record<string, any>, // data
-  Record<string, any> | null, // metadata
-  string               // time (ISO 8601)
-];
-
-/**
- * Category message (8 fields)
- * [id, streamName, type, position, globalPosition, data, metadata, time]
- */
-export type CategoryMessage = [
-  string,              // id
-  string,              // streamName
-  string,              // type
-  number,              // position
-  number,              // globalPosition
-  Record<string, any>, // data
-  Record<string, any> | null, // metadata
-  string               // time (ISO 8601)
-];
 
 /**
  * Options for creating a namespace
  */
 export interface CreateNamespaceOptions {
-  /** Custom token for the namespace */
   token?: string;
-  /** Human-readable description */
   description?: string;
-  /** Additional metadata */
   metadata?: Record<string, any>;
 }
 
@@ -287,204 +226,124 @@ export interface NamespaceInfo {
 }
 
 /**
- * Server health status
+ * Stream message format: 
+ * [id, type, position, globalPosition, data, metadata, time]
  */
-export interface HealthStatus {
-  status: string;
-  backend: string;
-  connections: number;
-}
+export type StreamMessage = [
+  string,                    // id
+  string,                    // type
+  number,                    // position
+  number,                    // globalPosition
+  Record<string, any>,       // data
+  Record<string, any> | null, // metadata
+  string                     // time (ISO 8601)
+];
 
 /**
- * Options for subscribing to updates
+ * Category message format:
+ * [id, streamName, type, position, globalPosition, data, metadata, time]
  */
-export interface SubscribeOptions {
-  /** Start from this position */
-  position?: number;
-  /** Consumer group settings */
-  consumerGroup?: {
-    member: number;
-    size: number;
-  };
-  /** Callback for poke events */
-  onPoke?: (poke: PokeEvent) => void;
-  /** Callback for errors */
-  onError?: (error: Error) => void;
-  /** Callback when connection closes */
-  onClose?: () => void;
-}
-
-/**
- * Poke event from SSE subscription
- */
-export interface PokeEvent {
-  stream?: string;
-  category?: string;
-  position: number;
-  globalPosition: number;
-}
-
-/**
- * Active subscription handle
- */
-export interface Subscription {
-  close: () => void;
-}
-
-/**
- * Client configuration options
- */
-export interface ClientOptions {
-  /** Authentication token */
-  token?: string;
-  /** Request timeout in milliseconds (default: 30000) */
-  timeout?: number;
-}
+export type CategoryMessage = [
+  string,                    // id
+  string,                    // streamName
+  string,                    // type
+  number,                    // position
+  number,                    // globalPosition
+  Record<string, any>,       // data
+  Record<string, any> | null, // metadata
+  string                     // time (ISO 8601)
+];
 ```
 
 **2.2 Error Module** (`src/errors.ts`)
 
 ```typescript
 /**
- * Base error class for MessageDB errors
+ * Base error for MessageDB operations
  */
 export class MessageDBError extends Error {
   constructor(
     public code: string,
     message: string,
-    public details?: any
+    public details?: Record<string, any>
   ) {
     super(message);
     this.name = 'MessageDBError';
-    Error.captureStackTrace(this, this.constructor);
+  }
+
+  /**
+   * Create error from server response
+   */
+  static fromResponse(errorData: {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+  }): MessageDBError {
+    return new MessageDBError(
+      errorData.code,
+      errorData.message,
+      errorData.details
+    );
   }
 }
 
 /**
- * Error indicating stream version conflict (optimistic locking)
+ * Network/connection errors
  */
-export class VersionConflictError extends MessageDBError {
-  constructor(message: string, details?: any) {
-    super('STREAM_VERSION_CONFLICT', message, details);
-    this.name = 'VersionConflictError';
+export class NetworkError extends MessageDBError {
+  constructor(message: string, cause?: Error) {
+    super('NETWORK_ERROR', message, { cause });
+    this.name = 'NetworkError';
   }
 }
 
 /**
- * Error indicating authentication failure
+ * Authentication errors
  */
-export class AuthenticationError extends MessageDBError {
-  constructor(message: string, details?: any) {
-    super('AUTH_REQUIRED', message, details);
-    this.name = 'AuthenticationError';
-  }
-}
-
-/**
- * Error indicating namespace not found
- */
-export class NamespaceNotFoundError extends MessageDBError {
-  constructor(message: string, details?: any) {
-    super('NAMESPACE_NOT_FOUND', message, details);
-    this.name = 'NamespaceNotFoundError';
-  }
-}
-
-/**
- * Error indicating namespace already exists
- */
-export class NamespaceExistsError extends MessageDBError {
-  constructor(message: string, details?: any) {
-    super('NAMESPACE_EXISTS', message, details);
-    this.name = 'NamespaceExistsError';
-  }
-}
-
-/**
- * Parse error from RPC response
- */
-export function parseError(errorData: any): MessageDBError {
-  const code = errorData.code || 'UNKNOWN_ERROR';
-  const message = errorData.message || 'An unknown error occurred';
-  const details = errorData.details;
-
-  switch (code) {
-    case 'STREAM_VERSION_CONFLICT':
-      return new VersionConflictError(message, details);
-    case 'AUTH_REQUIRED':
-    case 'AUTH_INVALID':
-      return new AuthenticationError(message, details);
-    case 'NAMESPACE_NOT_FOUND':
-      return new NamespaceNotFoundError(message, details);
-    case 'NAMESPACE_EXISTS':
-      return new NamespaceExistsError(message, details);
-    default:
-      return new MessageDBError(code, message, details);
+export class AuthError extends MessageDBError {
+  constructor(code: string, message: string) {
+    super(code, message);
+    this.name = 'AuthError';
   }
 }
 ```
 
 **2.3 Client Module** (`src/client.ts`)
 
-Core implementation (extracted and refined from `test_external/lib/client.ts`):
 ```typescript
-import {
+import { MessageDBError, NetworkError } from './errors.js';
+import type {
   Message,
   WriteOptions,
   WriteResult,
   GetStreamOptions,
   GetCategoryOptions,
   GetLastOptions,
-  StreamMessage,
-  CategoryMessage,
   CreateNamespaceOptions,
   NamespaceResult,
   DeleteNamespaceResult,
   NamespaceInfo,
-  HealthStatus,
-  SubscribeOptions,
-  PokeEvent,
-  Subscription,
-  ClientOptions
+  StreamMessage,
+  CategoryMessage
 } from './types.js';
-import { MessageDBError, parseError } from './errors.js';
 
 /**
  * MessageDB Client
  * 
- * Official Node.js/TypeScript client for MessageDB.
- * 
- * @example
- * ```typescript
- * const client = new MessageDBClient('http://localhost:8080', {
- *   token: 'ns_...'
- * });
- * 
- * // Write a message
- * const result = await client.writeMessage('account-123', {
- *   type: 'Deposited',
- *   data: { amount: 100 }
- * });
- * 
- * // Read messages
- * const messages = await client.getStream('account-123');
- * ```
+ * Core client for interacting with MessageDB via RPC API.
  */
 export class MessageDBClient {
   private token?: string;
-  private timeout: number;
 
   constructor(
-    private baseURL: string,
-    options: ClientOptions = {}
+    private readonly baseURL: string,
+    options: { token?: string } = {}
   ) {
     this.token = options.token;
-    this.timeout = options.timeout || 30000;
   }
 
   /**
-   * Make an RPC call to the MessageDB server.
-   * Request format: ["method", arg1, arg2, ...]
+   * Make an RPC call to the server
    */
   private async rpc(method: string, ...args: any[]): Promise<any> {
     const headers: Record<string, string> = {
@@ -495,43 +354,38 @@ export class MessageDBClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
+    let response: Response;
     try {
-      const response = await fetch(`${this.baseURL}/rpc`, {
+      response = await fetch(`${this.baseURL}/rpc`, {
         method: 'POST',
         headers,
-        body: JSON.stringify([method, ...args]),
-        signal: controller.signal
+        body: JSON.stringify([method, ...args])
       });
-
-      // Auto-capture token from response header (for test mode)
-      const newToken = response.headers.get('X-MessageDB-Token');
-      if (newToken && !this.token) {
-        this.token = newToken;
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw parseError(errorData.error || errorData);
-      }
-
-      return response.json();
     } catch (error) {
-      if (error instanceof MessageDBError) {
-        throw error;
-      }
-      if (error.name === 'AbortError') {
-        throw new MessageDBError('TIMEOUT', 'Request timeout');
+      throw new NetworkError(
+        `Failed to connect to ${this.baseURL}`,
+        error as Error
+      );
+    }
+
+    // Capture token from response header (auto-creation in test mode)
+    const newToken = response.headers.get('X-MessageDB-Token');
+    if (newToken && !this.token) {
+      this.token = newToken;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      if (errorData.error) {
+        throw MessageDBError.fromResponse(errorData.error);
       }
       throw new MessageDBError(
-        'NETWORK_ERROR',
-        `Network error: ${error.message}`
+        'UNKNOWN_ERROR',
+        `HTTP ${response.status}: ${response.statusText}`
       );
-    } finally {
-      clearTimeout(timeoutId);
     }
+
+    return response.json();
   }
 
   // ==================
@@ -539,56 +393,40 @@ export class MessageDBClient {
   // ==================
 
   /**
-   * Write a message to a stream.
-   * 
-   * @param streamName - Name of the stream (e.g., 'account-123')
-   * @param message - Message to write
-   * @param options - Write options (id, expectedVersion)
-   * @returns Write result with position and globalPosition
+   * Write a message to a stream
    */
-  async writeMessage(
+  async streamWrite(
     streamName: string,
     message: Message,
-    options?: WriteOptions
+    options: WriteOptions = {}
   ): Promise<WriteResult> {
-    return this.rpc('stream.write', streamName, message, options || {});
+    return this.rpc('stream.write', streamName, message, options);
   }
 
   /**
-   * Get messages from a stream.
-   * 
-   * @param streamName - Name of the stream
-   * @param options - Query options (position, batchSize, etc.)
-   * @returns Array of messages (8-element arrays)
+   * Get messages from a stream
    */
-  async getStream(
+  async streamGet(
     streamName: string,
-    options?: GetStreamOptions
+    options: GetStreamOptions = {}
   ): Promise<StreamMessage[]> {
-    return this.rpc('stream.get', streamName, options || {});
+    return this.rpc('stream.get', streamName, options);
   }
 
   /**
-   * Get the last message from a stream.
-   * 
-   * @param streamName - Name of the stream
-   * @param options - Filter options (type)
-   * @returns Last message or null if stream is empty
+   * Get the last message from a stream
    */
-  async getLastMessage(
+  async streamLast(
     streamName: string,
-    options?: GetLastOptions
+    options: GetLastOptions = {}
   ): Promise<StreamMessage | null> {
-    return this.rpc('stream.last', streamName, options || {});
+    return this.rpc('stream.last', streamName, options);
   }
 
   /**
-   * Get the current version of a stream.
-   * 
-   * @param streamName - Name of the stream
-   * @returns Stream version (last position) or null if stream doesn't exist
+   * Get the version of a stream
    */
-  async getStreamVersion(streamName: string): Promise<number | null> {
+  async streamVersion(streamName: string): Promise<number | null> {
     return this.rpc('stream.version', streamName);
   }
 
@@ -597,17 +435,13 @@ export class MessageDBClient {
   // ====================
 
   /**
-   * Get messages from all streams in a category.
-   * 
-   * @param categoryName - Category name (e.g., 'account')
-   * @param options - Query options (position, correlation, consumerGroup, etc.)
-   * @returns Array of category messages (8-element arrays with streamName)
+   * Get messages from a category
    */
-  async getCategory(
+  async categoryGet(
     categoryName: string,
-    options?: GetCategoryOptions
+    options: GetCategoryOptions = {}
   ): Promise<CategoryMessage[]> {
-    return this.rpc('category.get', categoryName, options || {});
+    return this.rpc('category.get', categoryName, options);
   }
 
   // =====================
@@ -615,45 +449,33 @@ export class MessageDBClient {
   // =====================
 
   /**
-   * Create a new namespace.
-   * 
-   * @param namespaceId - Namespace identifier
-   * @param options - Creation options (token, description, metadata)
-   * @returns Namespace info with generated token
+   * Create a new namespace
    */
-  async createNamespace(
+  async namespaceCreate(
     namespaceId: string,
-    options?: CreateNamespaceOptions
+    options: CreateNamespaceOptions = {}
   ): Promise<NamespaceResult> {
-    return this.rpc('ns.create', namespaceId, options || {});
+    return this.rpc('ns.create', namespaceId, options);
   }
 
   /**
-   * Delete a namespace and all its data.
-   * 
-   * @param namespaceId - Namespace identifier
-   * @returns Deletion info
+   * Delete a namespace
    */
-  async deleteNamespace(namespaceId: string): Promise<DeleteNamespaceResult> {
+  async namespaceDelete(namespaceId: string): Promise<DeleteNamespaceResult> {
     return this.rpc('ns.delete', namespaceId);
   }
 
   /**
-   * List all namespaces.
-   * 
-   * @returns Array of namespace info objects
+   * List all namespaces
    */
-  async listNamespaces(): Promise<NamespaceInfo[]> {
+  async namespaceList(): Promise<NamespaceInfo[]> {
     return this.rpc('ns.list');
   }
 
   /**
-   * Get information about a namespace.
-   * 
-   * @param namespaceId - Namespace identifier
-   * @returns Namespace info
+   * Get namespace information
    */
-  async getNamespaceInfo(namespaceId: string): Promise<NamespaceInfo> {
+  async namespaceInfo(namespaceId: string): Promise<NamespaceInfo> {
     return this.rpc('ns.info', namespaceId);
   }
 
@@ -662,149 +484,33 @@ export class MessageDBClient {
   // ===================
 
   /**
-   * Get the MessageDB server version.
-   * 
-   * @returns Version string (e.g., "1.0.0")
+   * Get server version
    */
-  async getVersion(): Promise<string> {
+  async systemVersion(): Promise<string> {
     return this.rpc('sys.version');
   }
 
   /**
-   * Get the server health status.
-   * 
-   * @returns Health status object
+   * Get server health status
    */
-  async getHealth(): Promise<HealthStatus> {
+  async systemHealth(): Promise<{ status: string }> {
     return this.rpc('sys.health');
   }
 
-  // =====================
-  // Subscription (SSE)
-  // =====================
-
   /**
-   * Subscribe to a stream for real-time updates via Server-Sent Events.
-   * 
-   * @param streamName - Name of the stream
-   * @param options - Subscription options (position, callbacks)
-   * @returns Subscription handle with close() method
-   */
-  subscribeToStream(
-    streamName: string,
-    options: SubscribeOptions = {}
-  ): Subscription {
-    const params = new URLSearchParams({
-      stream: streamName,
-      position: String(options.position || 0)
-    });
-
-    if (this.token) {
-      params.set('token', this.token);
-    }
-
-    return this.createSubscription(params, options);
-  }
-
-  /**
-   * Subscribe to a category for real-time updates via Server-Sent Events.
-   * 
-   * @param categoryName - Category name
-   * @param options - Subscription options (position, consumerGroup, callbacks)
-   * @returns Subscription handle with close() method
-   */
-  subscribeToCategory(
-    categoryName: string,
-    options: SubscribeOptions = {}
-  ): Subscription {
-    const params = new URLSearchParams({
-      category: categoryName,
-      position: String(options.position || 0)
-    });
-
-    if (options.consumerGroup) {
-      params.set('consumerGroupMember', String(options.consumerGroup.member));
-      params.set('consumerGroupSize', String(options.consumerGroup.size));
-    }
-
-    if (this.token) {
-      params.set('token', this.token);
-    }
-
-    return this.createSubscription(params, options);
-  }
-
-  /**
-   * Internal helper to create SSE subscription
-   */
-  private createSubscription(
-    params: URLSearchParams,
-    options: SubscribeOptions
-  ): Subscription {
-    const url = `${this.baseURL}/subscribe?${params}`;
-    const eventSource = new EventSource(url);
-
-    eventSource.addEventListener('poke', (event) => {
-      if (options.onPoke) {
-        try {
-          const data = JSON.parse(event.data);
-          options.onPoke(data);
-        } catch (err) {
-          if (options.onError) {
-            options.onError(new Error(`Failed to parse poke: ${err}`));
-          }
-        }
-      }
-    });
-
-    eventSource.onerror = () => {
-      if (options.onError) {
-        options.onError(new Error('SSE connection error'));
-      }
-    };
-
-    return {
-      close: () => {
-        eventSource.close();
-      }
-    };
-  }
-
-  // =================
-  // Token Management
-  // =================
-
-  /**
-   * Get the current authentication token.
-   * 
-   * @returns Current token or undefined
+   * Get current authentication token
    */
   getToken(): string | undefined {
     return this.token;
   }
-
-  /**
-   * Set the authentication token.
-   * 
-   * @param token - New token to use
-   */
-  setToken(token: string): void {
-    this.token = token;
-  }
 }
 ```
 
-**2.4 Index Module** (`src/index.ts`)
+**2.4 Main Export** (`src/index.ts`)
 
 ```typescript
 export { MessageDBClient } from './client.js';
-export {
-  MessageDBError,
-  VersionConflictError,
-  AuthenticationError,
-  NamespaceNotFoundError,
-  NamespaceExistsError
-} from './errors.js';
+export { MessageDBError, NetworkError, AuthError } from './errors.js';
 export type {
   Message,
   WriteOptions,
@@ -812,17 +518,12 @@ export type {
   GetStreamOptions,
   GetCategoryOptions,
   GetLastOptions,
-  StreamMessage,
-  CategoryMessage,
   CreateNamespaceOptions,
   NamespaceResult,
   DeleteNamespaceResult,
   NamespaceInfo,
-  HealthStatus,
-  SubscribeOptions,
-  PokeEvent,
-  Subscription,
-  ClientOptions
+  StreamMessage,
+  CategoryMessage
 } from './types.js';
 ```
 
@@ -830,156 +531,157 @@ export type {
 
 ### Phase 3: Test Infrastructure (1 hour)
 
-**3.1 Test Helpers** (`test/helpers.ts`)
+**3.1 Vitest Configuration** (`vitest.config.ts`)
 
-Use Node.js built-in test runner (available in Node 18+):
 ```typescript
-import { MessageDBClient } from '../dist/index.js';
-import { spawn, ChildProcess } from 'child_process';
+import { defineConfig } from 'vitest/config';
 
-const DEFAULT_PORT = 6789;
-const SERVER_BIN = process.env.MESSAGEDB_BIN || '../../golang/messagedb';
-const DEFAULT_TOKEN = 'ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000';
-const STARTUP_TIMEOUT_MS = 10000;
-
-export interface TestContext {
-  namespace: string;
-  token: string;
-  client: MessageDBClient;
-  cleanup: () => Promise<void>;
-}
-
-let namespaceCounter = 0;
-
-/**
- * Generate unique namespace ID
- */
-function generateNamespaceId(testName: string): string {
-  const counter = (namespaceCounter++).toString(36);
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 6);
-  return `t_${counter}_${timestamp}_${random}`;
-}
-
-/**
- * Wait for server to be healthy
- */
-async function waitForHealthy(url: string, timeoutMs: number): Promise<void> {
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const response = await fetch(`${url}/health`);
-      if (response.ok) return;
-    } catch {
-      // Keep trying
-    }
-    await new Promise(resolve => setTimeout(resolve, 100));
+export default defineConfig({
+  test: {
+    globals: false,
+    environment: 'node',
+    testTimeout: 30000,
+    hookTimeout: 30000
   }
-  
-  throw new Error(`Server not healthy after ${timeoutMs}ms`);
+});
+```
+
+**3.2 Test Helpers** (`tests/helpers.ts`)
+
+```typescript
+import { MessageDBClient } from '../src/client.js';
+
+const MESSAGEDB_URL = process.env.MESSAGEDB_URL || 'http://localhost:8080';
+const ADMIN_TOKEN = process.env.MESSAGEDB_ADMIN_TOKEN;
+
+/**
+ * Test context with isolated namespace
+ */
+export interface TestContext {
+  client: MessageDBClient;
+  namespaceId: string;
+  token: string;
+  cleanup: () => Promise<void>;
 }
 
 /**
  * Setup test with isolated namespace
  */
 export async function setupTest(testName: string): Promise<TestContext> {
-  const serverUrl = process.env.MESSAGEDB_URL || `http://localhost:${DEFAULT_PORT}`;
+  // Create admin client for namespace management
+  const adminClient = new MessageDBClient(MESSAGEDB_URL, { 
+    token: ADMIN_TOKEN 
+  });
+
+  const namespaceId = `test-${testName}-${uniqueSuffix()}`;
   
-  // Create unique namespace
-  const namespace = generateNamespaceId(testName);
-  const token = `ns_${Buffer.from(namespace).toString('base64url')}_${'0'.repeat(64)}`;
-  
-  // Create namespace using admin client
-  const admin = new MessageDBClient(serverUrl, { token: DEFAULT_TOKEN });
-  await admin.createNamespace(namespace, { token });
-  
-  // Create client for this namespace
-  const client = new MessageDBClient(serverUrl, { token });
-  
+  const result = await adminClient.namespaceCreate(namespaceId, {
+    description: `Test namespace for ${testName}`
+  });
+
+  // Create client with namespace token
+  const client = new MessageDBClient(MESSAGEDB_URL, { 
+    token: result.token 
+  });
+
   return {
-    namespace,
-    token,
     client,
+    namespaceId,
+    token: result.token,
     cleanup: async () => {
-      try {
-        await admin.deleteNamespace(namespace);
-      } catch {
-        // Ignore cleanup errors
-      }
+      await adminClient.namespaceDelete(namespaceId);
     }
   };
 }
 
 /**
- * Generate random stream name
+ * Generate unique stream name
  */
-export function randomStreamName(category: string = 'test'): string {
-  const id = Math.random().toString(36).substring(2, 15);
-  return `${category}-${id}`;
+export function randomStreamName(prefix = 'test'): string {
+  return `${prefix}-${uniqueSuffix()}`;
+}
+
+/**
+ * Generate unique suffix
+ */
+function uniqueSuffix(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
+ * Get MessageDB URL
+ */
+export function getMessageDBURL(): string {
+  return MESSAGEDB_URL;
 }
 ```
 
-**3.2 Test Structure Pattern**
+**3.3 Test Runner Script** (`run_tests.sh`)
 
-Example test file (`test/write.test.ts`):
+```bash
+#!/bin/bash
+set -e
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${YELLOW}→ Building TypeScript...${NC}"
+npm run build
+
+echo -e "${YELLOW}→ Running tests...${NC}"
+npm test
+
+echo -e "${GREEN}✓ All tests passed!${NC}"
+```
+
+**3.4 Test Structure Pattern**
+
+Each test file follows this pattern:
+
 ```typescript
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import { setupTest, randomStreamName } from './helpers.js';
+import { describe, test, expect, afterEach } from 'vitest';
+import { setupTest, randomStreamName, type TestContext } from './helpers.js';
 
-test('WRITE-001: Write minimal message', async () => {
-  const t = await setupTest('write-001');
-  try {
-    const stream = randomStreamName();
-    const message = { type: 'TestEvent', data: { foo: 'bar' } };
-    
-    const result = await t.client.writeMessage(stream, message);
-    
-    assert.ok(result.position >= 0);
-    assert.ok(result.globalPosition >= 0);
-    assert.equal(result.position, 0); // First message
-  } finally {
-    await t.cleanup();
-  }
-});
+describe('WRITE Tests', () => {
+  const contexts: TestContext[] = [];
 
-test('WRITE-002: Write message with metadata', async () => {
-  const t = await setupTest('write-002');
-  try {
+  afterEach(async () => {
+    // Cleanup all test namespaces
+    await Promise.all(contexts.map(ctx => ctx.cleanup()));
+    contexts.length = 0;
+  });
+
+  test('WRITE-001: Write minimal message', async () => {
+    const ctx = await setupTest('write-001');
+    contexts.push(ctx);
+
     const stream = randomStreamName();
-    const message = {
+    const result = await ctx.client.streamWrite(stream, {
       type: 'TestEvent',
-      data: { foo: 'bar' },
-      metadata: { correlationId: '123' }
-    };
-    
-    const result = await t.client.writeMessage(stream, message);
-    assert.ok(result.position >= 0);
-    
-    // Read back and verify metadata
-    const messages = await t.client.getStream(stream);
-    assert.equal(messages.length, 1);
-    assert.deepEqual(messages[0][5], { correlationId: '123' }); // metadata at index 5
-  } finally {
-    await t.cleanup();
-  }
-});
+      data: { foo: 'bar' }
+    });
 
-// ... more tests following SDK-TEST-SPEC.md
+    expect(result.position).toBeGreaterThanOrEqual(0);
+    expect(result.globalPosition).toBeGreaterThanOrEqual(0);
+  });
+
+  // More tests...
+});
 ```
 
 ---
 
-### Phase 4: Test Implementation (2 hours)
+### Phase 4: Test Implementation (1.5 hours)
 
 Implement tests in priority order following `docs/SDK-TEST-SPEC.md`:
 
-**Tier 1 (Must Have) - 1.5 hours**
+**Tier 1 (Must Have) - 1 hour**
 - `write.test.ts`: WRITE-001 through WRITE-010
 - `read.test.ts`: READ-001 through READ-010
 - `auth.test.ts`: AUTH-001 through AUTH-004
-- `error.test.ts`: ERROR-001 through ERROR-007
+- `error.test.ts`: ERROR-001 through ERROR-004
 
 **Tier 2 (Should Have) - 30 min**
 - `last.test.ts`: LAST-001 through LAST-004
@@ -990,508 +692,232 @@ Implement tests in priority order following `docs/SDK-TEST-SPEC.md`:
 
 **Tier 3 (Nice to Have) - Future**
 - `encoding.test.ts`: ENCODING-001 through ENCODING-010
-- `sse.test.ts`: SSE-001 through SSE-009
-- Edge case tests
+- `edge.test.ts`: EDGE-001 through EDGE-008
+- SSE tests (requires EventSource implementation)
 
 ---
 
 ### Phase 5: Documentation & Polish (30 min)
 
 **5.1 README.md**
+
 ```markdown
 # @messagedb/client
 
-Official Node.js/TypeScript client for MessageDB - a simple, fast message store.
-
-## Features
-
-- ✅ Zero runtime dependencies (uses native `fetch` and `EventSource`)
-- ✅ Full TypeScript support with comprehensive types
-- ✅ Async/await API
-- ✅ Stream and category operations
-- ✅ Namespace management
-- ✅ Real-time subscriptions via Server-Sent Events
-- ✅ Optimistic locking support
-- ✅ Consumer groups for load balancing
+Node.js/TypeScript client for MessageDB - a simple, fast message store.
 
 ## Installation
 
 ```bash
 npm install @messagedb/client
-# or
-yarn add @messagedb/client
-# or
-pnpm add @messagedb/client
 ```
 
 ## Requirements
 
-- Node.js 18+ (uses native `fetch` and `EventSource`)
+- Node.js 18+ (uses native fetch API)
+- TypeScript 5+ (for TypeScript usage)
 
-## Quick Start
+## Usage
+
+### Basic Usage
 
 ```typescript
 import { MessageDBClient } from '@messagedb/client';
 
 // Create client
 const client = new MessageDBClient('http://localhost:8080', {
-  token: 'ns_...'  // Your namespace token
+  token: 'ns_...'
 });
 
-// Write a message
-const result = await client.writeMessage('account-123', {
+// Write message
+const result = await client.streamWrite('account-123', {
   type: 'Deposited',
-  data: { amount: 100, currency: 'USD' }
+  data: { amount: 100 }
 });
 
 console.log(`Written at position ${result.position}`);
 
-// Read messages
-const messages = await client.getStream('account-123');
-messages.forEach(msg => {
-  const [id, type, position, globalPosition, data, metadata, time] = msg;
-  console.log(`${type}: ${JSON.stringify(data)}`);
+// Read stream
+const messages = await client.streamGet('account-123');
+for (const [id, type, pos, gpos, data, metadata, time] of messages) {
+  console.log(`${type} at ${pos}:`, data);
+}
+```
+
+### With Optimistic Locking
+
+```typescript
+// Read current version
+const version = await client.streamVersion('account-123');
+
+// Write with expected version
+await client.streamWrite('account-123', {
+  type: 'Withdrawn',
+  data: { amount: 50 }
+}, { expectedVersion: version });
+```
+
+### Category Reading
+
+```typescript
+// Read all streams in category
+const messages = await client.categoryGet('account');
+
+// With consumer group (for load balancing)
+const messages = await client.categoryGet('account', {
+  consumerGroup: {
+    member: 0,  // This consumer's ID
+    size: 4     // Total consumers
+  }
+});
+```
+
+### Namespace Management
+
+```typescript
+// Create namespace
+const ns = await client.namespaceCreate('my-app', {
+  description: 'My application namespace'
 });
 
-// Get last message
-const lastMsg = await client.getLastMessage('account-123');
+console.log(`Token: ${ns.token}`);
 
-// Subscribe to updates
-const subscription = client.subscribeToStream('account-123', {
-  onPoke: (poke) => {
-    console.log('New message at position', poke.position);
-  }
+// Use namespace token
+const nsClient = new MessageDBClient('http://localhost:8080', {
+  token: ns.token
 });
 ```
 
 ## API Reference
 
-### Client Creation
-
-```typescript
-const client = new MessageDBClient(baseURL, options);
-```
-
-**Options:**
-- `token?: string` - Authentication token
-- `timeout?: number` - Request timeout in ms (default: 30000)
-
 ### Stream Operations
 
-#### Write Message
-
-```typescript
-const result = await client.writeMessage(streamName, message, options);
-```
-
-**Message:**
-- `type: string` - Event type
-- `data: object` - Event data
-- `metadata?: object` - Optional metadata
-
-**Options:**
-- `id?: string` - Custom message ID (UUID)
-- `expectedVersion?: number` - Expected stream version for optimistic locking
-
-**Returns:** `{ position: number, globalPosition: number }`
-
-#### Read Stream
-
-```typescript
-const messages = await client.getStream(streamName, options);
-```
-
-**Options:**
-- `position?: number` - Start from position
-- `globalPosition?: number` - Start from global position
-- `batchSize?: number` - Max messages to return (-1 for unlimited)
-
-**Returns:** Array of messages (8-element arrays)
-
-#### Get Last Message
-
-```typescript
-const message = await client.getLastMessage(streamName, options);
-```
-
-**Options:**
-- `type?: string` - Filter by message type
-
-**Returns:** Message or `null` if empty
-
-#### Get Stream Version
-
-```typescript
-const version = await client.getStreamVersion(streamName);
-```
-
-**Returns:** Last position or `null` if stream doesn't exist
+- `streamWrite(streamName, message, options?)` - Write a message
+- `streamGet(streamName, options?)` - Read messages
+- `streamLast(streamName, options?)` - Get last message
+- `streamVersion(streamName)` - Get stream version
 
 ### Category Operations
 
-#### Read Category
-
-```typescript
-const messages = await client.getCategory(categoryName, options);
-```
-
-**Options:**
-- `position?: number` - Start from global position
-- `batchSize?: number` - Max messages to return
-- `correlation?: string` - Filter by correlation stream prefix
-- `consumerGroup?: { member: number, size: number }` - Consumer group settings
-
-**Returns:** Array of category messages (8-element arrays with streamName)
+- `categoryGet(categoryName, options?)` - Read from category
 
 ### Namespace Operations
 
-```typescript
-// Create namespace
-const result = await client.createNamespace(namespaceId, {
-  description: 'My namespace',
-  token: 'custom-token' // optional
-});
-
-// Delete namespace
-await client.deleteNamespace(namespaceId);
-
-// List namespaces
-const namespaces = await client.listNamespaces();
-
-// Get namespace info
-const info = await client.getNamespaceInfo(namespaceId);
-```
+- `namespaceCreate(id, options?)` - Create namespace
+- `namespaceDelete(id)` - Delete namespace
+- `namespaceList()` - List namespaces
+- `namespaceInfo(id)` - Get namespace info
 
 ### System Operations
 
-```typescript
-// Get server version
-const version = await client.getVersion();
-
-// Get health status
-const health = await client.getHealth();
-```
-
-### Subscriptions (Server-Sent Events)
-
-```typescript
-// Subscribe to stream
-const sub = client.subscribeToStream('account-123', {
-  position: 0,
-  onPoke: (poke) => console.log('New message!', poke),
-  onError: (error) => console.error('SSE error', error),
-  onClose: () => console.log('Connection closed')
-});
-
-// Subscribe to category
-const sub = client.subscribeToCategory('account', {
-  consumerGroup: { member: 0, size: 2 },
-  onPoke: (poke) => console.log('New message!', poke)
-});
-
-// Close subscription
-sub.close();
-```
-
-## Error Handling
-
-The client throws specific error classes for different scenarios:
-
-```typescript
-import {
-  MessageDBError,
-  VersionConflictError,
-  AuthenticationError,
-  NamespaceNotFoundError
-} from '@messagedb/client';
-
-try {
-  await client.writeMessage(stream, message, { expectedVersion: 5 });
-} catch (error) {
-  if (error instanceof VersionConflictError) {
-    console.log('Version conflict - retry with current version');
-  } else if (error instanceof AuthenticationError) {
-    console.log('Invalid token');
-  } else if (error instanceof MessageDBError) {
-    console.log('MessageDB error:', error.code, error.message);
-  }
-}
-```
+- `systemVersion()` - Get server version
+- `systemHealth()` - Get server health
 
 ## Testing
 
-```bash
-# Run tests (requires MessageDB server running)
-npm test
-
-# With custom server URL
-MESSAGEDB_URL=http://localhost:8080 npm test
-```
-
-Tests automatically create and clean up isolated namespaces.
-
-## Development
+Tests run against a live MessageDB server:
 
 ```bash
-# Install dependencies
-npm install
-
-# Build TypeScript
-npm run build
+# Start server
+docker-compose up -d
 
 # Run tests
 npm test
 
-# Clean build artifacts
-npm run clean
+# With custom URL
+MESSAGEDB_URL=http://localhost:8080 npm test
 ```
 
 ## License
 
 MIT
-
-## Contributing
-
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
 ```
 
-**5.2 CHANGELOG.md**
-```markdown
-# Changelog
+**5.2 Package Metadata**
 
-All notable changes to this project will be documented in this file.
-
-## [0.1.0] - 2024-12-20
-
-### Added
-- Initial release
-- Complete MessageDB RPC API support
-- TypeScript types and interfaces
-- Stream operations (write, read, last, version)
-- Category operations (read with consumer groups)
-- Namespace management
-- System operations
-- SSE subscriptions for real-time updates
-- Comprehensive error handling
-- Zero runtime dependencies
-```
-
-**5.3 LICENSE**
-```
-MIT License
-
-Copyright (c) 2024 MessageDB Team
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+Update `package.json` with:
+- Author, license, repository
+- Keywords: `messagedb`, `event-sourcing`, `message-store`, `cqrs`
+- Homepage and bug tracker URLs
 
 ---
 
-## **Success Criteria**
+## Success Criteria
 
-### Core Requirements
 - [ ] All Tier 1 tests passing (WRITE, READ, AUTH, ERROR)
 - [ ] All Tier 2 tests passing (CATEGORY, NS, SYS, LAST, VERSION)
-- [ ] Zero runtime dependencies (only TypeScript as devDependency)
-- [ ] Full TypeScript support with .d.ts files
+- [ ] Zero external runtime dependencies
+- [ ] Full TypeScript type definitions
+- [ ] Dual ESM/CommonJS support
 - [ ] Tests create/cleanup their own namespaces
-- [ ] Clean, idiomatic Node.js/TypeScript code
-- [ ] Comprehensive README with examples
-
-### Package Quality
-- [ ] Works with Node.js 18+ (native fetch/EventSource)
-- [ ] ES modules format
-- [ ] Source maps for debugging
-- [ ] Type declarations (.d.ts) generated
-- [ ] Proper package.json exports configuration
-- [ ] No compilation warnings or errors
-
-### Documentation
-- [ ] README with installation, usage, API reference
-- [ ] CHANGELOG tracking versions
-- [ ] MIT LICENSE file
-- [ ] Code comments and JSDoc for public APIs
-- [ ] TypeScript examples in documentation
+- [ ] README with clear usage examples
+- [ ] Built artifacts in `dist/` directory
 
 ---
 
-## **Implementation Summary**
+## Implementation Notes
 
-### ✅ Core Components
+### Zero Dependencies Strategy
 
-1. **Types** (`src/types.ts`)
-   - Comprehensive TypeScript interfaces
-   - Message, WriteOptions, WriteResult
-   - Stream and category message types
-   - Namespace, system, and subscription types
+Use native Node.js APIs only:
+- `fetch` for HTTP (available in Node 18+)
+- No need for external HTTP libraries
+- Built-in `crypto` for UUID generation if needed
+- Use `vitest` for testing (dev dependency only)
 
-2. **Errors** (`src/errors.ts`)
-   - MessageDBError base class
-   - Specific error types (VersionConflict, Auth, etc.)
-   - Error parsing from RPC responses
+### Type Safety
 
-3. **Client** (`src/client.ts`)
-   - MessageDBClient class
-   - All RPC methods implemented
-   - Token management
-   - SSE subscriptions
-   - Timeout handling
+Leverage TypeScript's type system:
+- Message format types match server arrays exactly
+- Options objects are properly typed
+- Error classes extend standard Error
+- Export all types for consumer use
 
-4. **Exports** (`src/index.ts`)
-   - Clean public API
-   - All types exported
-   - Error classes exported
+### Error Handling
 
-### 📊 Test Coverage Target
+```typescript
+try {
+  await client.streamWrite(stream, message, { expectedVersion: 5 });
+} catch (error) {
+  if (error instanceof MessageDBError) {
+    console.log(`Error code: ${error.code}`);
+    console.log(`Message: ${error.message}`);
+    console.log(`Details:`, error.details);
+  }
+}
+```
 
-**Total Test Cases**: 60+ (matching SDK-TEST-SPEC.md)
+### Async/Await Pattern
 
-- **Tier 1** (Must Have): 35+ tests
-  - WRITE: 10 tests
-  - READ: 10 tests
-  - AUTH: 4 tests
-  - ERROR: 7 tests
-  - LAST: 4 tests
-
-- **Tier 2** (Should Have): 25+ tests
-  - VERSION: 3 tests
-  - CATEGORY: 8 tests
-  - NAMESPACE: 8 tests
-  - SYSTEM: 2 tests
-
-- **Tier 3** (Nice to Have): Future
-  - ENCODING: 10 tests
-  - SSE: 9 tests
-  - EDGE: 8 tests
-
-### 🎯 API Coverage
-
-All MessageDB RPC endpoints:
-- ✅ `stream.write` - Write with optimistic locking
-- ✅ `stream.get` - Read with filters
-- ✅ `stream.last` - Get last message by type
-- ✅ `stream.version` - Get stream version
-- ✅ `category.get` - Read with consumer groups
-- ✅ `ns.create` - Create namespace
-- ✅ `ns.delete` - Delete namespace
-- ✅ `ns.list` - List namespaces
-- ✅ `ns.info` - Get namespace info
-- ✅ `sys.version` - Get server version
-- ✅ `sys.health` - Get server health
-- ✅ SSE subscriptions for real-time updates
-
----
-
-## **Differences from Elixir SDK**
-
-### Language-Specific Patterns
-
-1. **Return Values**
-   - **Elixir**: `{:ok, result, updated_client}` tuples
-   - **Node.js**: `Promise<result>` with automatic token capture
-
-2. **Error Handling**
-   - **Elixir**: Pattern matching on `{:ok, _}` / `{:error, _}`
-   - **Node.js**: Try/catch with typed error classes
-
-3. **Configuration**
-   - **Elixir**: Mix project with `req` dependency
-   - **Node.js**: npm package with zero runtime dependencies
-
-4. **Testing**
-   - **Elixir**: ExUnit with async: false
-   - **Node.js**: Built-in test runner (Node 18+)
-
-### Advantages of Node.js Approach
-
-1. **Zero Dependencies**: Uses native `fetch` and `EventSource` (Node 18+)
-2. **TypeScript**: Strong typing without runtime overhead
-3. **Async/Await**: Natural async patterns, no "client threading"
-4. **npm Ecosystem**: Easy distribution and installation
-5. **Browser Compatibility**: Same code can run in browsers (with bundler)
-
----
-
-## **Publishing Checklist**
-
-Before publishing to npm:
-
-- [ ] All tests passing
-- [ ] Version bumped in package.json
-- [ ] CHANGELOG updated
-- [ ] README examples tested
-- [ ] Type declarations generated
-- [ ] No TypeScript errors
-- [ ] Build artifacts in dist/
-- [ ] package.json "files" field correct
-- [ ] npm pack and inspect tarball
-- [ ] Test installation in separate project
-
-```bash
-# Build and test
-npm run build
-npm test
-
-# Check package contents
-npm pack
-tar -tzf messagedb-client-0.1.0.tgz
-
-# Publish to npm
-npm publish --access public
+All methods return Promises for async/await usage:
+```typescript
+const result = await client.streamWrite(stream, message);
+const messages = await client.streamGet(stream);
 ```
 
 ---
 
-## **Future Enhancements**
-
-1. **Connection Pooling**: Reuse HTTP connections for better performance
-2. **Retry Logic**: Automatic retry with exponential backoff
-3. **Batched Writes**: Helper for writing multiple messages efficiently
-4. **Projection Helpers**: High-level abstractions for building projections
-5. **React Hooks**: Optional package with React hooks for subscriptions
-6. **Middleware**: Plugin system for logging, metrics, etc.
-7. **Browser Bundle**: Pre-built browser bundle via CDN
-
----
-
-## **Integration with Test Runner**
+## Integration with Test Runner
 
 Update `bin/run_sdk_tests.sh` to include Node.js tests:
 
 ```bash
 # Run Node.js tests
-if [[ "$SDK" == "nodejs" || "$SDK" == "all" ]]; then
+if [[ "$SDK" == "node" || "$SDK" == "all" ]]; then
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE}  Node.js SDK Tests${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    if [ -f "clients/messagedb-node/package.json" ]; then
+    if [ -f "clients/messagedb-node/run_tests.sh" ]; then
         cd clients/messagedb-node
-        npm install
-        if MESSAGEDB_URL="$MESSAGEDB_URL" npm test; then
+        if MESSAGEDB_URL="$MESSAGEDB_URL" MESSAGEDB_ADMIN_TOKEN="$ADMIN_TOKEN" ./run_tests.sh; then
             PASSED=$((PASSED + 1))
         else
             FAILED=$((FAILED + 1))
         fi
         cd ../..
     else
-        echo -e "${RED}✗ Node.js SDK not found${NC}"
+        echo -e "${RED}✗ Node.js SDK test runner not found${NC}"
         FAILED=$((FAILED + 1))
     fi
     echo ""
@@ -1500,70 +926,22 @@ fi
 
 ---
 
-## **References**
+## Potential Enhancements (Future)
+
+1. **SSE Subscriptions**: Implement EventSource-based subscriptions
+2. **Retry Logic**: Configurable retry with exponential backoff
+3. **Connection Pooling**: HTTP agent with keep-alive
+4. **Batched Writes**: Helper for writing multiple messages
+5. **Stream Helpers**: Higher-level abstractions (projections, aggregates)
+6. **CLI Tool**: Command-line interface for MessageDB operations
+7. **Logging**: Optional structured logging integration
+8. **Metrics**: Optional telemetry/metrics integration
+
+---
+
+## References
 
 - Test Spec: `docs/SDK-TEST-SPEC.md`
-- Elixir SDK Plan: `@meta/@pm/issues/ISSUE004-sdk-elixir.md`
-- Existing TypeScript Client: `test_external/lib/client.ts`
+- Elixir SDK: `clients/messagedb_ex/`
+- TypeScript Client (test): `test_external/lib/client.ts`
 - Test Runner: `bin/run_sdk_tests.sh`
-- Node.js Test Runner: https://nodejs.org/api/test.html
-- Native fetch: https://nodejs.org/api/globals.html#fetch
-- Native EventSource: Available via undici in Node 18+
-
----
-
-## **Timeline**
-
-- **Day 1 (2-3 hours)**: Setup + Core implementation
-  - Initialize project
-  - Implement types, errors, client
-  - Basic README
-
-- **Day 2 (2-3 hours)**: Tests + Documentation
-  - Implement Tier 1 tests
-  - Implement Tier 2 tests
-  - Complete documentation
-  - Test against live server
-
-**Total Estimated Time**: 4-6 hours
-
----
-
-## **Notes**
-
-### EventSource in Node.js
-
-Node.js 18+ doesn't have native EventSource, but it's available via undici (which provides fetch). For the SDK, we can:
-
-1. **Option A**: Add `eventsource` as optional dependency for Node.js
-2. **Option B**: Document that SSE requires polyfill in Node.js
-3. **Option C**: Use `undici` which is bundled in Node 18+
-
-Recommendation: Option A for best DX.
-
-```json
-{
-  "optionalDependencies": {
-    "eventsource": "^2.0.2"
-  }
-}
-```
-
-```typescript
-// In client.ts for SSE
-const EventSource = globalThis.EventSource || 
-  (await import('eventsource')).default;
-```
-
-### Test Execution
-
-Tests can be run with:
-```bash
-# Node built-in test runner
-node --test test/**/*.test.js
-
-# Or with tsx for TypeScript
-npx tsx --test test/**/*.test.ts
-```
-
-Choose Node built-in for zero dependencies approach.
