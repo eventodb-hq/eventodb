@@ -554,6 +554,22 @@ func TestMDB001_6A_T6_ConcurrentWritesDifferentNamespaces(t *testing.T) {
 			t.Fatalf("Failed to create namespace 2: %v", err)
 		}
 
+		// Ensure namespaces are fully initialized by writing a test message
+		// This is important for Postgres which needs schema/table creation
+		testMsg := &store.Message{
+			StreamName: "init-stream",
+			Type:       "Init",
+			Data:       map[string]interface{}{"test": "init"},
+		}
+		_, err = s.WriteMessage(ctx, ns1, testMsg.StreamName, testMsg)
+		if err != nil {
+			t.Fatalf("Failed to initialize namespace 1: %v", err)
+		}
+		_, err = s.WriteMessage(ctx, ns2, testMsg.StreamName, testMsg)
+		if err != nil {
+			t.Fatalf("Failed to initialize namespace 2: %v", err)
+		}
+
 		// Write concurrently to different namespaces
 		done := make(chan error, 2)
 
@@ -629,6 +645,17 @@ func TestMDB001_6A_T7_ConcurrentWritesSameStream(t *testing.T) {
 		err := s.CreateNamespace(ctx, ns, "token_hash", "Test namespace")
 		if err != nil {
 			t.Fatalf("Failed to create namespace: %v", err)
+		}
+
+		// Ensure namespace is fully initialized
+		testMsg := &store.Message{
+			StreamName: "init-stream",
+			Type:       "Init",
+			Data:       map[string]interface{}{"test": "init"},
+		}
+		_, err = s.WriteMessage(ctx, ns, testMsg.StreamName, testMsg)
+		if err != nil {
+			t.Fatalf("Failed to initialize namespace: %v", err)
 		}
 
 		// Write concurrently to same stream
