@@ -1,4 +1,4 @@
-# Message DB CI - Main Test Workflow
+# EventoDB CI - Main Test Workflow
 # Runs Go tests, linting, and external Bun.js tests
 
 name: Test
@@ -87,13 +87,13 @@ jobs:
       
       - name: Build binary
         working-directory: ./golang
-        run: go build -o messagedb ./cmd/messagedb
+        run: go build -o eventodb ./cmd/eventodb
       
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: messagedb-binary
-          path: golang/messagedb
+          name: eventodb-binary
+          path: golang/eventodb
           retention-days: 1
 
   # ============================================================================
@@ -134,14 +134,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Download messagedb binary
+      - name: Download eventodb binary
         uses: actions/download-artifact@v4
         with:
-          name: messagedb-binary
+          name: eventodb-binary
           path: golang/
       
       - name: Make binary executable
-        run: chmod +x golang/messagedb
+        run: chmod +x golang/eventodb
       
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -156,7 +156,7 @@ jobs:
         working-directory: ./test_external
         run: bun test tests/
         env:
-          MESSAGEDB_BIN: ../golang/messagedb
+          EVENTODB_BIN: ../golang/eventodb
 
   # ============================================================================
   # Check go.mod is tidy
