@@ -15,9 +15,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/message-db/message-db/internal/migrate"
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/migrations"
+	"github.com/eventodb/eventodb/internal/migrate"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/migrations"
 )
 
 // TimescaleStore implements the Store interface for TimescaleDB
@@ -118,7 +118,7 @@ func (s *TimescaleStore) IsCategory(name string) bool {
 	return store.IsCategory(name)
 }
 
-// Hash64 computes a 64-bit hash compatible with Message DB
+// Hash64 computes a 64-bit hash compatible with EventoDB
 func (s *TimescaleStore) Hash64(value string) int64 {
 	return store.Hash64(value)
 }

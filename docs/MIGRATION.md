@@ -1,18 +1,18 @@
-# Migration Guide: PostgreSQL Message DB to MessageDB Go
+# Migration Guide: PostgreSQL EventoDB to EventoDB Go
 
-This guide helps you migrate from the original PostgreSQL-based Message DB to the MessageDB Go server.
+This guide helps you migrate from the original PostgreSQL-based EventoDB to the EventoDB Go server.
 
 ## Overview
 
-The MessageDB Go server provides HTTP API access to message store functionality. It can work with:
+The EventoDB Go server provides HTTP API access to message store functionality. It can work with:
 - **In-memory SQLite** for testing and development
-- **PostgreSQL** (planned) for production with existing Message DB databases
+- **PostgreSQL** (planned) for production with existing EventoDB databases
 
 ## Key Differences
 
 ### API Access
 
-| Feature | Original Message DB | MessageDB Go |
+| Feature | Original EventoDB | EventoDB Go |
 |---------|---------------------|--------------|
 | Access Method | Direct PostgreSQL functions | HTTP RPC API |
 | Authentication | PostgreSQL roles | Token-based (Bearer) |
@@ -41,7 +41,7 @@ SELECT * FROM messages WHERE stream_name = 'account-123';
 -- id, stream_name, type, position, global_position, data, metadata, time
 ```
 
-**MessageDB Go (RPC response):**
+**EventoDB Go (RPC response):**
 ```json
 [
   ["uuid", "EventType", 0, 1001, {"field": "value"}, null, "2024-01-15T10:30:00Z"]
@@ -57,15 +57,15 @@ SELECT * FROM messages WHERE stream_name = 'account-123';
 
 ## Migration Steps
 
-### Step 1: Set Up MessageDB Go Server
+### Step 1: Set Up EventoDB Go Server
 
 ```bash
 # Build the server
 cd golang
-go build -o messagedb ./cmd/messagedb
+go build -o eventodb ./cmd/eventodb
 
 # Start in test mode for validation
-./messagedb serve --test-mode --port=8080
+./eventodb serve --test-mode --port=8080
 ```
 
 ### Step 2: Update Client Code
@@ -86,7 +86,7 @@ messages = MessageStore::Postgres::Get.(stream_name)
 require 'net/http'
 require 'json'
 
-class MessageDBClient
+class EventoDBClient
   def initialize(url, token)
     @url = URI(url)
     @token = token
@@ -118,7 +118,7 @@ class MessageDBClient
   end
 end
 
-client = MessageDBClient.new('http://localhost:8080', 'ns_...')
+client = EventoDBClient.new('http://localhost:8080', 'ns_...')
 client.write('account-123', message)
 ```
 
@@ -126,8 +126,8 @@ client.write('account-123', message)
 
 **Before:**
 ```javascript
-// message-db npm package
-const { createWriter, createReader } = require('@eventide/message-db');
+// eventodb npm package
+const { createWriter, createReader } = require('@eventide/eventodb');
 
 const writer = createWriter({ connectionString });
 await writer.write('account-123', message);
@@ -138,10 +138,10 @@ const messages = await reader.read('account-123');
 
 **After:**
 ```typescript
-// MessageDB Go client
-import { MessageDBClient } from './client';
+// EventoDB Go client
+import { EventoDBClient } from './client';
 
-const client = new MessageDBClient('http://localhost:8080', { token: 'ns_...' });
+const client = new EventoDBClient('http://localhost:8080', { token: 'ns_...' });
 
 await client.writeMessage('account-123', {
   type: 'Deposited',
@@ -153,7 +153,7 @@ const messages = await client.getStream('account-123');
 
 ### Step 3: Migrate Data (Optional)
 
-If you have existing data in PostgreSQL Message DB:
+If you have existing data in PostgreSQL EventoDB:
 
 ```bash
 # Export messages from PostgreSQL
@@ -188,7 +188,7 @@ with open('/tmp/messages.csv') as f:
         )
 ```
 
-**Note:** Global positions will be different after import. If you need exact global position matching, contact the MessageDB team.
+**Note:** Global positions will be different after import. If you need exact global position matching, contact the EventoDB team.
 
 ### Step 4: Update Subscriptions
 
@@ -235,7 +235,7 @@ The same hash function ensures identical stream assignment.
 
 ### Hash Function
 
-MessageDB Go uses the same `hash_64` algorithm as PostgreSQL Message DB:
+EventoDB Go uses the same `hash_64` algorithm as PostgreSQL EventoDB:
 - FNV-1a 64-bit hash
 - Same cardinal ID extraction
 - Deterministic consumer group assignment
@@ -246,7 +246,7 @@ MessageDB Go uses the same `hash_64` algorithm as PostgreSQL Message DB:
 SELECT hash_64('account-123');
 -- Returns: 1234567890
 
--- MessageDB Go (via test)
+-- EventoDB Go (via test)
 // Same result: 1234567890
 ```
 
@@ -320,12 +320,12 @@ Namespaces instead of separate databases:
 await client.rpc('ns.create', 'tenant-a');
 
 // Use tenant token for all operations
-const tenantClient = new MessageDBClient(url, { token: tenantToken });
+const tenantClient = new EventoDBClient(url, { token: tenantToken });
 ```
 
 ## Rollback Plan
 
-If you need to rollback to PostgreSQL Message DB:
+If you need to rollback to PostgreSQL EventoDB:
 
 1. Keep PostgreSQL running during migration
 2. Write to both systems during transition
@@ -341,7 +341,7 @@ For migration assistance:
 
 ## Checklist
 
-- [ ] MessageDB Go server deployed and accessible
+- [ ] EventoDB Go server deployed and accessible
 - [ ] Authentication tokens generated for all namespaces
 - [ ] Client code updated to use HTTP API
 - [ ] Subscriptions migrated to SSE

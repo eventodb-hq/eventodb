@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MessageDB test suite supports running the same tests against multiple storage backends:
+The EventoDB test suite supports running the same tests against multiple storage backends:
 - **SQLite** - Embedded SQL database (default)
 - **PostgreSQL** - Full-featured relational database
 - **Pebble** - High-performance key-value store

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // WriteMessage writes a message with serialized access per namespace

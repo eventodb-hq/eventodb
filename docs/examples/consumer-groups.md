@@ -65,9 +65,9 @@ curl -X POST http://localhost:8080/rpc \
 ### TypeScript Implementation
 
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: process.env.TOKEN
 });
 
@@ -114,7 +114,7 @@ account-123+retry    123            12345678    12345678 % 4 = 2 (same!)
 ### Verify Assignment
 
 ```typescript
-async function verifyConsumerGroups(client: MessageDBClient) {
+async function verifyConsumerGroups(client: EventoDBClient) {
   // Write test data
   const streams = ['account-1', 'account-2', 'account-3', 'account-4', 'account-5'];
   for (const stream of streams) {
@@ -167,7 +167,7 @@ class CategoryConsumer {
   private position = 0;
   
   constructor(
-    private client: MessageDBClient,
+    private client: EventoDBClient,
     private config: ConsumerConfig,
     private handler: (messages: any[]) => Promise<void>
   ) {}
@@ -241,7 +241,7 @@ class CheckpointedConsumer {
   private running = false;
   
   constructor(
-    private client: MessageDBClient,
+    private client: EventoDBClient,
     private config: ConsumerConfig,
     private handler: (messages: any[]) => Promise<void>,
     private checkpointStore: {
@@ -324,7 +324,7 @@ class RealtimeConsumer {
   private position = 0;
   
   constructor(
-    private client: MessageDBClient,
+    private client: EventoDBClient,
     private config: ConsumerConfig,
     private handler: (messages: any[]) => Promise<void>
   ) {}

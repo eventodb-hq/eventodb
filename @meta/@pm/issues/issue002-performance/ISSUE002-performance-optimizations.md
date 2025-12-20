@@ -20,7 +20,7 @@ This issue tracks zero-allocation optimizations for the Go codebase, focusing on
 #### Script: `scripts/profile-baseline.sh`
 ```bash
 #!/bin/bash
-# Baseline performance profiling for Message DB
+# Baseline performance profiling for EventoDB
 # Generates CPU, memory, and allocation profiles
 
 set -e
@@ -28,15 +28,15 @@ set -e
 PROFILE_DIR="./profiles/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$PROFILE_DIR"
 
-echo "=== Message DB Performance Profiling ==="
+echo "=== EventoDB Performance Profiling ==="
 echo "Profile directory: $PROFILE_DIR"
 
 # Start server with profiling enabled
 export LOG_LEVEL=warn
-go build -o ./dist/messagedb-profile ./golang/cmd/messagedb
+go build -o ./dist/eventodb-profile ./golang/cmd/eventodb
 
 # Run with pprof enabled
-./dist/messagedb-profile \
+./dist/eventodb-profile \
   --test-mode \
   --port 8080 \
   --log-level warn &
@@ -99,7 +99,7 @@ echo "Web UI:        go tool pprof -http=:9090 $PROFILE_DIR/allocs-after.prof"
 
 #### Script: `scripts/load-test.go`
 ```go
-// Load testing tool for Message DB profiling
+// Load testing tool for EventoDB profiling
 package main
 
 import (

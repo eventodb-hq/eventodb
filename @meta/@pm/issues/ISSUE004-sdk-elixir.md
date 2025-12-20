@@ -1,4 +1,4 @@
-# ISSUE004: Elixir SDK for MessageDB
+# ISSUE004: Elixir SDK for EventoDB
 
 **Status**: Completed  
 **Priority**: High  
@@ -10,9 +10,9 @@
 
 ## **Overview**
 
-Implement a minimal, clean Elixir SDK for MessageDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use the `req` HTTP library and follow Elixir conventions.
+Implement a minimal, clean Elixir SDK for EventoDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use the `req` HTTP library and follow Elixir conventions.
 
-**Location**: `clients/messagedb-ex/`
+**Location**: `clients/eventodb-ex/`
 
 **Key Principles**:
 - Keep it minimal - no over-engineering
@@ -30,8 +30,8 @@ Implement a minimal, clean Elixir SDK for MessageDB that passes all tests define
 **1.1 Initialize Mix Project**
 ```bash
 cd clients
-mix new messagedb_ex --sup
-cd messagedb_ex
+mix new eventodb_ex --sup
+cd eventodb_ex
 ```
 
 **1.2 Configure Dependencies**
@@ -42,10 +42,10 @@ Add to `mix.exs`:
 
 **1.3 Project Structure**
 ```
-clients/messagedb_ex/
+clients/eventodb_ex/
 ├── lib/
-│   ├── messagedb_ex.ex          # Main module & client
-│   └── messagedb_ex/
+│   ├── eventodb_ex.ex          # Main module & client
+│   └── eventodb_ex/
 │       ├── client.ex            # HTTP/RPC client logic
 │       ├── error.ex             # Error types
 │       └── types.ex             # Type specs & structs
@@ -69,11 +69,11 @@ clients/messagedb_ex/
 
 ### Phase 2: Core Client Implementation (2 hours)
 
-**2.1 Types Module** (`lib/messagedb_ex/types.ex`)
+**2.1 Types Module** (`lib/eventodb_ex/types.ex`)
 
 Define basic types and structs:
 ```elixir
-defmodule MessageDBEx.Types do
+defmodule EventoDBEx.Types do
   @type message :: %{
     type: String.t(),
     data: map(),
@@ -115,10 +115,10 @@ defmodule MessageDBEx.Types do
 end
 ```
 
-**2.2 Error Module** (`lib/messagedb_ex/error.ex`)
+**2.2 Error Module** (`lib/eventodb_ex/error.ex`)
 
 ```elixir
-defmodule MessageDBEx.Error do
+defmodule EventoDBEx.Error do
   defexception [:code, :message, :details]
   
   @type t :: %__MODULE__{
@@ -137,12 +137,12 @@ defmodule MessageDBEx.Error do
 end
 ```
 
-**2.3 Client Module** (`lib/messagedb_ex/client.ex`)
+**2.3 Client Module** (`lib/eventodb_ex/client.ex`)
 
 Core RPC client:
 ```elixir
-defmodule MessageDBEx.Client do
-  alias MessageDBEx.{Error, Types}
+defmodule EventoDBEx.Client do
+  alias EventoDBEx.{Error, Types}
   
   @type t :: %__MODULE__{
     base_url: String.t(),
@@ -193,7 +193,7 @@ defmodule MessageDBEx.Client do
   ]
   
   defp maybe_capture_token(client, %{headers: headers}) do
-    case List.keyfind(headers, "x-messagedb-token", 0) do
+    case List.keyfind(headers, "x-eventodb-token", 0) do
       {_, token} when is_nil(client.token) ->
         %{client | token: token}
       _ ->
@@ -203,12 +203,12 @@ defmodule MessageDBEx.Client do
 end
 ```
 
-**2.4 Main Module** (`lib/messagedb_ex.ex`)
+**2.4 Main Module** (`lib/eventodb_ex.ex`)
 
 Public API with all operations:
 ```elixir
-defmodule MessageDBEx do
-  alias MessageDBEx.{Client, Types}
+defmodule EventoDBEx do
+  alias EventoDBEx.{Client, Types}
   
   # Stream Operations
   @spec stream_write(Client.t(), String.t(), Types.message(), Types.write_options()) ::
@@ -272,14 +272,14 @@ end
 ```elixir
 ExUnit.start()
 
-defmodule MessageDBEx.TestHelper do
+defmodule EventoDBEx.TestHelper do
   @base_url System.get_env("MESSAGEDB_URL", "http://localhost:8080")
   
   def create_test_namespace(test_name) do
-    client = MessageDBEx.Client.new(@base_url)
+    client = EventoDBEx.Client.new(@base_url)
     namespace_id = "test-#{test_name}-#{unique_suffix()}"
     
-    {:ok, result, client} = MessageDBEx.namespace_create(client, namespace_id, %{
+    {:ok, result, client} = EventoDBEx.namespace_create(client, namespace_id, %{
       description: "Test namespace for #{test_name}"
     })
     
@@ -287,7 +287,7 @@ defmodule MessageDBEx.TestHelper do
   end
   
   def cleanup_namespace(client, namespace_id) do
-    MessageDBEx.namespace_delete(client, namespace_id)
+    EventoDBEx.namespace_delete(client, namespace_id)
   end
   
   def unique_stream(prefix \\ "test") do
@@ -306,9 +306,9 @@ end
 
 Each test file follows this pattern:
 ```elixir
-defmodule MessageDBEx.WriteTest do
+defmodule EventoDBEx.WriteTest do
   use ExUnit.Case, async: false
-  import MessageDBEx.TestHelper
+  import EventoDBEx.TestHelper
   
   setup do
     {client, namespace_id, _token} = create_test_namespace("write")
@@ -324,7 +324,7 @@ defmodule MessageDBEx.WriteTest do
     stream = unique_stream()
     message = %{type: "TestEvent", data: %{foo: "bar"}}
     
-    assert {:ok, result, _client} = MessageDBEx.stream_write(client, stream, message)
+    assert {:ok, result, _client} = EventoDBEx.stream_write(client, stream, message)
     assert result.position >= 0
     assert result.global_position >= 0
   end
@@ -363,16 +363,16 @@ Implement tests in priority order:
 
 **5.1 README.md**
 ```markdown
-# MessageDBEx
+# EventoDBEx
 
-Elixir client for MessageDB - a simple, fast message store.
+Elixir client for EventoDB - a simple, fast message store.
 
 ## Installation
 
 ```elixir
 def deps do
   [
-    {:messagedb_ex, "~> 0.1.0"}
+    {:eventodb_ex, "~> 0.1.0"}
   ]
 end
 ```
@@ -381,22 +381,22 @@ end
 
 ```elixir
 # Create client
-client = MessageDBEx.Client.new("http://localhost:8080", token: "ns_...")
+client = EventoDBEx.Client.new("http://localhost:8080", token: "ns_...")
 
 # Write message
-{:ok, result, client} = MessageDBEx.stream_write(
+{:ok, result, client} = EventoDBEx.stream_write(
   client,
   "account-123",
   %{type: "Deposited", data: %{amount: 100}}
 )
 
 # Read stream
-{:ok, messages, client} = MessageDBEx.stream_get(client, "account-123")
+{:ok, messages, client} = EventoDBEx.stream_get(client, "account-123")
 ```
 
 ## Testing
 
-Tests run against a live MessageDB server:
+Tests run against a live EventoDB server:
 
 ```bash
 # Start server
@@ -482,7 +482,7 @@ MESSAGEDB_URL=http://localhost:8080 mix test
 
 ### 🎯 API Coverage
 
-All MessageDB API endpoints are implemented:
+All EventoDB API endpoints are implemented:
 
 - ✅ `stream.write` - Write messages with optimistic locking
 - ✅ `stream.get` - Read with position/batch filters
@@ -507,10 +507,10 @@ All MessageDB API endpoints are implemented:
 
 ### 🚀 Ready for Testing
 
-The SDK is ready for integration testing against a live MessageDB server:
+The SDK is ready for integration testing against a live EventoDB server:
 
 ```bash
-cd clients/messagedb_ex
+cd clients/eventodb_ex
 mix deps.get
 mix test
 ```
@@ -525,18 +525,18 @@ Tests automatically create isolated namespaces and clean up after themselves.
 Elixir SDK uses `{:ok, result, updated_client}` tuples to handle token updates:
 ```elixir
 # Client may be updated with captured token
-{:ok, result, client} = MessageDBEx.stream_write(client, stream, message)
+{:ok, result, client} = EventoDBEx.stream_write(client, stream, message)
 
 # Use updated client for next call
-{:ok, messages, client} = MessageDBEx.stream_get(client, stream)
+{:ok, messages, client} = EventoDBEx.stream_get(client, stream)
 ```
 
 ### Error Handling
 ```elixir
-case MessageDBEx.stream_write(client, stream, message) do
+case EventoDBEx.stream_write(client, stream, message) do
   {:ok, result, client} ->
     # Success
-  {:error, %MessageDBEx.Error{code: "STREAM_VERSION_CONFLICT"}} ->
+  {:error, %EventoDBEx.Error{code: "STREAM_VERSION_CONFLICT"}} ->
     # Handle conflict
   {:error, error} ->
     # Other error
@@ -546,7 +546,7 @@ end
 ### Pattern Matching on Messages
 ```elixir
 {:ok, [[id, type, pos, global_pos, data, metadata, time]], _client} = 
-  MessageDBEx.stream_get(client, "account-123", %{batch_size: 1})
+  EventoDBEx.stream_get(client, "account-123", %{batch_size: 1})
 ```
 
 ---

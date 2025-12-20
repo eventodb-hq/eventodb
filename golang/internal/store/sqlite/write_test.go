@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	storepkg "github.com/message-db/message-db/internal/store"
+	storepkg "github.com/eventodb/eventodb/internal/store"
 )
 
 // MDB001_5A_T1: Test WriteMessage writes to correct namespace DB

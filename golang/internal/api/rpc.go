@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/message-db/message-db/internal/logger"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/logger"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // RPCHandler handles RPC requests in array format: ["method", arg1, arg2, ...]

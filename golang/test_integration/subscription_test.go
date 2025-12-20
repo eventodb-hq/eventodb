@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/message-db/message-db/internal/api"
-	"github.com/message-db/message-db/internal/auth"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/api"
+	"github.com/eventodb/eventodb/internal/auth"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // Poke represents an SSE poke event

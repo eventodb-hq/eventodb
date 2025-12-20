@@ -1,6 +1,6 @@
-# MessageDB Deployment Guide
+# EventoDB Deployment Guide
 
-This guide covers deploying MessageDB in production environments.
+This guide covers deploying EventoDB in production environments.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This guide covers deploying MessageDB in production environments.
 
 ```bash
 # From the project root
-docker build -t messagedb:latest .
+docker build -t eventodb:latest .
 ```
 
 ### Running with Docker
@@ -29,16 +29,16 @@ docker build -t messagedb:latest .
 ```bash
 # Basic run (in-memory SQLite)
 docker run -d \
-  --name messagedb \
+  --name eventodb \
   -p 8080:8080 \
-  messagedb:latest
+  eventodb:latest
 
 # With custom token
 docker run -d \
-  --name messagedb \
+  --name eventodb \
   -p 8080:8080 \
   -e MESSAGEDB_TOKEN=your-secure-token \
-  messagedb:latest
+  eventodb:latest
 ```
 
 ### Docker Image Details
@@ -59,7 +59,7 @@ Create `docker-compose.yml`:
 version: '3.8'
 
 services:
-  messagedb:
+  eventodb:
     build: .
     ports:
       - "8080:8080"
@@ -82,7 +82,7 @@ For production deployments with PostgreSQL:
 version: '3.8'
 
 services:
-  messagedb:
+  eventodb:
     build: .
     ports:
       - "8080:8080"
@@ -131,7 +131,7 @@ echo "DB_PASSWORD=your-secure-password" > .env
 docker compose up -d
 
 # View logs
-docker compose logs -f messagedb
+docker compose logs -f eventodb
 
 # Stop services
 docker compose down
@@ -149,22 +149,22 @@ Create `k8s/deployment.yaml`:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: messagedb
+  name: eventodb
   labels:
-    app: messagedb
+    app: eventodb
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: messagedb
+      app: eventodb
   template:
     metadata:
       labels:
-        app: messagedb
+        app: eventodb
     spec:
       containers:
-      - name: messagedb
-        image: messagedb:latest
+      - name: eventodb
+        image: eventodb:latest
         ports:
         - containerPort: 8080
           name: http
@@ -174,12 +174,12 @@ spec:
         - name: MESSAGEDB_DB_HOST
           valueFrom:
             secretKeyRef:
-              name: messagedb-secrets
+              name: eventodb-secrets
               key: db-host
         - name: MESSAGEDB_DB_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: messagedb-secrets
+              name: eventodb-secrets
               key: db-password
         resources:
           requests:
@@ -210,9 +210,9 @@ Create `k8s/service.yaml`:
 apiVersion: v1
 kind: Service
 metadata:
-  name: messagedb
+  name: eventodb
   labels:
-    app: messagedb
+    app: eventodb
 spec:
   type: ClusterIP
   ports:
@@ -221,7 +221,7 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: messagedb
+    app: eventodb
 ```
 
 ### Ingress (Optional)
@@ -232,20 +232,20 @@ Create `k8s/ingress.yaml`:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: messagedb
+  name: eventodb
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   rules:
-  - host: messagedb.example.com
+  - host: eventodb.example.com
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: messagedb
+            name: eventodb
             port:
               number: 8080
 ```
@@ -254,20 +254,20 @@ spec:
 
 ```bash
 # Create namespace
-kubectl create namespace messagedb
+kubectl create namespace eventodb
 
 # Create secrets
-kubectl create secret generic messagedb-secrets \
-  --namespace=messagedb \
+kubectl create secret generic eventodb-secrets \
+  --namespace=eventodb \
   --from-literal=db-host=postgres.database.svc.cluster.local \
   --from-literal=db-password=your-password
 
 # Apply manifests
-kubectl apply -f k8s/ --namespace=messagedb
+kubectl apply -f k8s/ --namespace=eventodb
 
 # Check status
-kubectl get pods -n messagedb
-kubectl logs -f deployment/messagedb -n messagedb
+kubectl get pods -n eventodb
+kubectl logs -f deployment/eventodb -n eventodb
 ```
 
 ---
@@ -290,7 +290,7 @@ kubectl logs -f deployment/messagedb -n messagedb
 ### Command Line Flags
 
 ```bash
-./messagedb serve --help
+./eventodb serve --help
 
 Flags:
   --port int        HTTP server port (default 8080)
@@ -346,13 +346,13 @@ environment:
    ```nginx
    server {
        listen 443 ssl;
-       server_name messagedb.example.com;
+       server_name eventodb.example.com;
        
-       ssl_certificate /etc/ssl/certs/messagedb.crt;
-       ssl_certificate_key /etc/ssl/private/messagedb.key;
+       ssl_certificate /etc/ssl/certs/eventodb.crt;
+       ssl_certificate_key /etc/ssl/private/eventodb.key;
        
        location / {
-           proxy_pass http://messagedb:8080;
+           proxy_pass http://eventodb:8080;
            proxy_http_version 1.1;
            proxy_set_header Upgrade $http_upgrade;
            proxy_set_header Connection "upgrade";
@@ -366,11 +366,11 @@ environment:
    apiVersion: networking.k8s.io/v1
    kind: NetworkPolicy
    metadata:
-     name: messagedb-policy
+     name: eventodb-policy
    spec:
      podSelector:
        matchLabels:
-         app: messagedb
+         app: eventodb
      ingress:
      - from:
        - namespaceSelector:
@@ -410,14 +410,14 @@ curl http://localhost:8080/version
 (Coming in future version)
 
 Planned metrics:
-- `messagedb_requests_total` - Total RPC requests
-- `messagedb_request_duration_seconds` - Request latency histogram
-- `messagedb_messages_written_total` - Messages written
-- `messagedb_sse_connections` - Active SSE connections
+- `eventodb_requests_total` - Total RPC requests
+- `eventodb_request_duration_seconds` - Request latency histogram
+- `eventodb_messages_written_total` - Messages written
+- `eventodb_sse_connections` - Active SSE connections
 
 ### Logging
 
-MessageDB logs to stdout in JSON format:
+EventoDB logs to stdout in JSON format:
 
 ```json
 {"level":"info","ts":"2024-01-15T10:30:00Z","msg":"Server starting","port":8080,"version":"1.3.0"}
@@ -457,7 +457,7 @@ psql -h localhost -U message_store message_store < backup.sql
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: messagedb-backup
+  name: eventodb-backup
 spec:
   schedule: "0 2 * * *"  # Daily at 2 AM
   jobTemplate:
@@ -472,12 +472,12 @@ spec:
             - -c
             - |
               pg_dump -h $DB_HOST -U $DB_USER $DB_NAME | \
-              gzip > /backup/messagedb-$(date +%Y%m%d).sql.gz
+              gzip > /backup/eventodb-$(date +%Y%m%d).sql.gz
             env:
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: messagedb-secrets
+                  name: eventodb-secrets
                   key: db-password
           restartPolicy: OnFailure
 ```
@@ -488,13 +488,13 @@ spec:
 
 ### Single Instance (Simple)
 
-For many use cases, a single MessageDB instance with PostgreSQL is sufficient:
+For many use cases, a single EventoDB instance with PostgreSQL is sufficient:
 - Use managed PostgreSQL (RDS, Cloud SQL) for database HA
 - Rely on container orchestration for server restarts
 
 ### Multiple Instances (Scaling)
 
-MessageDB instances are stateless and can be horizontally scaled:
+EventoDB instances are stateless and can be horizontally scaled:
 
 ```yaml
 # Kubernetes deployment with multiple replicas
@@ -513,7 +513,7 @@ Use a load balancer with session affinity for SSE connections:
 apiVersion: v1
 kind: Service
 metadata:
-  name: messagedb
+  name: eventodb
 spec:
   sessionAffinity: ClientIP
   sessionAffinityConfig:
@@ -553,11 +553,11 @@ Enable verbose logging:
 
 ```bash
 # Set log level
-MESSAGEDB_LOG_LEVEL=debug ./messagedb serve
+MESSAGEDB_LOG_LEVEL=debug ./eventodb serve
 ```
 
 ### Getting Help
 
-- Check server logs: `docker logs messagedb`
-- Verify configuration: `docker inspect messagedb`
+- Check server logs: `docker logs eventodb`
+- Verify configuration: `docker inspect eventodb`
 - Test connectivity: `curl -v http://localhost:8080/health`

@@ -97,7 +97,7 @@ if strings.Contains(err.Error(), "Wrong expected version") {
 ## Files Modified
 
 ### Core Application (8 files)
-- ✅ `golang/cmd/messagedb/main.go`
+- ✅ `golang/cmd/eventodb/main.go`
 - ✅ `golang/internal/store/postgres/write.go`
 - ✅ `golang/internal/store/timescale/write.go`
 - ✅ `golang/internal/store/postgres/store_test.go`

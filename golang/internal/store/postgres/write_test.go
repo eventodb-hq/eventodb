@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // MDB001_3A_T1: Test WriteMessage writes to correct schema

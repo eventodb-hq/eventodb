@@ -5,7 +5,7 @@
 set -e
 
 # Pebble data directory
-PEBBLE_DATA_DIR="${PEBBLE_DATA_DIR:-/tmp/messagedb-pebble-profile}"
+PEBBLE_DATA_DIR="${PEBBLE_DATA_DIR:-/tmp/eventodb-pebble-profile}"
 PROFILE_DIR="./profiles/$(date +%Y%m%d_%H%M%S)-pebble"
 mkdir -p "$PROFILE_DIR"
 
@@ -23,7 +23,7 @@ fi
 # Build server with profiling enabled
 echo "Building server..."
 cd golang
-timeout 60s env CGO_ENABLED=0 go build -o ../dist/messagedb-profile ./cmd/messagedb
+timeout 60s env CGO_ENABLED=0 go build -o ../dist/eventodb-profile ./cmd/eventodb
 cd ..
 
 # Use a deterministic token for profiling
@@ -31,7 +31,7 @@ PROFILE_TOKEN="ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1
 
 # Start server with pprof enabled
 echo "Starting Pebble server..."
-./dist/messagedb-profile \
+./dist/eventodb-profile \
   --port 8080 \
   --db-url "pebble://$PEBBLE_DATA_DIR" \
   --token "$PROFILE_TOKEN" \

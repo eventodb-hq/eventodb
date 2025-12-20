@@ -79,15 +79,15 @@ Successfully refactored the GoLang integration test suite to achieve **100% pass
 ✅ All QA checks passed!
 
 # Single run
-ok  	github.com/message-db/message-db/test_integration	8.644s
+ok  	github.com/eventodb/eventodb/test_integration	8.644s
 
 # Multiple runs (all passing)
 === Run 1 ===
-ok  	github.com/message-db/message-db/test_integration	8.644s
+ok  	github.com/eventodb/eventodb/test_integration	8.644s
 === Run 2 ===
-ok  	github.com/message-db/message-db/test_integration	8.644s
+ok  	github.com/eventodb/eventodb/test_integration	8.644s
 === Run 3 ===
-ok  	github.com/message-db/message-db/test_integration	8.641s
+ok  	github.com/eventodb/eventodb/test_integration	8.641s
 ```
 
 ## Test Coverage

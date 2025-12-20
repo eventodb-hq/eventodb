@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# Run external tests against MessageDB server with TimescaleDB backend
+# Run external tests against EventoDB server with TimescaleDB backend
 #
 # This script:
-# 1. Creates a dedicated test database (messagedb_timescale_test)
+# 1. Creates a dedicated test database (eventodb_timescale_test)
 # 2. Enables TimescaleDB extension
 # 3. Verifies TimescaleDB is accessible
 # 4. Kills any existing test server on port 6789
@@ -16,14 +16,14 @@
 #   TIMESCALE_PORT     - TimescaleDB port (default: 6666)
 #   TIMESCALE_USER     - TimescaleDB user (default: postgres)
 #   TIMESCALE_PASSWORD - TimescaleDB password (default: postgres)
-#   TIMESCALE_DB       - TimescaleDB database for tests (default: messagedb_timescale_test)
+#   TIMESCALE_DB       - TimescaleDB database for tests (default: eventodb_timescale_test)
 #   KEEP_TEST_DB       - If set to "1", don't drop test database after tests
 #
 
 set -e
 
 PORT=6789
-SERVER_BIN="./golang/messagedb"
+SERVER_BIN="./dist/eventodb"
 TEST_DIR="./test_external"
 
 # TimescaleDB connection settings (with defaults)
@@ -31,7 +31,7 @@ TIMESCALE_HOST="${TIMESCALE_HOST:-localhost}"
 TIMESCALE_PORT="${TIMESCALE_PORT:-6666}"
 TIMESCALE_USER="${TIMESCALE_USER:-postgres}"
 TIMESCALE_PASSWORD="${TIMESCALE_PASSWORD:-postgres}"
-TIMESCALE_DB="${TIMESCALE_DB:-messagedb_timescale_test}"
+TIMESCALE_DB="${TIMESCALE_DB:-eventodb_timescale_test}"
 
 # Admin connection (to postgres database for creating test database)
 ADMIN_DB_URL="postgres://${TIMESCALE_USER}:${TIMESCALE_PASSWORD}@${TIMESCALE_HOST}:${TIMESCALE_PORT}/postgres?sslmode=disable"
@@ -51,7 +51,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     MessageDB External Tests (TimescaleDB Backend)           ║${NC}"
+echo -e "${BLUE}║     EventoDB External Tests (TimescaleDB Backend)           ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}TimescaleDB Configuration:${NC}"
@@ -113,7 +113,7 @@ fi
 # Build server if needed
 if [ ! -f "$SERVER_BIN" ]; then
     echo -e "${YELLOW}Building server...${NC}"
-    cd golang && go build -o messagedb ./cmd/messagedb && cd ..
+    cd golang cd golang && go build -o eventodb ./cmd/eventodbcd golang && go build -o eventodb ./cmd/eventodb CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb && cd ..
 fi
 
 # Cleanup function
@@ -138,7 +138,7 @@ trap cleanup EXIT
 
 # Start server with TimescaleDB backend
 echo -e "${YELLOW}Starting test server on port $PORT with TimescaleDB backend...${NC}"
-$SERVER_BIN -port $PORT -db-url "$DB_URL" -db-type timescale -token "$DEFAULT_TOKEN" > /tmp/messagedb_timescale.log 2>&1 &
+$SERVER_BIN -port $PORT -db-url "$DB_URL" -db-type timescale -token "$DEFAULT_TOKEN" > /tmp/eventodb_timescale.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to be ready
@@ -150,8 +150,8 @@ for i in {1..30}; do
         break
     fi
     if [ $i -eq 30 ]; then
-        echo -e "${RED}Server failed to start. Check /tmp/messagedb_timescale.log for details:${NC}"
-        cat /tmp/messagedb_timescale.log
+        echo -e "${RED}Server failed to start. Check /tmp/eventodb_timescale.log for details:${NC}"
+        cat /tmp/eventodb_timescale.log
         exit 1
     fi
     sleep 0.2
@@ -166,7 +166,7 @@ echo ""
 # Run tests
 echo -e "${YELLOW}Running tests...${NC}"
 cd $TEST_DIR
-MESSAGEDB_URL="http://localhost:$PORT" bun test --max-concurrency=1
+EVENTODB_URL="http://localhost:$PORT" bun test --max-concurrency=1
 TEST_EXIT_CODE=$?
 
 # Show TimescaleDB-specific info after tests
@@ -198,7 +198,7 @@ else
     echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${YELLOW}Server logs:${NC}"
-    tail -50 /tmp/messagedb_timescale.log
+    tail -50 /tmp/eventodb_timescale.log
 fi
 
 exit $TEST_EXIT_CODE

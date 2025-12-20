@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/message-db/message-db/internal/api"
-	"github.com/message-db/message-db/internal/auth"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/api"
+	"github.com/eventodb/eventodb/internal/auth"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // mockStore is a minimal mock of the store for testing auth middleware

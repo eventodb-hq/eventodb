@@ -1,4 +1,4 @@
-// Package pebble provides a Pebble-based key-value store backend for MessageDB.
+// Package pebble provides a Pebble-based key-value store backend for EventoDB.
 //
 // Key Schema (per namespace DB):
 //   - M:{gp_20}                    → {message_json}      Message data

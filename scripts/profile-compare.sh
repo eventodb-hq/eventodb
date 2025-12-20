@@ -2,6 +2,10 @@
 # Compare performance between SQLite and Pebble
 # Generates side-by-side profiles and metrics
 
+
+# Disable CGO for consistent builds across platforms
+export CGO_ENABLED=0
+
 set -e
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -21,16 +25,16 @@ SQLITE_PROFILE_DIR="${COMPARE_DIR}/sqlite"
 mkdir -p "$SQLITE_PROFILE_DIR"
 
 # SQLite profiling (inline to avoid separate script execution)
-PEBBLE_DATA_DIR="/tmp/messagedb-sqlite-profile"
+PEBBLE_DATA_DIR="/tmp/eventodb-sqlite-profile"
 rm -rf "$PEBBLE_DATA_DIR"
 
 cd golang
-timeout 60s go build -o ../dist/messagedb-profile ./cmd/messagedb
+timeout 60s go build -o ../dist/eventodb-profile ./cmd/eventodb
 cd ..
 
 PROFILE_TOKEN="ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1c0b0c5e0f8e9a"
 
-./dist/messagedb-profile \
+./dist/eventodb-profile \
   --test-mode \
   --port 8080 \
   --log-level warn &
@@ -88,10 +92,10 @@ echo "========================================"
 PEBBLE_PROFILE_DIR="${COMPARE_DIR}/pebble"
 mkdir -p "$PEBBLE_PROFILE_DIR"
 
-PEBBLE_DATA_DIR="/tmp/messagedb-pebble-profile"
+PEBBLE_DATA_DIR="/tmp/eventodb-pebble-profile"
 rm -rf "$PEBBLE_DATA_DIR"
 
-./dist/messagedb-profile \
+./dist/eventodb-profile \
   --port 8080 \
   --db-url "pebble://$PEBBLE_DATA_DIR" \
   --token "$PROFILE_TOKEN" \

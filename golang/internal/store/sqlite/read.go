@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // GetStreamMessages retrieves messages from a stream

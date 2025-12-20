@@ -8,8 +8,8 @@
 - [ ] Create `test/package.json` with Bun test dependencies
 - [ ] Create `test/bun.lockb` lock file
 - [ ] Set up test directory structure
-- [ ] Create `test/lib/client.ts` - MessageDB TypeScript client
-- [ ] Implement `MessageDBClient` class with RPC method
+- [ ] Create `test/lib/client.ts` - EventoDB TypeScript client
+- [ ] Implement `EventoDBClient` class with RPC method
 - [ ] Add `writeMessage()`, `getStream()`, `getCategory()` methods
 - [ ] Add `subscribe()` method for SSE
 - [ ] Add `deleteNamespace()` method
@@ -192,7 +192,7 @@
 - [ ] Write `docs/DEPLOYMENT.md` - production deployment
 - [ ] Document Docker deployment
 - [ ] Document Kubernetes deployment (optional)
-- [ ] Write `docs/MIGRATION.md` - migration from Message DB
+- [ ] Write `docs/MIGRATION.md` - migration from EventoDB
 - [ ] Write `docs/PERFORMANCE.md` - performance tuning
 - [ ] Create `docs/examples/` directory
 - [ ] Write basic usage example
@@ -222,12 +222,12 @@ For **EACH** phase:
 ## File Structure
 
 ```
-message-db/
+eventodb/
 ├── test/
 │   ├── package.json
 │   ├── bun.lockb
 │   ├── lib/
-│   │   ├── client.ts              # MessageDB TypeScript client
+│   │   ├── client.ts              # EventoDB TypeScript client
 │   │   └── helpers.ts             # Test utilities
 │   ├── tests/
 │   │   ├── stream.test.ts         # Stream operation tests
@@ -282,7 +282,7 @@ Total infrastructure:       ~270 lines
 
 **TypeScript Client Pattern:**
 ```typescript
-export class MessageDBClient {
+export class EventoDBClient {
   async rpc(method: string, ...args: any[]) {
     const response = await fetch(`${this.baseURL}/rpc`, {
       method: 'POST',
@@ -294,7 +294,7 @@ export class MessageDBClient {
     });
     
     // Capture token from test mode
-    const newToken = response.headers.get('X-MessageDB-Token');
+    const newToken = response.headers.get('X-EventoDB-Token');
     if (newToken && !this.token) {
       this.token = newToken;
     }
@@ -312,7 +312,7 @@ export class MessageDBClient {
 **Test Server Pattern:**
 ```typescript
 export async function startTestServer() {
-  const proc = Bun.spawn(['./messagedb', 'serve', '--test-mode', '--port=0']);
+  const proc = Bun.spawn(['./eventodb', 'serve', '--test-mode', '--port=0']);
   
   // Parse port from stdout
   const port = await new Promise<number>((resolve) => {
@@ -390,7 +390,7 @@ await run(); // Returns performance metrics
 
 ### Definition of Done
 - [ ] Bun.js test suite implemented
-- [ ] TypeScript MessageDB client working
+- [ ] TypeScript EventoDB client working
 - [ ] All stream operation tests passing
 - [ ] All category operation tests passing
 - [ ] SSE subscription tests passing

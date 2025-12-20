@@ -61,9 +61,9 @@ func IsCategory(name string) bool {
 	return !strings.Contains(name, "-")
 }
 
-// Hash64 computes a 64-bit hash compatible with Message DB
+// Hash64 computes a 64-bit hash compatible with EventoDB
 // Uses MD5, takes first 8 bytes, converts to int64
-// CRITICAL: Must produce identical results to Message DB for consumer group compatibility
+// CRITICAL: Must produce identical results to EventoDB for consumer group compatibility
 func Hash64(value string) int64 {
 	hash := md5.Sum([]byte(value))
 	// Take first 8 bytes of MD5 hash and convert to int64

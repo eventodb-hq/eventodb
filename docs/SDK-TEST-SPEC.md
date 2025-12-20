@@ -1,6 +1,6 @@
-# MessageDB SDK Test Specification
+# EventoDB SDK Test Specification
 
-This document defines a unified test suite that all MessageDB SDK implementations (Node.js, Go, Elixir, etc.) must pass to ensure consistent behavior across languages.
+This document defines a unified test suite that all EventoDB SDK implementations (Node.js, Go, Elixir, etc.) must pass to ensure consistent behavior across languages.
 
 ## Test Format
 
@@ -576,4 +576,4 @@ New SDKs should aim for 100% Tier 1 coverage before initial release.
 
 ## Version History
 
-- **1.0.0** (2024-12-19): Initial test specification with 80+ test cases covering all MessageDB API endpoints
+- **1.0.0** (2024-12-19): Initial test specification with 80+ test cases covering all EventoDB API endpoints

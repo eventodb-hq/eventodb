@@ -4,14 +4,14 @@ The `store` package provides a unified interface for message storage with suppor
 
 ## Overview
 
-The message store implements a Message DB-compatible storage layer with the following key features:
+The message store implements a EventoDB-compatible storage layer with the following key features:
 
 - **Dual Backend Support**: Postgres and SQLite backends with identical APIs
 - **Namespace Isolation**: Physical separation of data per namespace (schemas for Postgres, separate DBs for SQLite)
 - **Optimistic Locking**: Version-based concurrency control for writes
 - **Category Queries**: Efficient queries across multiple streams in a category
 - **Consumer Groups**: Deterministic partitioning for parallel processing
-- **Message DB Compatibility**: Hash functions and utility functions compatible with Message DB
+- **EventoDB Compatibility**: Hash functions and utility functions compatible with EventoDB
 
 ## Architecture
 
@@ -47,8 +47,8 @@ import (
     "log"
     
     _ "github.com/jackc/pgx/v5/stdlib"
-    "github.com/message-db/message-db/internal/store"
-    "github.com/message-db/message-db/internal/store/postgres"
+    "github.com/eventodb/eventodb/internal/store"
+    "github.com/eventodb/eventodb/internal/store/postgres"
 )
 
 func main() {
@@ -120,8 +120,8 @@ import (
     "log"
     
     _ "modernc.org/sqlite"
-    "github.com/message-db/message-db/internal/store"
-    "github.com/message-db/message-db/internal/store/sqlite"
+    "github.com/eventodb/eventodb/internal/store"
+    "github.com/eventodb/eventodb/internal/store/sqlite"
 )
 
 func main() {
@@ -140,7 +140,7 @@ func main() {
     defer st.Close()
     
     // For production, use file-based mode:
-    // st, err := sqlite.New(db, false, "/var/lib/messagedb")
+    // st, err := sqlite.New(db, false, "/var/lib/eventodb")
     
     // Usage is identical to Postgres backend
     ctx := context.Background()
@@ -306,7 +306,7 @@ All backends meet the following performance targets:
 The package defines specific error types:
 
 ```go
-import "github.com/message-db/message-db/internal/store"
+import "github.com/eventodb/eventodb/internal/store"
 
 _, err := st.WriteMessage(ctx, ns, stream, msg)
 switch {
@@ -349,17 +349,17 @@ msg, err := st.GetLastStreamMessage(ctx, "myapp", "account-123", &msgType)
 // Returns last AccountUpdated message, or nil if none found
 ```
 
-## Message DB Compatibility
+## EventoDB Compatibility
 
-This implementation maintains compatibility with [Message DB](https://github.com/message-db/message-db):
+This implementation maintains compatibility with [EventoDB](https://github.com/eventodb/eventodb):
 
-- **Hash Function**: `Hash64()` produces identical results to Message DB's `hash_64()`
-- **Utility Functions**: `Category()`, `ID()`, `CardinalID()` match Message DB behavior
+- **Hash Function**: `Hash64()` produces identical results to EventoDB's `hash_64()`
+- **Utility Functions**: `Category()`, `ID()`, `CardinalID()` match EventoDB behavior
 - **Consumer Groups**: Use the same partitioning algorithm
 - **Schema**: Postgres backend uses compatible table structure and stored procedures
 
 This allows:
-- Migration from/to Message DB
+- Migration from/to EventoDB
 - Consistent consumer group assignments
 - Shared tooling and queries
 

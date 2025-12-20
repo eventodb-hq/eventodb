@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/message-db/message-db/internal/api"
-	"github.com/message-db/message-db/internal/auth"
+	"github.com/eventodb/eventodb/internal/api"
+	"github.com/eventodb/eventodb/internal/auth"
 )
 
 // Helper function to make RPC calls directly to handler

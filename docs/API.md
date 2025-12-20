@@ -1,10 +1,10 @@
-# MessageDB API Reference
+# EventoDB API Reference
 
-Complete API reference for the MessageDB Go server.
+Complete API reference for the EventoDB Go server.
 
 ## Overview
 
-MessageDB uses a JSON-RPC style API over HTTP POST. All requests are sent to the `/rpc` endpoint.
+EventoDB uses a JSON-RPC style API over HTTP POST. All requests are sent to the `/rpc` endpoint.
 
 ### Request Format
 
@@ -38,7 +38,7 @@ Include your namespace token in the `Authorization` header:
 Authorization: Bearer ns_ZGVmYXVsdA_a1b2c3d4e5f6...
 ```
 
-In test mode, the server auto-creates namespaces and returns tokens in the `X-MessageDB-Token` header.
+In test mode, the server auto-creates namespaces and returns tokens in the `X-EventoDB-Token` header.
 
 ---
 

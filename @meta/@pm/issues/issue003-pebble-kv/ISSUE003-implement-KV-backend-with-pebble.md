@@ -10,7 +10,7 @@
 
 ## Overview
 
-Implement a Pebble-based key-value store backend for MessageDB to enable high-performance event sourcing with physical namespace isolation. This implementation will complement the existing SQL backends (SQLite/Postgres) and provide better performance for write-heavy workloads.
+Implement a Pebble-based key-value store backend for EventoDB to enable high-performance event sourcing with physical namespace isolation. This implementation will complement the existing SQL backends (SQLite/Postgres) and provide better performance for write-heavy workloads.
 
 **Related Documents**:
 - `docs/KV_STORE_DESIGN.md` - Detailed design specification
@@ -106,7 +106,7 @@ Before starting each phase, verify:
 **Chosen Approach**: Separate Pebble DB per namespace
 
 ```
-/data/messagedb/
+/data/eventodb/
 ├── _metadata/          # Namespace registry (Pebble DB)
 │   ├── 000001.log
 │   ├── MANIFEST
@@ -144,7 +144,7 @@ All keys scoped to a single namespace's Pebble DB:
 
 ### Metadata DB Schema
 
-Separate Pebble DB at `/data/messagedb/_metadata`:
+Separate Pebble DB at `/data/eventodb/_metadata`:
 
 | Key Format | Value | Purpose |
 |-----------|-------|---------|
@@ -760,14 +760,14 @@ Create `bin/run_external_tests_pebble.sh`:
 set -e
 
 PORT=6789
-SERVER_BIN="./golang/messagedb"
+SERVER_BIN="./golang/eventodb"
 TEST_DIR="./test_external"
-DATA_DIR="/tmp/messagedb_pebble_test"
+DATA_DIR="/tmp/eventodb_pebble_test"
 DEFAULT_TOKEN="ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000"
 
 # Cleanup
 rm -rf "$DATA_DIR"
-killall messagedb 2>/dev/null || true
+killall eventodb 2>/dev/null || true
 
 # Start server with Pebble backend
 $SERVER_BIN -port $PORT -db-url "pebble://$DATA_DIR" -token "$DEFAULT_TOKEN" &
@@ -929,7 +929,7 @@ for i := 0; i < 100; i++ {
 go test ./internal/store/pebble -v -run TestLRUEviction_1000Namespaces -memprofile=/tmp/mem.prof
 
 # Check for file descriptor leaks
-lsof -p $(pgrep messagedb) | wc -l  # Should be bounded
+lsof -p $(pgrep eventodb) | wc -l  # Should be bounded
 ```
 
 **QA Gate**:
@@ -1177,15 +1177,15 @@ internal/store/pebble/test/
 ```bash
 #!/bin/bash
 #
-# Run external tests against MessageDB server with Pebble backend
+# Run external tests against EventoDB server with Pebble backend
 #
 
 set -e
 
 PORT=6789
-SERVER_BIN="./golang/messagedb"
+SERVER_BIN="./golang/eventodb"
 TEST_DIR="./test_external"
-DATA_DIR="/tmp/messagedb_pebble_test"
+DATA_DIR="/tmp/eventodb_pebble_test"
 
 # Known tokens - must match what tests expect
 DEFAULT_TOKEN="ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000"
@@ -1200,7 +1200,7 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${YELLOW}=== MessageDB External Tests (Pebble) ===${NC}"
+echo -e "${YELLOW}=== EventoDB External Tests (Pebble) ===${NC}"
 echo ""
 echo -e "${CYAN}Pebble Configuration:${NC}"
 echo -e "  Data Directory: ${DATA_DIR}"
@@ -1222,12 +1222,12 @@ fi
 # Build server if needed
 if [ ! -f "$SERVER_BIN" ]; then
     echo -e "${YELLOW}Building server...${NC}"
-    cd golang && go build -o messagedb ./cmd/messagedb && cd ..
+    cd golang && go build -o eventodb ./cmd/eventodb && cd ..
 fi
 
 # Start server with Pebble backend
 echo -e "${YELLOW}Starting test server with Pebble backend...${NC}"
-$SERVER_BIN -port $PORT -db-url "$DB_URL" -token "$DEFAULT_TOKEN" > /tmp/messagedb_pebble.log 2>&1 &
+$SERVER_BIN -port $PORT -db-url "$DB_URL" -token "$DEFAULT_TOKEN" > /tmp/eventodb_pebble.log 2>&1 &
 SERVER_PID=$!
 
 # Cleanup function
@@ -1247,8 +1247,8 @@ for i in {1..30}; do
         break
     fi
     if [ $i -eq 30 ]; then
-        echo -e "${RED}Server failed to start. Check /tmp/messagedb_pebble.log${NC}"
-        cat /tmp/messagedb_pebble.log
+        echo -e "${RED}Server failed to start. Check /tmp/eventodb_pebble.log${NC}"
+        cat /tmp/eventodb_pebble.log
         exit 1
     fi
     sleep 0.2
@@ -1265,7 +1265,7 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
 else
     echo -e "${RED}Tests failed!${NC}"
     echo -e "${YELLOW}Server logs:${NC}"
-    cat /tmp/messagedb_pebble.log
+    cat /tmp/eventodb_pebble.log
 fi
 
 exit $TEST_EXIT_CODE

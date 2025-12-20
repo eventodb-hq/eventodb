@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	storepkg "github.com/message-db/message-db/internal/store"
+	storepkg "github.com/eventodb/eventodb/internal/store"
 )
 
 // Helper function to write test messages

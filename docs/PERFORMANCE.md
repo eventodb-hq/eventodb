@@ -1,6 +1,6 @@
-# MessageDB Performance Tuning Guide
+# EventoDB Performance Tuning Guide
 
-This guide covers performance optimization for the MessageDB Go server.
+This guide covers performance optimization for the EventoDB Go server.
 
 ## Performance Targets
 
@@ -78,7 +78,7 @@ Reuse HTTP connections to avoid connection overhead:
 
 ```javascript
 // Node.js/Bun: Keep-alive is default
-const client = new MessageDBClient('http://localhost:8080', { token });
+const client = new EventoDBClient('http://localhost:8080', { token });
 
 // Make multiple requests on same connection
 await client.writeMessage('stream-1', msg1);
@@ -253,7 +253,7 @@ export GOMAXPROCS=8
 # Reduce GC pressure for memory-intensive workloads
 export GOGC=200
 
-./messagedb serve
+./eventodb serve
 ```
 
 ### HTTP Server
@@ -283,7 +283,7 @@ For test mode, optimize SQLite:
 
 ### PostgreSQL (Production)
 
-Optimize PostgreSQL for MessageDB:
+Optimize PostgreSQL for EventoDB:
 
 ```sql
 -- postgresql.conf
@@ -323,13 +323,13 @@ checkpoint_completion_target = 0.9
 ```yaml
 # Example Grafana dashboard queries
 - name: Request Latency
-  query: histogram_quantile(0.95, rate(messagedb_request_duration_seconds_bucket[5m]))
+  query: histogram_quantile(0.95, rate(eventodb_request_duration_seconds_bucket[5m]))
 
 - name: Throughput
-  query: rate(messagedb_requests_total[1m])
+  query: rate(eventodb_requests_total[1m])
 
 - name: Error Rate
-  query: rate(messagedb_requests_total{status="error"}[5m]) / rate(messagedb_requests_total[5m])
+  query: rate(eventodb_requests_total{status="error"}[5m]) / rate(eventodb_requests_total[5m])
 ```
 
 ### Log Analysis
@@ -338,10 +338,10 @@ Parse request logs for performance insights:
 
 ```bash
 # Find slow requests (> 100ms)
-grep "duration" messagedb.log | awk '$NF > 100 {print}'
+grep "duration" eventodb.log | awk '$NF > 100 {print}'
 
 # Count requests by method
-grep "method" messagedb.log | awk '{print $4}' | sort | uniq -c | sort -rn
+grep "method" eventodb.log | awk '{print $4}' | sort | uniq -c | sort -rn
 ```
 
 ## Common Performance Issues

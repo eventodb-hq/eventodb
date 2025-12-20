@@ -25,7 +25,7 @@
 - `Makefile` - Added `profile-baseline`, `profile-compare`, `benchmark-all` targets
 
 #### Server Changes
-- `golang/cmd/messagedb/main.go` - Added pprof import for `/debug/pprof/` endpoints
+- `golang/cmd/eventodb/main.go` - Added pprof import for `/debug/pprof/` endpoints
 
 ---
 
@@ -124,7 +124,7 @@ Each optimization must demonstrate:
 ### Baseline Profile Run
 
 ```
-=== Message DB Performance Profiling ===
+=== EventoDB Performance Profiling ===
 Profile directory: ./profiles/20241218_120000
 Building server...
 Starting server...

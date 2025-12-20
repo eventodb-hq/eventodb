@@ -74,7 +74,7 @@ fi
 
 echo ""
 echo -e "${CYAN}6. Checking for compilation errors...${NC}"
-CGO_ENABLED=0 go build ./cmd/messagedb
+CGO_ENABLED=0 go build ./cmd/eventodb
 BUILD_EXIT=$?
 
 echo ""

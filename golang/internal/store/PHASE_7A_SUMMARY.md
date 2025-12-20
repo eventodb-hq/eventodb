@@ -40,7 +40,7 @@ Phase MDB001_7A successfully completes the final phase of the Core Storage & Mig
 - Performance targets
 - Advanced usage patterns
 - Troubleshooting guide
-- Message DB compatibility notes
+- EventoDB compatibility notes
 - Security considerations
 
 #### PERFORMANCE.md (6.3 KB)
@@ -164,7 +164,7 @@ All 14 acceptance criteria from MDB001_spec.md are met:
 All 22 items from the definition of done checklist are complete:
 
 - ✅ Utility functions implemented (Category, ID, CardinalID, IsCategory, Hash64)
-- ✅ Hash64 produces identical results to Message DB
+- ✅ Hash64 produces identical results to EventoDB
 - ✅ Migration system with AutoMigrate implemented
 - ✅ Metadata migrations for both backends
 - ✅ Namespace migrations with template support
@@ -231,7 +231,7 @@ The implementation is production-ready with:
 - ✅ High performance (microsecond-level operations)
 - ✅ Complete test coverage
 - ✅ Comprehensive documentation
-- ✅ Message DB compatibility
+- ✅ EventoDB compatibility
 - ✅ Dual backend support (Postgres + SQLite)
 - ✅ Physical namespace isolation
 - ✅ Consumer group support

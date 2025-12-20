@@ -1,10 +1,14 @@
 #!/bin/bash
 #
-# Run external tests against MessageDB server with both SQLite and PostgreSQL backends
+# Run external tests against EventoDB server with both SQLite and PostgreSQL backends
 #
 # This script runs the full external test suite against both backends to ensure
 # behavioral parity between SQLite and PostgreSQL.
 #
+
+
+# Disable CGO for consistent builds across platforms
+export CGO_ENABLED=0
 
 set -e
 
@@ -18,7 +22,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║     MessageDB External Tests - All Backends                ║${NC}"
+echo -e "${CYAN}║     EventoDB External Tests - All Backends                ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

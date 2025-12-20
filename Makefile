@@ -1,25 +1,26 @@
 .PHONY: help build test profile-baseline profile-compare benchmark-all clean
 
 help: ## Show this help message
-	@echo "Message DB - Development Commands"
+	@echo "EventoDB - Development Commands"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build the server binary
 	@echo "Building server..."
-	cd golang && go build -o ../bin/messagedb ./cmd/messagedb
+	@mkdir -p dist
+	cd golang && CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb
 
 test: ## Run all tests
 	@echo "Running tests..."
-	cd golang && go test -v ./...
+	cd golang && CGO_ENABLED=0 go test -v ./...
 
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
-	cd golang && go test -v -tags=integration ./...
+	cd golang && CGO_ENABLED=0 go test -v -tags=integration ./...
 
 benchmark-all: ## Run all Go benchmarks
 	@echo "Running benchmarks..."
-	cd golang && go test -bench=. -benchmem -benchtime=5s ./...
+	cd golang && CGO_ENABLED=0 go test -bench=. -benchmem -benchtime=5s ./...
 
 profile-baseline: ## Run baseline performance profiling
 	@echo "Running baseline performance profile..."
@@ -37,13 +38,13 @@ profile-compare: ## Compare two profile runs (BASELINE=dir1 OPTIMIZED=dir2)
 
 clean: ## Clean build artifacts and profiles
 	@echo "Cleaning..."
-	rm -rf bin/
+	rm -rf dist/
 	rm -rf profiles/
 	cd golang && go clean
 
 run-dev: ## Run server in development mode (test mode)
 	@echo "Starting server in development mode..."
-	cd golang && go run ./cmd/messagedb --test-mode --log-level debug
+	cd golang && go run ./cmd/eventodb --test-mode --log-level debug
 
 run-prod: ## Run server in production mode (requires DB_URL)
 	@if [ -z "$(DB_URL)" ]; then \
@@ -52,6 +53,6 @@ run-prod: ## Run server in production mode (requires DB_URL)
 		exit 1; \
 	fi
 	@echo "Starting server in production mode..."
-	cd golang && go run ./cmd/messagedb --db-url $(DB_URL) --log-level info
+	cd golang && go run ./cmd/eventodb --db-url $(DB_URL) --log-level info
 
 .DEFAULT_GOAL := help

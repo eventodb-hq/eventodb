@@ -5,7 +5,7 @@
 **Physical Isolation**: Each namespace = separate Pebble database instance
 
 ```
-/data/messagedb/
+/data/eventodb/
 ├── _metadata/          # Namespace registry (Pebble DB)
 ├── namespace1/         # Namespace "namespace1" (Pebble DB)
 ├── namespace2/         # Namespace "namespace2" (Pebble DB)
@@ -72,7 +72,7 @@ GP → 00000000000000001235
 
 ## Metadata DB Schema
 
-Separate Pebble DB at `/data/messagedb/_metadata`
+Separate Pebble DB at `/data/eventodb/_metadata`
 
 ### Namespace Registry
 ```
@@ -80,7 +80,7 @@ Key:   NS:{namespace_id}
 Value: {namespace_metadata_json}
 
 Example:
-NS:production → {"id":"production","tokenHash":"...","dbPath":"/data/messagedb/production",...}
+NS:production → {"id":"production","tokenHash":"...","dbPath":"/data/eventodb/production",...}
 ```
 
 ---

@@ -1,4 +1,4 @@
-module github.com/message-db/message-db
+module github.com/eventodb/eventodb
 
 go 1.24.0
 

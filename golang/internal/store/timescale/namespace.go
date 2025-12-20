@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/migrations"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/migrations"
 )
 
 // CreateNamespace creates a new namespace with its own TimescaleDB hypertable

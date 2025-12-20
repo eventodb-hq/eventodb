@@ -118,7 +118,7 @@ The `default` namespace always exists with a well-known token.
 
 ```bash
 # Server startup
-messagedb serve
+eventodb serve
 
 # Output:
 # [MIGRATE] Schema up to date
@@ -143,7 +143,7 @@ curl -H "Authorization: Bearer $MESSAGEDB_TOKEN" \
 When started with `--test-mode`, server uses in-memory SQLite and relaxed namespace management.
 
 ```bash
-messagedb serve --test-mode
+eventodb serve --test-mode
 
 # Behavior:
 # - Backend: SQLite :memory:
@@ -161,7 +161,7 @@ const server = await startServer({ testMode: true });
 const ns = await server.createNamespace('test-123');
 // { namespace: 'test-123', token: 'ns_...' }
 
-const client = new MessageDBClient({
+const client = new EventoDBClient({
   baseURL: server.url,
   token: ns.token
 });
@@ -200,13 +200,13 @@ Response:
 
 **Postgres:**
 1. Generate token and hash
-2. Create schema: `CREATE SCHEMA "messagedb_tenant_a"`
+2. Create schema: `CREATE SCHEMA "eventodb_tenant_a"`
 3. Run namespace migrations (create tables, indexes, functions)
 4. Insert record into `message_store.namespaces`
 
 **SQLite:**
 1. Generate token and hash
-2. Create database file: `/tmp/messagedb-tenant-a.db` (or in-memory)
+2. Create database file: `/tmp/eventodb-tenant-a.db` (or in-memory)
 3. Run namespace migrations on new database
 4. Insert record into metadata database `namespaces` table
 
@@ -234,7 +234,7 @@ Response:
 **Postgres:**
 1. Verify token matches namespace
 2. Get schema name from `message_store.namespaces`
-3. `DROP SCHEMA "messagedb_tenant_a" CASCADE` (deletes everything)
+3. `DROP SCHEMA "eventodb_tenant_a" CASCADE` (deletes everything)
 4. Delete from `message_store.namespaces`
 
 **SQLite:**
@@ -344,25 +344,25 @@ Response:
 │  │ namespaces table:                    │                  │
 │  │  - id: 'default'                     │                  │
 │  │    token_hash: <hash>                │                  │
-│  │    schema_name: 'messagedb_default'  │                  │
+│  │    schema_name: 'eventodb_default'  │                  │
 │  │  - id: 'tenant-a'                    │                  │
 │  │    token_hash: <hash>                │                  │
-│  │    schema_name: 'messagedb_tenant_a' │                  │
+│  │    schema_name: 'eventodb_tenant_a' │                  │
 │  └──────────────────────────────────────┘                  │
 │                                                              │
 │  ┌──────────────────────────────────────┐                  │
-│  │ messagedb_default (data schema)      │                  │
+│  │ eventodb_default (data schema)      │                  │
 │  ├──────────────────────────────────────┤                  │
 │  │ messages table                       │                  │
-│  │ + all Message DB functions           │                  │
+│  │ + all EventoDB functions           │                  │
 │  │ + indexes                            │                  │
 │  └──────────────────────────────────────┘                  │
 │                                                              │
 │  ┌──────────────────────────────────────┐                  │
-│  │ messagedb_tenant_a (data schema)     │                  │
+│  │ eventodb_tenant_a (data schema)     │                  │
 │  ├──────────────────────────────────────┤                  │
 │  │ messages table                       │                  │
-│  │ + all Message DB functions           │                  │
+│  │ + all EventoDB functions           │                  │
 │  │ + indexes                            │                  │
 │  └──────────────────────────────────────┘                  │
 │                                                              │
@@ -428,7 +428,7 @@ VALUES ('account-123', ...);  -- NO prefix!
 **Server stores (SQLite in test mode):**
 ```sql
 -- In namespace-specific database file
--- /tmp/messagedb-tenant-a.db
+-- /tmp/eventodb-tenant-a.db
 INSERT INTO messages (stream_name, ...)
 VALUES ('account-123', ...);
 ```
@@ -462,7 +462,7 @@ CREATE TABLE message_store.namespaces (
 
 -- Default namespace entry
 INSERT INTO message_store.namespaces (id, token_hash, schema_name, description, created_at)
-VALUES ('default', '<hash>', 'messagedb_default', 'Default namespace', <timestamp>);
+VALUES ('default', '<hash>', 'eventodb_default', 'Default namespace', <timestamp>);
 ```
 
 **Key point:** No message data in `message_store` schema!
@@ -471,14 +471,14 @@ VALUES ('default', '<hash>', 'messagedb_default', 'Default namespace', <timestam
 
 ### Per-Namespace Schema
 
-Each namespace gets its own Postgres schema with the full Message DB structure:
+Each namespace gets its own Postgres schema with the full EventoDB structure:
 
 ```sql
 -- When creating namespace "tenant-a"
-CREATE SCHEMA "messagedb_tenant_a";
+CREATE SCHEMA "eventodb_tenant_a";
 
--- Full Message DB structure in this schema
-CREATE TABLE "messagedb_tenant_a".messages (
+-- Full EventoDB structure in this schema
+CREATE TABLE "eventodb_tenant_a".messages (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   stream_name VARCHAR NOT NULL,  -- Just "account-123", no prefix!
   type VARCHAR NOT NULL,
@@ -491,32 +491,32 @@ CREATE TABLE "messagedb_tenant_a".messages (
 );
 
 -- Indexes
-CREATE UNIQUE INDEX messages_id ON "messagedb_tenant_a".messages (id);
-CREATE UNIQUE INDEX messages_stream ON "messagedb_tenant_a".messages (stream_name, position);
-CREATE INDEX messages_category ON "messagedb_tenant_a".messages (
+CREATE UNIQUE INDEX messages_id ON "eventodb_tenant_a".messages (id);
+CREATE UNIQUE INDEX messages_stream ON "eventodb_tenant_a".messages (stream_name, position);
+CREATE INDEX messages_category ON "eventodb_tenant_a".messages (
   (SPLIT_PART(stream_name, '-', 1)),
   global_position,
   (metadata->>'correlationStreamName')
 );
 
 -- Stored procedures (in namespace schema)
-CREATE OR REPLACE FUNCTION "messagedb_tenant_a".write_message(...)
+CREATE OR REPLACE FUNCTION "eventodb_tenant_a".write_message(...)
 RETURNS BIGINT AS $$
-  -- Same implementation as Message DB
+  -- Same implementation as EventoDB
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION "messagedb_tenant_a".get_stream_messages(...)
+CREATE OR REPLACE FUNCTION "eventodb_tenant_a".get_stream_messages(...)
 RETURNS TABLE(...) AS $$
-  -- Same implementation as Message DB
+  -- Same implementation as EventoDB
 $$ LANGUAGE plpgsql;
 
--- ... all other Message DB functions
+-- ... all other EventoDB functions
 ```
 
 **Namespace deletion:**
 ```sql
 -- Drop entire schema (cascades to all tables, functions, data)
-DROP SCHEMA "messagedb_tenant_a" CASCADE;
+DROP SCHEMA "eventodb_tenant_a" CASCADE;
 
 -- Remove from registry
 DELETE FROM message_store.namespaces WHERE id = 'tenant-a';
@@ -532,7 +532,7 @@ A single SQLite database holds namespace metadata:
 
 ```bash
 # Default metadata database
-/tmp/messagedb-metadata.db
+/tmp/eventodb-metadata.db
 ```
 
 ```sql
@@ -548,7 +548,7 @@ CREATE TABLE namespaces (
 
 -- Default namespace entry
 INSERT INTO namespaces (id, token_hash, db_path, description, created_at)
-VALUES ('default', '<hash>', '/tmp/messagedb-default.db', 'Default namespace', <timestamp>);
+VALUES ('default', '<hash>', '/tmp/eventodb-default.db', 'Default namespace', <timestamp>);
 ```
 
 ---
@@ -558,15 +558,15 @@ VALUES ('default', '<hash>', '/tmp/messagedb-default.db', 'Default namespace', <
 Each namespace gets its own SQLite database file:
 
 ```bash
-/tmp/messagedb-default.db      # Default namespace
-/tmp/messagedb-tenant-a.db     # Tenant A namespace
-/tmp/messagedb-tenant-b.db     # Tenant B namespace
+/tmp/eventodb-default.db      # Default namespace
+/tmp/eventodb-tenant-a.db     # Tenant A namespace
+/tmp/eventodb-tenant-b.db     # Tenant B namespace
 ```
 
-**Each database contains full Message DB structure:**
+**Each database contains full EventoDB structure:**
 
 ```sql
--- /tmp/messagedb-tenant-a.db
+-- /tmp/eventodb-tenant-a.db
 
 CREATE TABLE messages (
   id TEXT NOT NULL,
@@ -590,7 +590,7 @@ CREATE INDEX messages_category ON messages (
 **Namespace deletion:**
 ```bash
 # Delete database file
-rm /tmp/messagedb-tenant-a.db
+rm /tmp/eventodb-tenant-a.db
 
 # Remove from registry
 DELETE FROM namespaces WHERE id = 'tenant-a';
@@ -603,7 +603,7 @@ DELETE FROM namespaces WHERE id = 'tenant-a';
 When `--test-mode` is enabled:
 
 ```bash
-messagedb serve --test-mode
+eventodb serve --test-mode
 ```
 
 **Behavior:**
@@ -630,7 +630,7 @@ func (s *SQLiteStore) getOrCreateNamespaceDB(namespace string) (*sql.DB, error) 
         connString = fmt.Sprintf("file:%s?mode=memory&cache=shared", namespace)
     } else {
         // File-based
-        connString = fmt.Sprintf("/tmp/messagedb-%s.db", namespace)
+        connString = fmt.Sprintf("/tmp/eventodb-%s.db", namespace)
     }
     
     db, err := sql.Open("sqlite3", connString)
@@ -771,7 +771,7 @@ MESSAGEDB_REQUIRE_AUTH=true
 ### Config File
 
 ```yaml
-# messagedb.yaml
+# eventodb.yaml
 auth:
   requireAuth: true
   defaultToken: "ns_ZGVmYXVsdA_1234567890abcdef..."
@@ -785,7 +785,7 @@ namespaces:
 ## Test Mode Behavior
 
 ```bash
-messagedb serve --test-mode --port=8080
+eventodb serve --test-mode --port=8080
 ```
 
 **Changes in test mode:**
@@ -814,7 +814,7 @@ const response = await fetch(`${server.url}/rpc`, {
 });
 
 // Server returns token in response header
-const token = response.headers.get('X-MessageDB-Token');
+const token = response.headers.get('X-EventoDB-Token');
 // "ns_dGVzdC0xMjM_a7f3c8d9..."
 
 // Subsequent requests use token
@@ -882,12 +882,12 @@ CREATE TABLE IF NOT EXISTS namespaces (
 migrations/
 ├── namespace/
 │   ├── postgres/
-│   │   └── 001_message_db.sql
+│   │   └── 001_eventodb.sql
 │   └── sqlite/
-│       └── 001_message_db.sql
+│       └── 001_eventodb.sql
 ```
 
-**migrations/namespace/postgres/001_message_db.sql:**
+**migrations/namespace/postgres/001_eventodb.sql:**
 ```sql
 -- Template for namespace schema
 -- {{SCHEMA_NAME}} will be replaced with actual schema name
@@ -924,13 +924,13 @@ CREATE OR REPLACE FUNCTION "{{SCHEMA_NAME}}".write_message(
   _metadata JSONB DEFAULT NULL,
   _expected_version BIGINT DEFAULT NULL
 ) RETURNS BIGINT AS $$
-  -- Implementation from Message DB
+  -- Implementation from EventoDB
 $$ LANGUAGE plpgsql;
 
--- ... all other Message DB functions
+-- ... all other EventoDB functions
 ```
 
-**migrations/namespace/sqlite/001_message_db.sql:**
+**migrations/namespace/sqlite/001_eventodb.sql:**
 ```sql
 -- Template for namespace database
 -- Applied to each namespace database file
@@ -959,7 +959,7 @@ CREATE INDEX IF NOT EXISTS messages_category ON messages (
 ## Server Startup Flow
 
 ```go
-// cmd/messagedb/main.go
+// cmd/eventodb/main.go
 func main() {
     cfg := loadConfig()
     
@@ -999,7 +999,7 @@ func ensureDefaultNamespace(db *sql.DB, cfg Config) string {
         hash := auth.HashToken(token)
         
         if cfg.Backend == "postgres" {
-            schemaName := "messagedb_default"
+            schemaName := "eventodb_default"
             
             // Create namespace record
             db.Exec(`
@@ -1007,11 +1007,11 @@ func ensureDefaultNamespace(db *sql.DB, cfg Config) string {
                 VALUES ('default', $1, $2, 'Default namespace', $3)
             `, hash, schemaName, time.Now().Unix())
             
-            // Create namespace schema with Message DB structure
+            // Create namespace schema with EventoDB structure
             createPostgresNamespaceSchema(db, schemaName)
             
         } else {
-            dbPath := "/tmp/messagedb-default.db"
+            dbPath := "/tmp/eventodb-default.db"
             if cfg.TestMode {
                 dbPath = ":memory:"
             }
@@ -1037,7 +1037,7 @@ func ensureDefaultNamespace(db *sql.DB, cfg Config) string {
 
 func createPostgresNamespaceSchema(db *sql.DB, schemaName string) error {
     // Load namespace migration template
-    template := loadMigrationTemplate("namespace/postgres/001_message_db.sql")
+    template := loadMigrationTemplate("namespace/postgres/001_eventodb.sql")
     
     // Replace {{SCHEMA_NAME}} with actual schema name
     sql := strings.ReplaceAll(template, "{{SCHEMA_NAME}}", schemaName)

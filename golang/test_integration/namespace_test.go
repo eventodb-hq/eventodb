@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/message-db/message-db/internal/auth"
+	"github.com/eventodb/eventodb/internal/auth"
 )
 
 // Test MDB002_2A_T10: Test default namespace created on first run

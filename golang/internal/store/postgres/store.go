@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/message-db/message-db/internal/migrate"
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/migrations"
+	"github.com/eventodb/eventodb/internal/migrate"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/migrations"
 )
 
 // PostgresStore implements the Store interface for PostgreSQL
@@ -71,10 +71,10 @@ func (s *PostgresStore) getSchemaName(namespace string) (string, error) {
 }
 
 // sanitizeSchemaName ensures the schema name is safe for use in SQL
-// It prefixes with "messagedb_" and sanitizes the namespace ID
+// It prefixes with "eventodb_" and sanitizes the namespace ID
 func (s *PostgresStore) sanitizeSchemaName(namespace string) string {
 	sanitized := migrate.SanitizeSchemaName(namespace)
-	return fmt.Sprintf("messagedb_%s", sanitized)
+	return fmt.Sprintf("eventodb_%s", sanitized)
 }
 
 // Utility function implementations (delegate to store package utilities)
@@ -99,7 +99,7 @@ func (s *PostgresStore) IsCategory(name string) bool {
 	return store.IsCategory(name)
 }
 
-// Hash64 computes a 64-bit hash compatible with Message DB
+// Hash64 computes a 64-bit hash compatible with EventoDB
 func (s *PostgresStore) Hash64(value string) int64 {
 	return store.Hash64(value)
 }

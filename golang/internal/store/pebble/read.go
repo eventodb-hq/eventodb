@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // GetStreamMessages retrieves messages from a specific stream

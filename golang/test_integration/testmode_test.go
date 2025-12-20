@@ -1,4 +1,4 @@
-// Package integration provides integration tests for Message DB.
+// Package integration provides integration tests for EventoDB.
 package integration
 
 import (
@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/message-db/message-db/internal/api"
-	"github.com/message-db/message-db/internal/auth"
+	"github.com/eventodb/eventodb/internal/api"
+	"github.com/eventodb/eventodb/internal/auth"
 )
 
 // TestMDB002_7A_T1: Test mode uses in-memory SQLite (or configured backend)

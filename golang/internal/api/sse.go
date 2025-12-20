@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/message-db/message-db/internal/auth"
-	"github.com/message-db/message-db/internal/logger"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/auth"
+	"github.com/eventodb/eventodb/internal/logger"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // Poke represents a lightweight notification sent via SSE

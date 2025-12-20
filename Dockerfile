@@ -23,8 +23,8 @@ COPY golang/ ./
 # -ldflags="-s -w" for smaller binary (strip debug info)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-s -w" \
-    -o /messagedb \
-    ./cmd/messagedb
+    -o /eventodb \
+    ./cmd/eventodb
 
 # ============================================================================
 # Stage 2: Production
@@ -33,18 +33,18 @@ FROM alpine:3.19
 
 # Install ca-certificates for HTTPS (if needed) and create non-root user
 RUN apk --no-cache add ca-certificates && \
-    adduser -D -g '' messagedb
+    adduser -D -g '' eventodb
 
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /messagedb .
+COPY --from=builder /eventodb .
 
 # Set ownership
-RUN chown -R messagedb:messagedb /app
+RUN chown -R eventodb:eventodb /app
 
 # Switch to non-root user
-USER messagedb
+USER eventodb
 
 # Expose default port
 EXPOSE 8080
@@ -55,5 +55,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Default command
 # Note: Override --port and --token via environment or command line
-ENTRYPOINT ["./messagedb"]
+ENTRYPOINT ["./eventodb"]
 CMD ["--port=8080"]

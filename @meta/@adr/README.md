@@ -1,12 +1,12 @@
 # Architecture Decision Records (ADRs)
 
-This directory contains the architectural decisions for the MessageDB Go server.
+This directory contains the architectural decisions for the EventoDB Go server.
 
 ---
 
 ## Overview
 
-**MessageDB Go** is a REST/RPC API server that wraps PostgreSQL-based Message DB (event sourcing database) and provides:
+**EventoDB Go** is a REST/RPC API server that wraps PostgreSQL-based EventoDB (event sourcing database) and provides:
 
 - Simple RPC-style HTTP API
 - Multi-tenant namespaces with token authentication
@@ -46,7 +46,7 @@ This directory contains the architectural decisions for the MessageDB Go server.
 - Separate migrations for Postgres and SQLite
 - Two-level migration system:
   - **Metadata migrations:** Namespace registry
-  - **Namespace migrations:** Message DB structure per namespace
+  - **Namespace migrations:** EventoDB structure per namespace
 - SQLite: No stored procedures (logic implemented in Go)
 - Idempotent migrations with `IF NOT EXISTS`
 
@@ -57,8 +57,8 @@ migrations/
 │   ├── postgres/001_namespace_registry.sql
 │   └── sqlite/001_namespace_registry.sql
 └── namespace/
-    ├── postgres/001_message_db.sql
-    └── sqlite/001_message_db.sql
+    ├── postgres/001_eventodb.sql
+    └── sqlite/001_eventodb.sql
 ```
 
 ---
@@ -79,7 +79,7 @@ migrations/
 ```typescript
 test('write and read message', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   await client.writeMessage('account-123', {...});
   const messages = await client.getStream('account-123');
@@ -100,8 +100,8 @@ test('write and read message', async () => {
 **Key Decisions:**
 - **Postgres:** Each namespace = separate schema
   - `message_store` schema: namespace registry (tokens only)
-  - `messagedb_default` schema: default namespace data
-  - `messagedb_tenant_a` schema: tenant-a data
+  - `eventodb_default` schema: default namespace data
+  - `eventodb_tenant_a` schema: tenant-a data
 - **SQLite:** Each namespace = separate database file/in-memory DB
   - Metadata DB: namespace registry
   - Per-namespace DBs: message data
@@ -115,11 +115,11 @@ test('write and read message', async () => {
 Postgres:
   message_store schema (metadata)
     ├── namespaces table
-  messagedb_default schema (data)
+  eventodb_default schema (data)
     ├── messages table
     ├── write_message() function
     └── get_stream_messages() function
-  messagedb_tenant_a schema (data)
+  eventodb_tenant_a schema (data)
     ├── messages table
     ├── write_message() function
     └── get_stream_messages() function
@@ -188,7 +188,7 @@ Potential topics for future decisions:
 
 ## References
 
-- [Message DB Documentation](http://docs.eventide-project.org/user-guide/message-db/)
+- [EventoDB Documentation](http://docs.eventide-project.org/user-guide/eventodb/)
 - [HN Discussion: Postgres-based messaging](https://news.ycombinator.com/item?id=21810272)
 - [Compact JSON Spec](https://jsonjoy.com/specs/compact-json/)
 - [ADR Process](https://github.com/joelparkerhenderson/architecture-decision-record)

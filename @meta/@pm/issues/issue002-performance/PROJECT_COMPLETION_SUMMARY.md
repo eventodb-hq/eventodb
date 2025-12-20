@@ -231,7 +231,7 @@ profiles/
     └── README.md
 
 Makefile                        # Build targets
-golang/cmd/messagedb/main.go   # pprof integration
+golang/cmd/eventodb/main.go   # pprof integration
 ```
 
 ---

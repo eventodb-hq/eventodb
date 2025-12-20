@@ -1,4 +1,4 @@
-// Load testing tool for Message DB profiling
+// Load testing tool for EventoDB profiling
 package main
 
 import (

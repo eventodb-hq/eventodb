@@ -15,7 +15,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ HTTP Server (cmd/messagedb)                                  │
+│ HTTP Server (cmd/eventodb)                                  │
 │ - POST /rpc (RPC handler)                                    │
 │ - GET /subscribe (SSE subscriptions)                         │
 │ - Authentication middleware                                  │
@@ -251,7 +251,7 @@ Consumer groups partition streams using `cardinal_id` (the part before `+` in co
 
 **Server Operations (Postgres):**
 1. Generate token and hash
-2. Create schema: `CREATE SCHEMA "messagedb_tenant_a"`
+2. Create schema: `CREATE SCHEMA "eventodb_tenant_a"`
 3. Run namespace migrations (tables, indexes, functions)
 4. Insert record into `message_store.namespaces`
 
@@ -275,7 +275,7 @@ Consumer groups partition streams using `cardinal_id` (the part before `+` in co
 
 **Server Operations (Postgres):**
 1. Verify token matches namespace
-2. `DROP SCHEMA "messagedb_tenant_a" CASCADE`
+2. `DROP SCHEMA "eventodb_tenant_a" CASCADE`
 3. Delete from `message_store.namespaces`
 
 **Server Operations (SQLite):**
@@ -332,7 +332,7 @@ Consumer groups partition streams using `cardinal_id` (the part before `+` in co
 
 ### FR-4: Utility Operations
 
-These operations expose Message DB-compatible utility functions for stream name parsing.
+These operations expose EventoDB-compatible utility functions for stream name parsing.
 
 #### util.category
 ```json
@@ -467,7 +467,7 @@ When started with `--test-mode`:
 
 **Example Response Header:**
 ```
-X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
+X-EventoDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 ```
 
 ### FR-8: Error Response Format
@@ -582,7 +582,7 @@ X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 - **GIVEN** Server started with --test-mode
 - **WHEN** First write to new namespace
 - **THEN** Namespace auto-created
-- **AND** Token returned in X-MessageDB-Token header
+- **AND** Token returned in X-EventoDB-Token header
 
 ### AC-6: Namespace Deletion Safety
 - **GIVEN** Namespace with existing messages
@@ -699,4 +699,4 @@ X-MessageDB-Token: ns_dGVzdC0xMjM_a7f3c8d9...
 
 - ADR-001: RPC-Style API Format
 - ADR-004: Namespaces and Authentication
-- Message DB Documentation: http://docs.eventide-project.org/
+- EventoDB Documentation: http://docs.eventide-project.org/

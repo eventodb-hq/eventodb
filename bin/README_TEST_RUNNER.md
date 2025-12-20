@@ -112,7 +112,7 @@ bin/run_golang_sdk_specs.sh sqlite READ
 
 ### Before
 ```
-ok  	github.com/message-db/message-db/test_integration	10.590s
+ok  	github.com/eventodb/eventodb/test_integration	10.590s
 ✅ pebble PASSED
 ```
 
@@ -124,7 +124,7 @@ ok  	github.com/message-db/message-db/test_integration	10.590s
   ✓ TestWRITE002_WriteMessageWithMetadata (0.05s)
 ...
 PASS
-ok  	github.com/message-db/message-db/test_integration	10.590s
+ok  	github.com/eventodb/eventodb/test_integration	10.590s
 
 ✅ pebble PASSED
 ```

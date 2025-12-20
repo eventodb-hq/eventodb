@@ -7,7 +7,7 @@
 
 ## Summary
 
-Successfully implemented and tested **Phase 3** (Read Operations) of the Pebble KV backend for MessageDB, and created comprehensive profiling scripts to measure performance.
+Successfully implemented and tested **Phase 3** (Read Operations) of the Pebble KV backend for EventoDB, and created comprehensive profiling scripts to measure performance.
 
 ---
 
@@ -43,7 +43,7 @@ All read operations for the Pebble backend are now complete and tested:
 
 ### 2. **Server Integration** ✅
 
-Updated MessageDB server (`golang/cmd/messagedb/main.go`) to support Pebble backend:
+Updated EventoDB server (`golang/cmd/eventodb/main.go`) to support Pebble backend:
 
 #### Changes Made:
 - Added Pebble import: `internal/store/pebble`
@@ -54,7 +54,7 @@ Updated MessageDB server (`golang/cmd/messagedb/main.go`) to support Pebble back
 #### Server Usage:
 ```bash
 # Start with Pebble backend
-./messagedb --port 8080 --db-url "pebble:///tmp/messagedb-data" --token "ns_..."
+./eventodb --port 8080 --db-url "pebble:///tmp/eventodb-data" --token "ns_..."
 
 # Health check
 curl http://localhost:8080/health
@@ -101,9 +101,9 @@ $ ./scripts/profile-pebble.sh
 
 **Output:**
 ```
-=== Message DB Performance Profiling (Pebble) ===
+=== EventoDB Performance Profiling (Pebble) ===
 Database Type: Pebble
-Data Directory: /tmp/messagedb-pebble-profile
+Data Directory: /tmp/eventodb-pebble-profile
 Profile directory: ./profiles/20251219_184752-pebble
 
 Building server...
@@ -138,8 +138,8 @@ Avg Latency:   38.02 ms
 
 ```
 Disk Usage:
-  16K   /tmp/messagedb-pebble-profile/_metadata
-  5.5M  /tmp/messagedb-pebble-profile/default
+  16K   /tmp/eventodb-pebble-profile/_metadata
+  5.5M  /tmp/eventodb-pebble-profile/default
 
 Namespace Count: 2
 ```
@@ -208,16 +208,16 @@ $ cd golang && CGO_ENABLED=0 go test ./internal/store/pebble -v
 
 ### 2. Build Server
 ```bash
-$ cd golang && CGO_ENABLED=0 go build -o ../dist/messagedb ./cmd/messagedb
+$ cd golang && CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb
 # SUCCESS
 ```
 
 ### 3. Manual Server Test
 ```bash
-$ ./dist/messagedb --port 8081 --db-url "pebble:///tmp/test" --token "ns_..."
+$ ./dist/eventodb --port 8081 --db-url "pebble:///tmp/test" --token "ns_..."
 # [INF] Connected to Pebble database
 # [INF] Created default namespace
-# [INF] Message DB server starting
+# [INF] EventoDB server starting
 ```
 
 ### 4. Health Check
@@ -321,7 +321,7 @@ Phase 4 (Resource Management) is **optional** but recommended:
 ## Files Modified/Created
 
 ### Modified Files:
-1. `golang/cmd/messagedb/main.go` (+60 lines)
+1. `golang/cmd/eventodb/main.go` (+60 lines)
    - Added Pebble backend support
    - Extended URL parsing for `pebble://`
    - Integrated into server initialization
@@ -360,7 +360,7 @@ Phase 4 (Resource Management) is **optional** but recommended:
 ```
 [INF] Connected to Pebble database db_type=pebble path=/tmp/test-pebble
 [INF] Created default namespace namespace=default
-[INF] Message DB server starting address=:8081 version=1.4.0
+[INF] EventoDB server starting address=:8081 version=1.4.0
 ```
 
 **Health Check:**

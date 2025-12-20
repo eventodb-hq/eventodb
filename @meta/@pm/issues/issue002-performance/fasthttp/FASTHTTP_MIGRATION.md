@@ -2,7 +2,7 @@
 
 ## Summary
 
-Successfully migrated Message DB from `net/http` to `fasthttp`, achieving:
+Successfully migrated EventoDB from `net/http` to `fasthttp`, achieving:
 - **+6% throughput improvement**
 - **-5.5% latency reduction**
 - **-30% memory allocation reduction**
@@ -91,19 +91,19 @@ FastHTTP avoids allocations by:
 - `golang/internal/api/rpc_handler_fasthttp.go` - Context wrapper
 
 ### Modified Files
-- `golang/cmd/messagedb/main.go` - Switched from net/http to fasthttp
+- `golang/cmd/eventodb/main.go` - Switched from net/http to fasthttp
 - `golang/go.mod` - Added fasthttp dependency
 
 ### Backup Files
-- `golang/cmd/messagedb/main.go.backup` - Original net/http version
+- `golang/cmd/eventodb/main.go.backup` - Original net/http version
 
 ## Rollback Instructions
 
 If needed, rollback to net/http:
 ```bash
 cd golang
-cp cmd/messagedb/main.go.backup cmd/messagedb/main.go
-go build -o ../dist/messagedb ./cmd/messagedb
+cp cmd/eventodb/main.go.backup cmd/eventodb/main.go
+go build -o ../dist/eventodb ./cmd/eventodb
 ```
 
 ## Next Steps
@@ -190,11 +190,11 @@ The QA script is configured to treat these as warnings (exit code 0) because:
 ```bash
 # API tests (including fasthttp) - PASS with race detector
 cd golang && go test -race ./internal/api/... -count=5
-ok  	github.com/message-db/message-db/internal/api	1.573s
+ok  	github.com/eventodb/eventodb/internal/api	1.573s
 
 # Integration tests - PASS without race detector
 cd golang && go test ./test_integration/...
-ok  	github.com/message-db/message-db/test_integration	5.234s
+ok  	github.com/eventodb/eventodb/test_integration	5.234s
 
 # Race failures only in database layer concurrent tests
 # These are pre-existing and not introduced by fasthttp migration

@@ -1,6 +1,10 @@
 #!/bin/bash
 # Compare two profile directories
 
+
+# Disable CGO for consistent builds across platforms
+export CGO_ENABLED=0
+
 if [ $# -ne 2 ]; then
   echo "Usage: $0 <profile_dir_1> <profile_dir_2>"
   echo "Example: $0 ./profiles/20251218_225728-postgres ./profiles/20251218_225959-postgres"

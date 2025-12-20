@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Run external tests against MessageDB server with PostgreSQL backend
+# Run external tests against EventoDB server with PostgreSQL backend
 #
 # This script:
 # 1. Verifies PostgreSQL is accessible
@@ -20,7 +20,7 @@
 set -e
 
 PORT=6789
-SERVER_BIN="./golang/messagedb"
+SERVER_BIN="./dist/eventodb"
 TEST_DIR="./test_external"
 
 # PostgreSQL connection settings (with defaults)
@@ -43,7 +43,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}=== MessageDB External Tests (PostgreSQL) ===${NC}"
+echo -e "${YELLOW}=== EventoDB External Tests (PostgreSQL) ===${NC}"
 echo ""
 echo -e "${CYAN}PostgreSQL Configuration:${NC}"
 echo -e "  Host:     ${POSTGRES_HOST}"
@@ -76,7 +76,7 @@ fi
 # Build server if needed
 if [ ! -f "$SERVER_BIN" ]; then
     echo -e "${YELLOW}Building server...${NC}"
-    cd golang && go build -o messagedb ./cmd/messagedb && cd ..
+    cd golang cd golang && go build -o eventodb ./cmd/eventodbcd golang && go build -o eventodb ./cmd/eventodb CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb && cd ..
 fi
 
 # Clean up any leftover test namespaces from previous runs
@@ -107,7 +107,7 @@ fi
 
 # Start server with PostgreSQL backend
 echo -e "${YELLOW}Starting test server on port $PORT with PostgreSQL backend...${NC}"
-$SERVER_BIN -port $PORT -db-url "$DB_URL" -token "$DEFAULT_TOKEN" > /tmp/messagedb_postgres.log 2>&1 &
+$SERVER_BIN -port $PORT -db-url "$DB_URL" -token "$DEFAULT_TOKEN" > /tmp/eventodb_postgres.log 2>&1 &
 SERVER_PID=$!
 
 # Cleanup function
@@ -147,8 +147,8 @@ for i in {1..30}; do
         break
     fi
     if [ $i -eq 30 ]; then
-        echo -e "${RED}Server failed to start. Check /tmp/messagedb_postgres.log for details.${NC}"
-        cat /tmp/messagedb_postgres.log
+        echo -e "${RED}Server failed to start. Check /tmp/eventodb_postgres.log for details.${NC}"
+        cat /tmp/eventodb_postgres.log
         exit 1
     fi
     sleep 0.2
@@ -157,7 +157,7 @@ done
 # Run tests (with concurrency limited to avoid overwhelming the server)
 echo -e "${YELLOW}Running tests...${NC}"
 cd $TEST_DIR
-MESSAGEDB_URL="http://localhost:$PORT" bun test --max-concurrency=1
+EVENTODB_URL="http://localhost:$PORT" bun test --max-concurrency=1
 TEST_EXIT_CODE=$?
 
 if [ $TEST_EXIT_CODE -eq 0 ]; then

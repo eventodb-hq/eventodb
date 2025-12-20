@@ -1,4 +1,4 @@
-# MessageDB Test Runners
+# EventoDB Test Runners
 
 ## run_golang_sdk_specs.sh
 
@@ -59,19 +59,19 @@ Pattern: TestSSE
 =========================================
 📦 Testing SQLITE backend
 =========================================
-ok  	github.com/message-db/message-db/test_integration	0.983s
+ok  	github.com/eventodb/eventodb/test_integration	0.983s
 ✅ sqlite PASSED
 
 =========================================
 🐘 Testing POSTGRES backend
 =========================================
-ok  	github.com/message-db/message-db/test_integration	1.042s
+ok  	github.com/eventodb/eventodb/test_integration	1.042s
 ✅ postgres PASSED
 
 =========================================
 🪨 Testing PEBBLE backend
 =========================================
-ok  	github.com/message-db/message-db/test_integration	1.641s
+ok  	github.com/eventodb/eventodb/test_integration	1.641s
 ✅ pebble PASSED
 
 =========================================

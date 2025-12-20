@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/message-db/message-db/internal/auth"
+	"github.com/eventodb/eventodb/internal/auth"
 )
 
 // Test MDB002_2A_T1: Test token generation creates valid format

@@ -1,12 +1,12 @@
 # Real-Time Subscriptions Example
 
-MessageDB supports Server-Sent Events (SSE) for real-time notifications when new messages are written.
+EventoDB supports Server-Sent Events (SSE) for real-time notifications when new messages are written.
 
 ## Concept
 
 ```
 ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
-│   Client A  │          │  MessageDB  │          │   Client B  │
+│   Client A  │          │  EventoDB  │          │   Client B  │
 │  (Writer)   │          │   Server    │          │ (Subscriber)│
 └─────────────┘          └─────────────┘          └─────────────┘
        │                        │                        │
@@ -69,9 +69,9 @@ eventSource.close();
 ### TypeScript (Node.js/Bun)
 
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: process.env.TOKEN
 });
 
@@ -174,9 +174,9 @@ async function processCategoryMessage(poke: { stream: string; globalPosition: nu
 ### Backend (Processing Service)
 
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: process.env.TOKEN
 });
 
@@ -448,7 +448,7 @@ class QueuedSubscription {
   private processing = false;
   
   constructor(
-    private client: MessageDBClient,
+    private client: EventoDBClient,
     private handler: (messages: any[]) => Promise<void>
   ) {}
   
@@ -495,7 +495,7 @@ class DebouncedSubscription {
   private debounceMs = 100;
   
   constructor(
-    private client: MessageDBClient,
+    private client: EventoDBClient,
     private handler: (pokes: Map<string, any>) => Promise<void>
   ) {}
   

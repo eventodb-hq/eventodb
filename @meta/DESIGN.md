@@ -1,4 +1,4 @@
-# MessageDB Go - Design Summary
+# EventoDB Go - Design Summary
 
 **Status:** Specification Complete - Ready for Implementation  
 **Date:** 2024-12-17
@@ -7,7 +7,7 @@
 
 ## Project Goal
 
-Create a **Go-based HTTP API server** that wraps Message DB (PostgreSQL event sourcing database) to provide:
+Create a **Go-based HTTP API server** that wraps EventoDB (PostgreSQL event sourcing database) to provide:
 
 1. Simple RPC-style HTTP API (no direct Postgres access needed)
 2. Multi-tenant namespaces with physical data isolation
@@ -28,7 +28,7 @@ Create a **Go-based HTTP API server** that wraps Message DB (PostgreSQL event so
                                  │ Authorization: Bearer token
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MessageDB Go Server                           │
+│                    EventoDB Go Server                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │ RPC Handler  │  │     Auth     │  │     SSE      │          │
 │  │ POST /rpc    │  │   Middleware │  │   Streaming  │          │
@@ -59,7 +59,7 @@ Create a **Go-based HTTP API server** that wraps Message DB (PostgreSQL event so
 │ message_store   │    │ ┌─────────────┐ │
 │ ├─ namespaces   │    │ │ metadata.db │ │
 │                 │    │ │ default.db  │ │
-│ messagedb_*     │    │ │ tenant-a.db │ │
+│ eventodb_*     │    │ │ tenant-a.db │ │
 │ ├─ messages     │    │ └─────────────┘ │
 │ ├─ functions    │    │                 │
 └─────────────────┘    └─────────────────┘
@@ -98,15 +98,15 @@ Create a **Go-based HTTP API server** that wraps Message DB (PostgreSQL event so
 
 **Postgres:**
 - `message_store` schema: Namespace registry (tokens)
-- `messagedb_default` schema: Default namespace data
-- `messagedb_tenant_a` schema: Tenant A data
-- Each schema has full Message DB structure (tables + functions)
+- `eventodb_default` schema: Default namespace data
+- `eventodb_tenant_a` schema: Tenant A data
+- Each schema has full EventoDB structure (tables + functions)
 
 **SQLite:**
 - `metadata.db`: Namespace registry
 - `default.db`: Default namespace data
 - `tenant-a.db`: Tenant A data
-- Each DB file has full Message DB structure
+- Each DB file has full EventoDB structure
 
 **Benefits:**
 - Complete data separation
@@ -145,13 +145,13 @@ curl -H "Authorization: Bearer ns_dGVu..." \
 **Behavior:**
 - Uses in-memory SQLite for all namespaces
 - Auto-creates namespaces on first request
-- Returns token in `X-MessageDB-Token` response header
+- Returns token in `X-EventoDB-Token` response header
 - All data lost on shutdown
 - Perfect for fast, isolated tests
 
 **Example:**
 ```bash
-messagedb serve --test-mode
+eventodb serve --test-mode
 
 # Tests can create namespaces automatically:
 curl http://localhost:8080/rpc \
@@ -169,7 +169,7 @@ curl http://localhost:8080/rpc \
 
 **Level 2: Namespace migrations**
 - Run when creating each namespace
-- Creates Message DB structure (tables, indexes, functions)
+- Creates EventoDB structure (tables, indexes, functions)
 
 **Automatic:**
 - No manual migration commands
@@ -201,10 +201,10 @@ Client                    Server                    Postgres
   │                         │  WHERE token_hash=?     │
   │                         │─────────────────────────>│
   │                         │<─────────────────────────│
-  │                         │  (schema: messagedb_xyz) │
+  │                         │  (schema: eventodb_xyz) │
   │                         │                          │
   │                         │  3. Call write function │
-  │                         │  SELECT messagedb_xyz   │
+  │                         │  SELECT eventodb_xyz   │
   │                         │   .write_message(...)   │
   │                         │─────────────────────────>│
   │                         │<─────────────────────────│
@@ -229,7 +229,7 @@ Client                    Server                    Postgres
   │                         │  3. Hash token          │
   │                         │                          │
   │                         │  CREATE SCHEMA          │
-  │                         │   "messagedb_tenant_a"  │
+  │                         │   "eventodb_tenant_a"  │
   │                         │─────────────────────────>│
   │                         │                          │
   │                         │  4. Load namespace      │
@@ -239,12 +239,12 @@ Client                    Server                    Postgres
   │                         │  6. Execute migration   │
   │                         │                          │
   │                         │  CREATE TABLE           │
-  │                         │   messagedb_tenant_a    │
+  │                         │   eventodb_tenant_a    │
   │                         │   .messages (...)       │
   │                         │─────────────────────────>│
   │                         │                          │
   │                         │  CREATE FUNCTION        │
-  │                         │   messagedb_tenant_a    │
+  │                         │   eventodb_tenant_a    │
   │                         │   .write_message(...)   │
   │                         │─────────────────────────>│
   │                         │                          │
@@ -281,7 +281,7 @@ Client                    Server                    Postgres
   │                    [New message written]          │
   │                         │                          │
   │                         │  SELECT max(position)   │
-  │                         │  FROM messagedb_xyz     │
+  │                         │  FROM eventodb_xyz     │
   │                         │   .messages             │
   │                         │  WHERE stream_name=?    │
   │                         │─────────────────────────>│
@@ -300,7 +300,7 @@ Client                    Server                    Postgres
   │   {position: 43}]      │                          │
   │────────────────────────>│                          │
   │                         │  SELECT * FROM          │
-  │                         │   messagedb_xyz.        │
+  │                         │   eventodb_xyz.        │
   │                         │   get_stream_messages() │
   │                         │─────────────────────────>│
   │<────────────────────────│<─────────────────────────│
@@ -312,9 +312,9 @@ Client                    Server                    Postgres
 ## File Structure
 
 ```
-messagedb-go/
+eventodb-go/
 ├── cmd/
-│   └── messagedb/
+│   └── eventodb/
 │       └── main.go              # CLI entry point
 │
 ├── internal/
@@ -353,9 +353,9 @@ messagedb-go/
 │   │       └── 001_namespace_registry.sql
 │   └── namespace/
 │       ├── postgres/
-│       │   └── 001_message_db.sql      # Template with {{SCHEMA_NAME}}
+│       │   └── 001_eventodb.sql      # Template with {{SCHEMA_NAME}}
 │       └── sqlite/
-│           └── 001_message_db.sql
+│           └── 001_eventodb.sql
 │
 ├── pkg/
 │   └── client/                  # Optional Go client library
@@ -389,12 +389,12 @@ messagedb-go/
 
 1. **Namespace management:**
    - Create: Execute template migration with schema name substitution
-   - Delete: `DROP SCHEMA "messagedb_xyz" CASCADE`
+   - Delete: `DROP SCHEMA "eventodb_xyz" CASCADE`
    - List: Query `message_store.namespaces`
 
 2. **Write/Read:**
    - Call stored procedures in namespace schema
-   - Example: `SELECT "messagedb_xyz".write_message(...)`
+   - Example: `SELECT "eventodb_xyz".write_message(...)`
 
 3. **Connection pooling:**
    - Single connection pool to database
@@ -408,7 +408,7 @@ messagedb-go/
    - In-memory mode: Named connections (`file:xyz?mode=memory&cache=shared`)
 
 2. **Write/Read:**
-   - Implement Message DB logic in Go (no stored procedures)
+   - Implement EventoDB logic in Go (no stored procedures)
    - Same semantics as Postgres functions
    - Optimistic locking via `expected_version`
 
@@ -478,18 +478,18 @@ messagedb-go/
 
 - [ ] Single binary, no dependencies
 - [ ] Auto-migrate on boot
-- [ ] All Message DB functions accessible via RPC
+- [ ] All EventoDB functions accessible via RPC
 - [ ] Namespace creation/deletion works
 - [ ] Token authentication works
 - [ ] SQLite test mode works
 - [ ] External tests pass
-- [ ] Can import existing Message DB test cases
+- [ ] Can import existing EventoDB test cases
 - [ ] Performance comparable to direct Postgres access (±20%)
 
 ---
 
 ## References
 
-- [Message DB Repo](https://github.com/message-db/message-db)
-- [Message DB Docs](http://docs.eventide-project.org/user-guide/message-db/)
+- [EventoDB Repo](https://github.com/eventodb/eventodb)
+- [EventoDB Docs](http://docs.eventide-project.org/user-guide/eventodb/)
 - ADRs in `@meta/@adr/`

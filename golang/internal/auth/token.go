@@ -1,4 +1,4 @@
-// Package auth provides authentication and token management for Message DB.
+// Package auth provides authentication and token management for EventoDB.
 package auth
 
 import (
@@ -51,7 +51,7 @@ func GenerateDeterministicToken(namespace string) (string, error) {
 	}
 
 	// Create deterministic bytes from namespace using SHA-256
-	hash := sha256.Sum256([]byte("messagedb-test-token:" + namespace))
+	hash := sha256.Sum256([]byte("eventodb-test-token:" + namespace))
 
 	// Encode namespace as base64url (URL-safe, no padding)
 	nsEncoded := base64.RawURLEncoding.EncodeToString([]byte(namespace))

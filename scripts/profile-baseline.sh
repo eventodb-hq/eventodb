@@ -2,6 +2,10 @@
 # Baseline performance profiling for Message DB
 # Generates CPU, memory, and allocation profiles
 
+
+# Disable CGO for consistent builds across platforms
+export CGO_ENABLED=0
+
 set -e
 
 # Parse arguments
@@ -25,7 +29,7 @@ echo "Profile directory: $PROFILE_DIR"
 # Build server with profiling enabled
 echo "Building server..."
 cd golang
-go build -o ../dist/messagedb-profile ./cmd/messagedb
+go build -o ../dist/eventodb-profile ./cmd/eventodb
 cd ..
 
 # Start server with pprof enabled
@@ -33,7 +37,7 @@ echo "Starting server..."
 
 if [ "$DB_TYPE" = "sqlite" ]; then
   # SQLite test mode
-  ./dist/messagedb-profile \
+  ./dist/eventodb-profile \
     --test-mode \
     --port 8080 \
     --log-level warn &
@@ -66,14 +70,14 @@ elif [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "timescale" ]; then
   PROFILE_TOKEN="ns_ZGVmYXVsdA_71d7e890c5bb4666a234cc1a9ec3f5f15b67c1a73257a3c92e1c0b0c5e0f8e9a"
   
   if [ "$DB_TYPE" = "timescale" ]; then
-    ./dist/messagedb-profile \
+    ./dist/eventodb-profile \
       --port 8080 \
       --db-url "$DB_URL" \
       --db-type timescale \
       --token "$PROFILE_TOKEN" \
       --log-level warn &
   else
-    ./dist/messagedb-profile \
+    ./dist/eventodb-profile \
       --port 8080 \
       --db-url "$DB_URL" \
       --token "$PROFILE_TOKEN" \

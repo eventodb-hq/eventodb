@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	storepkg "github.com/message-db/message-db/internal/store"
+	storepkg "github.com/eventodb/eventodb/internal/store"
 	_ "modernc.org/sqlite"
 )
 

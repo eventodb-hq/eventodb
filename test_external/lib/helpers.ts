@@ -13,7 +13,7 @@ import { MessageDBClient } from './client';
 
 // Configuration
 const DEFAULT_PORT = 6789;
-const SERVER_BIN = process.env.MESSAGEDB_BIN || '../golang/messagedb';
+const SERVER_BIN = process.env.EVENTODB_BIN || '../dist/eventodb';
 const STARTUP_TIMEOUT_MS = 10000;
 const HEALTH_CHECK_INTERVAL_MS = 100;
 
@@ -238,7 +238,7 @@ export function getServerURL(): string {
   if (globalServer) {
     return globalServer.url;
   }
-  return process.env.MESSAGEDB_URL || `http://localhost:${DEFAULT_PORT}`;
+  return process.env.EVENTODB_URL || `http://localhost:${DEFAULT_PORT}`;
 }
 
 /**

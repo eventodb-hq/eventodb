@@ -8,8 +8,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/internal/store/sqlite"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/internal/store/sqlite"
 )
 
 // Example_basicUsage demonstrates basic message writing and reading

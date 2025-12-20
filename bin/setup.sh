@@ -3,6 +3,10 @@
 # Message DB Setup Script
 # Creates PostgreSQL database if not already exists
 
+
+# Disable CGO for consistent builds across platforms
+export CGO_ENABLED=0
+
 set -e
 
 # Configuration

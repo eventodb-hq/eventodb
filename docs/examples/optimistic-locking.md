@@ -51,9 +51,9 @@ curl -X POST http://localhost:8080/rpc \
 ### TypeScript Implementation
 
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: process.env.TOKEN
 });
 
@@ -97,7 +97,7 @@ When a conflict occurs, you receive:
 
 ```typescript
 async function writeWithRetry(
-  client: MessageDBClient,
+  client: EventoDBClient,
   streamName: string,
   message: any,
   maxRetries: number = 3
@@ -146,7 +146,7 @@ interface AccountState {
   version: number;
 }
 
-async function loadAccount(client: MessageDBClient, accountId: string): Promise<AccountState> {
+async function loadAccount(client: EventoDBClient, accountId: string): Promise<AccountState> {
   const streamName = `account-${accountId}`;
   const messages = await client.getStream(streamName);
   
@@ -176,7 +176,7 @@ async function loadAccount(client: MessageDBClient, accountId: string): Promise<
   return state;
 }
 
-async function deposit(client: MessageDBClient, accountId: string, amount: number) {
+async function deposit(client: EventoDBClient, accountId: string, amount: number) {
   const streamName = `account-${accountId}`;
   
   // Load current state
@@ -194,7 +194,7 @@ async function deposit(client: MessageDBClient, accountId: string, amount: numbe
   }, { expectedVersion: account.version });
 }
 
-async function withdraw(client: MessageDBClient, accountId: string, amount: number) {
+async function withdraw(client: EventoDBClient, accountId: string, amount: number) {
   const streamName = `account-${accountId}`;
   
   // Load current state
@@ -219,7 +219,7 @@ async function withdraw(client: MessageDBClient, accountId: string, amount: numb
 ### Using the Aggregate
 
 ```typescript
-const client = new MessageDBClient('http://localhost:8080', { token });
+const client = new EventoDBClient('http://localhost:8080', { token });
 
 // Open account
 await client.writeMessage('account-123', {
@@ -251,7 +251,7 @@ console.log(`Balance: $${account.balance}`); // $120
 ### Test Concurrent Writes
 
 ```typescript
-async function testConcurrentDeposits(client: MessageDBClient) {
+async function testConcurrentDeposits(client: EventoDBClient) {
   // Initialize account
   await client.writeMessage('concurrent-test', {
     type: 'AccountOpened',
@@ -320,7 +320,7 @@ await client.writeMessage(`events-partition-${partition}`, event);
 ```typescript
 // Complete pattern
 async function safeWrite(
-  client: MessageDBClient,
+  client: EventoDBClient,
   streamName: string,
   buildMessage: (state: any) => any,
   maxRetries: number = 3

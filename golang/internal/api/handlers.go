@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/message-db/message-db/internal/auth"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/auth"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // handleStreamWrite writes a message to a stream

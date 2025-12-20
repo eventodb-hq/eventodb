@@ -1,6 +1,6 @@
-# MessageDB Go Server - Getting Started
+# EventoDB Go Server - Getting Started
 
-MessageDB is a high-performance event store and message store implemented in Go, designed for Pub/Sub, Event Sourcing, Messaging, and Evented Microservices applications.
+EventoDB is a high-performance event store and message store implemented in Go, designed for Pub/Sub, Event Sourcing, Messaging, and Evented Microservices applications.
 
 ## Features
 
@@ -23,18 +23,18 @@ MessageDB is a high-performance event store and message store implemented in Go,
 
 ```bash
 # Clone the repository
-git clone https://github.com/message-db/message-db.git
-cd message-db/golang
+git clone https://github.com/eventodb/eventodb.git
+cd eventodb/golang
 
 # Build the server
-go build -o messagedb ./cmd/messagedb
+go build -o eventodb ./cmd/eventodb
 ```
 
 ### Running the Server
 
 ```bash
 # Start server (in-memory SQLite, test mode)
-./messagedb serve --test-mode --port=8080
+./eventodb serve --test-mode --port=8080
 
 # The server prints the default namespace token:
 # ═══════════════════════════════════════════════════════
@@ -102,7 +102,7 @@ Namespaces provide multi-tenant isolation. Each namespace:
 
 ## RPC API
 
-MessageDB uses a simple RPC-style API over HTTP POST. Request format:
+EventoDB uses a simple RPC-style API over HTTP POST. Request format:
 
 ```json
 ["method", arg1, arg2, ...]
@@ -149,9 +149,9 @@ Poke events are sent when new messages are written:
 A TypeScript client is available for testing:
 
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: 'ns_ZGVmYXVsdA_YOUR_TOKEN'
 });
 
@@ -169,7 +169,7 @@ const messages = await client.getStream('account-123');
 
 - [API Reference](./API.md) - Complete API documentation
 - [Deployment Guide](./DEPLOYMENT.md) - Production deployment
-- [Migration Guide](./MIGRATION.md) - Migrating from PostgreSQL Message DB
+- [Migration Guide](./MIGRATION.md) - Migrating from PostgreSQL EventoDB
 - [Performance Tuning](./PERFORMANCE.md) - Optimization tips
 - [Examples](./examples/) - Code examples
 
@@ -183,7 +183,7 @@ const messages = await client.getStream('account-123');
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  MessageDB Go Server                         │
+│                  EventoDB Go Server                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ RPC Handler │  │ Auth Middle │  │ SSE Handler │          │
 │  │   /rpc      │  │   ware      │  │ /subscribe  │          │

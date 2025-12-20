@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 func TestGetStreamMessages(t *testing.T) {

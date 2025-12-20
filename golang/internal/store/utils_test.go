@@ -109,11 +109,11 @@ func TestHash64(t *testing.T) {
 		t.Errorf("Hash64 should produce different hashes for different values")
 	}
 
-	// Test specific known values (these should match Message DB's hash function)
+	// Test specific known values (these should match EventoDB's hash function)
 	// We'll verify this with integration tests against actual Postgres
 	knownTests := []struct {
 		input string
-		// We don't specify expected value here since we need to verify against Message DB
+		// We don't specify expected value here since we need to verify against EventoDB
 	}{
 		{"123"},
 		{"account-123"},

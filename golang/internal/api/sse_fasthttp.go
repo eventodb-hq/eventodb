@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/message-db/message-db/internal/logger"
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/logger"
+	"github.com/eventodb/eventodb/internal/store"
 	"github.com/valyala/fasthttp"
 )
 

@@ -2,7 +2,7 @@
 
 **Date:** 2024-12-17  
 **Status:** Accepted  
-**Context:** Designing a REST API wrapper for Message DB to abstract Postgres implementation
+**Context:** Designing a REST API wrapper for EventoDB to abstract Postgres implementation
 
 ---
 
@@ -264,7 +264,7 @@ data: {"stream": "account-456", "position": 2, "globalPosition": 1236}
 
 **Alternatives considered:**
 - Separate endpoint per namespace: `/rpc/tenant-a` (adds routing complexity)
-- Header-based: `X-MessageDB-Namespace: tenant-a` (less explicit)
+- Header-based: `X-EventoDB-Namespace: tenant-a` (less explicit)
 
 ---
 
@@ -378,4 +378,4 @@ curl -X POST http://localhost:8080/rpc \
 
 - [HN Discussion on Postgres-based messaging](https://news.ycombinator.com/item?id=21810272)
 - [Compact JSON Spec](https://jsonjoy.com/specs/compact-json/examples)
-- [Message DB Documentation](http://docs.eventide-project.org/user-guide/message-db/)
+- [EventoDB Documentation](http://docs.eventide-project.org/user-guide/eventodb/)

@@ -14,7 +14,7 @@ Successfully migrated the PostgreSQL and TimescaleDB drivers from `lib/pq` to `j
    - Added: `github.com/jackc/pgx/v5/stdlib` (for database/sql compatibility)
 
 2. **Files Modified**
-   - `golang/cmd/messagedb/main.go` - Updated driver registration and connection strings
+   - `golang/cmd/eventodb/main.go` - Updated driver registration and connection strings
    - `golang/internal/store/postgres/write.go` - Fixed error message detection (removed "pq:" prefix)
    - `golang/internal/store/timescale/write.go` - Fixed error message detection
    - `golang/internal/store/postgres/store_test.go` - Updated test driver
@@ -158,7 +158,7 @@ All changes have been tested and verified:
 
 Core changes:
 - `golang/go.mod` - Dependencies updated
-- `golang/cmd/messagedb/main.go` - Driver registration
+- `golang/cmd/eventodb/main.go` - Driver registration
 - `golang/internal/store/postgres/write.go` - Error handling
 - `golang/internal/store/timescale/write.go` - Error handling
 

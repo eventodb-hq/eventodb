@@ -10,7 +10,7 @@
 ## **Current State Analysis**
 
 ### Files Using Standard `log` Package:
-1. **`golang/cmd/messagedb/main.go`** (20 log statements)
+1. **`golang/cmd/eventodb/main.go`** (20 log statements)
    - Info logs: Server startup, connection status, namespace info
    - Fatal logs: Configuration and initialization errors
    - Special formatting: Token display with decorative borders
@@ -297,7 +297,7 @@ func WithContext(ctx context.Context, logger *zerolog.Logger) context.Context {
 
 1. `golang/go.mod` - Add zerolog dependency
 2. `golang/internal/logger/logger.go` - New file (logger package)
-3. `golang/cmd/messagedb/main.go` - Migrate 20 log statements
+3. `golang/cmd/eventodb/main.go` - Migrate 20 log statements
 4. `golang/internal/api/middleware.go` - Migrate 3 log statements
 5. `golang/internal/api/sse.go` - Migrate 2 log statements
 6. `golang/internal/api/rpc.go` - Migrate 6 log statements

@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/message-db/message-db/internal/logger"
+	"github.com/eventodb/eventodb/internal/logger"
 	"github.com/valyala/fasthttp"
 )
 

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/message-db/message-db/internal/api"
+	"github.com/eventodb/eventodb/internal/api"
 )
 
 // Helper to create RPC handler with nil store for testing

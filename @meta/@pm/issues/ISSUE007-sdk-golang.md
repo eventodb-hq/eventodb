@@ -1,4 +1,4 @@
-# ISSUE007: Golang SDK for MessageDB
+# ISSUE007: Golang SDK for EventoDB
 
 **Status**: Not Started  
 **Priority**: High  
@@ -9,9 +9,9 @@
 
 ## **Overview**
 
-Implement a minimal, idiomatic Golang SDK for MessageDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use standard library HTTP client and follow Go conventions.
+Implement a minimal, idiomatic Golang SDK for EventoDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use standard library HTTP client and follow Go conventions.
 
-**Location**: `clients/messagedb-go/`
+**Location**: `clients/eventodb-go/`
 
 **Key Principles**:
 - Minimal dependencies (stdlib only, no external HTTP libraries)
@@ -29,14 +29,14 @@ Implement a minimal, idiomatic Golang SDK for MessageDB that passes all tests de
 **1.1 Initialize Go Module**
 ```bash
 cd clients
-mkdir messagedb-go
-cd messagedb-go
-go mod init github.com/messagedb/messagedb-go
+mkdir eventodb-go
+cd eventodb-go
+go mod init github.com/eventodb/eventodb-go
 ```
 
 **1.2 Project Structure**
 ```
-clients/messagedb-go/
+clients/eventodb-go/
 ├── client.go              # Main client and API methods
 ├── types.go               # Type definitions
 ├── errors.go              # Error types
@@ -70,7 +70,7 @@ clients/messagedb-go/
 **2.1 Types Module** (`types.go`)
 
 ```go
-package messagedb
+package eventodb
 
 import "time"
 
@@ -181,11 +181,11 @@ type HealthStatus struct {
 **2.2 Errors Module** (`errors.go`)
 
 ```go
-package messagedb
+package eventodb
 
 import "fmt"
 
-// Error represents a MessageDB error
+// Error represents a EventoDB error
 type Error struct {
     Code    string                 `json:"code"`
     Message string                 `json:"message"`
@@ -223,7 +223,7 @@ var (
 **2.3 Client Module** (`client.go`)
 
 ```go
-package messagedb
+package eventodb
 
 import (
     "bytes"
@@ -235,14 +235,14 @@ import (
     "time"
 )
 
-// Client is a MessageDB client
+// Client is a EventoDB client
 type Client struct {
     baseURL    string
     token      string
     httpClient *http.Client
 }
 
-// NewClient creates a new MessageDB client
+// NewClient creates a new EventoDB client
 func NewClient(baseURL string, opts ...ClientOption) *Client {
     c := &Client{
         baseURL: baseURL,
@@ -303,7 +303,7 @@ func (c *Client) rpc(ctx context.Context, method string, args ...interface{}) (j
     defer resp.Body.Close()
     
     // Capture token from response (for test mode auto-creation)
-    if newToken := resp.Header.Get("X-MessageDB-Token"); newToken != "" && c.token == "" {
+    if newToken := resp.Header.Get("X-EventoDB-Token"); newToken != "" && c.token == "" {
         c.token = newToken
     }
     
@@ -609,7 +609,7 @@ func parseCategoryMessage(msg *CategoryMessage, raw []interface{}) error {
 **3.1 Test Helpers** (`testhelpers_test.go`)
 
 ```go
-package messagedb
+package eventodb
 
 import (
     "context"
@@ -698,7 +698,7 @@ func intPtr(i int) *int {
 **3.2 Test Structure Pattern**
 
 ```go
-package messagedb
+package eventodb
 
 import (
     "context"
@@ -763,14 +763,14 @@ Implement tests in priority order following `docs/SDK-TEST-SPEC.md`:
 
 **5.1 README.md**
 ```markdown
-# messagedb-go
+# eventodb-go
 
-Go client for MessageDB - a simple, fast message store.
+Go client for EventoDB - a simple, fast message store.
 
 ## Installation
 
 ```bash
-go get github.com/messagedb/messagedb-go
+go get github.com/eventodb/eventodb-go
 ```
 
 ## Usage
@@ -783,18 +783,18 @@ import (
     "fmt"
     "log"
     
-    messagedb "github.com/messagedb/messagedb-go"
+    eventodb "github.com/eventodb/eventodb-go"
 )
 
 func main() {
     // Create client
-    client := messagedb.NewClient("http://localhost:8080", 
-        messagedb.WithToken("ns_..."))
+    client := eventodb.NewClient("http://localhost:8080", 
+        eventodb.WithToken("ns_..."))
     
     ctx := context.Background()
     
     // Write message
-    result, err := client.StreamWrite(ctx, "account-123", messagedb.Message{
+    result, err := client.StreamWrite(ctx, "account-123", eventodb.Message{
         Type: "Deposited",
         Data: map[string]interface{}{"amount": 100},
     }, nil)
@@ -814,7 +814,7 @@ func main() {
 
 ## Testing
 
-Tests run against a live MessageDB server:
+Tests run against a live EventoDB server:
 
 ```bash
 # Start server
@@ -829,7 +829,7 @@ MESSAGEDB_URL=http://localhost:8080 go test -v
 
 ## API Reference
 
-See [GoDoc](https://pkg.go.dev/github.com/messagedb/messagedb-go) for full API documentation.
+See [GoDoc](https://pkg.go.dev/github.com/eventodb/eventodb-go) for full API documentation.
 ```
 
 **5.2 Test Runner Script** (`run_tests.sh`)
@@ -837,7 +837,7 @@ See [GoDoc](https://pkg.go.dev/github.com/messagedb/messagedb-go) for full API d
 #!/bin/bash
 set -e
 
-echo "Running MessageDB Go SDK tests..."
+echo "Running EventoDB Go SDK tests..."
 echo "Server: ${MESSAGEDB_URL:-http://localhost:8080}"
 echo ""
 
@@ -890,9 +890,9 @@ messages, err := client.StreamGet(ctx, stream, &GetStreamOptions{
 ```go
 result, err := client.StreamWrite(ctx, stream, message, nil)
 if err != nil {
-    var dbErr *messagedb.Error
+    var dbErr *eventodb.Error
     if errors.As(err, &dbErr) {
-        if errors.Is(dbErr, messagedb.ErrVersionConflict) {
+        if errors.Is(dbErr, eventodb.ErrVersionConflict) {
             // Handle version conflict
         }
     }
@@ -991,7 +991,7 @@ fmt.Printf("Stream: %s, Type: %s\n", catMsg.StreamName, catMsg.Type)
 ## **References**
 
 - Test Spec: `docs/SDK-TEST-SPEC.md`
-- Elixir SDK: `clients/messagedb_ex/`
-- Node.js SDK: `clients/messagedb-node/`
+- Elixir SDK: `clients/eventodb_ex/`
+- Node.js SDK: `clients/eventodb-node/`
 - Go Package Layout: https://github.com/golang-standards/project-layout
 - Effective Go: https://go.dev/doc/effective_go

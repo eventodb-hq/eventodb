@@ -1,4 +1,4 @@
-# ISSUE006: Node.js SDK for MessageDB
+# ISSUE006: Node.js SDK for EventoDB
 
 **Status**: Not Started  
 **Priority**: High  
@@ -9,9 +9,9 @@
 
 ## Overview
 
-Implement a minimal, clean Node.js/TypeScript SDK for MessageDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use native `fetch` API and follow Node.js/TypeScript conventions.
+Implement a minimal, clean Node.js/TypeScript SDK for EventoDB that passes all tests defined in `docs/SDK-TEST-SPEC.md`. The SDK will use native `fetch` API and follow Node.js/TypeScript conventions.
 
-**Location**: `clients/messagedb-node/`
+**Location**: `clients/eventodb-node/`
 
 **Key Principles**:
 - Zero external dependencies (use native Node.js APIs)
@@ -29,8 +29,8 @@ Implement a minimal, clean Node.js/TypeScript SDK for MessageDB that passes all 
 **1.1 Initialize npm Project**
 ```bash
 cd clients
-mkdir messagedb-node
-cd messagedb-node
+mkdir eventodb-node
+cd eventodb-node
 npm init -y
 ```
 
@@ -73,9 +73,9 @@ Create `tsconfig.json`:
 Update `package.json`:
 ```json
 {
-  "name": "@messagedb/client",
+  "name": "@eventodb/client",
   "version": "0.1.0",
-  "description": "Node.js client for MessageDB",
+  "description": "Node.js client for EventoDB",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
@@ -99,7 +99,7 @@ Update `package.json`:
 
 **1.5 Project Structure**
 ```
-clients/messagedb-node/
+clients/eventodb-node/
 ├── src/
 │   ├── index.ts              # Main exports
 │   ├── client.ts             # Core client class
@@ -259,16 +259,16 @@ export type CategoryMessage = [
 
 ```typescript
 /**
- * Base error for MessageDB operations
+ * Base error for EventoDB operations
  */
-export class MessageDBError extends Error {
+export class EventoDBError extends Error {
   constructor(
     public code: string,
     message: string,
     public details?: Record<string, any>
   ) {
     super(message);
-    this.name = 'MessageDBError';
+    this.name = 'EventoDBError';
   }
 
   /**
@@ -278,8 +278,8 @@ export class MessageDBError extends Error {
     code: string;
     message: string;
     details?: Record<string, any>;
-  }): MessageDBError {
-    return new MessageDBError(
+  }): EventoDBError {
+    return new EventoDBError(
       errorData.code,
       errorData.message,
       errorData.details
@@ -290,7 +290,7 @@ export class MessageDBError extends Error {
 /**
  * Network/connection errors
  */
-export class NetworkError extends MessageDBError {
+export class NetworkError extends EventoDBError {
   constructor(message: string, cause?: Error) {
     super('NETWORK_ERROR', message, { cause });
     this.name = 'NetworkError';
@@ -300,7 +300,7 @@ export class NetworkError extends MessageDBError {
 /**
  * Authentication errors
  */
-export class AuthError extends MessageDBError {
+export class AuthError extends EventoDBError {
   constructor(code: string, message: string) {
     super(code, message);
     this.name = 'AuthError';
@@ -311,7 +311,7 @@ export class AuthError extends MessageDBError {
 **2.3 Client Module** (`src/client.ts`)
 
 ```typescript
-import { MessageDBError, NetworkError } from './errors.js';
+import { EventoDBError, NetworkError } from './errors.js';
 import type {
   Message,
   WriteOptions,
@@ -328,11 +328,11 @@ import type {
 } from './types.js';
 
 /**
- * MessageDB Client
+ * EventoDB Client
  * 
- * Core client for interacting with MessageDB via RPC API.
+ * Core client for interacting with EventoDB via RPC API.
  */
-export class MessageDBClient {
+export class EventoDBClient {
   private token?: string;
 
   constructor(
@@ -369,7 +369,7 @@ export class MessageDBClient {
     }
 
     // Capture token from response header (auto-creation in test mode)
-    const newToken = response.headers.get('X-MessageDB-Token');
+    const newToken = response.headers.get('X-EventoDB-Token');
     if (newToken && !this.token) {
       this.token = newToken;
     }
@@ -377,9 +377,9 @@ export class MessageDBClient {
     if (!response.ok) {
       const errorData = await response.json();
       if (errorData.error) {
-        throw MessageDBError.fromResponse(errorData.error);
+        throw EventoDBError.fromResponse(errorData.error);
       }
-      throw new MessageDBError(
+      throw new EventoDBError(
         'UNKNOWN_ERROR',
         `HTTP ${response.status}: ${response.statusText}`
       );
@@ -509,8 +509,8 @@ export class MessageDBClient {
 **2.4 Main Export** (`src/index.ts`)
 
 ```typescript
-export { MessageDBClient } from './client.js';
-export { MessageDBError, NetworkError, AuthError } from './errors.js';
+export { EventoDBClient } from './client.js';
+export { EventoDBError, NetworkError, AuthError } from './errors.js';
 export type {
   Message,
   WriteOptions,
@@ -549,7 +549,7 @@ export default defineConfig({
 **3.2 Test Helpers** (`tests/helpers.ts`)
 
 ```typescript
-import { MessageDBClient } from '../src/client.js';
+import { EventoDBClient } from '../src/client.js';
 
 const MESSAGEDB_URL = process.env.MESSAGEDB_URL || 'http://localhost:8080';
 const ADMIN_TOKEN = process.env.MESSAGEDB_ADMIN_TOKEN;
@@ -558,7 +558,7 @@ const ADMIN_TOKEN = process.env.MESSAGEDB_ADMIN_TOKEN;
  * Test context with isolated namespace
  */
 export interface TestContext {
-  client: MessageDBClient;
+  client: EventoDBClient;
   namespaceId: string;
   token: string;
   cleanup: () => Promise<void>;
@@ -569,7 +569,7 @@ export interface TestContext {
  */
 export async function setupTest(testName: string): Promise<TestContext> {
   // Create admin client for namespace management
-  const adminClient = new MessageDBClient(MESSAGEDB_URL, { 
+  const adminClient = new EventoDBClient(MESSAGEDB_URL, { 
     token: ADMIN_TOKEN 
   });
 
@@ -580,7 +580,7 @@ export async function setupTest(testName: string): Promise<TestContext> {
   });
 
   // Create client with namespace token
-  const client = new MessageDBClient(MESSAGEDB_URL, { 
+  const client = new EventoDBClient(MESSAGEDB_URL, { 
     token: result.token 
   });
 
@@ -609,9 +609,9 @@ function uniqueSuffix(): string {
 }
 
 /**
- * Get MessageDB URL
+ * Get EventoDB URL
  */
-export function getMessageDBURL(): string {
+export function getEventoDBURL(): string {
   return MESSAGEDB_URL;
 }
 ```
@@ -702,14 +702,14 @@ Implement tests in priority order following `docs/SDK-TEST-SPEC.md`:
 **5.1 README.md**
 
 ```markdown
-# @messagedb/client
+# @eventodb/client
 
-Node.js/TypeScript client for MessageDB - a simple, fast message store.
+Node.js/TypeScript client for EventoDB - a simple, fast message store.
 
 ## Installation
 
 ```bash
-npm install @messagedb/client
+npm install @eventodb/client
 ```
 
 ## Requirements
@@ -722,10 +722,10 @@ npm install @messagedb/client
 ### Basic Usage
 
 ```typescript
-import { MessageDBClient } from '@messagedb/client';
+import { EventoDBClient } from '@eventodb/client';
 
 // Create client
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: 'ns_...'
 });
 
@@ -783,7 +783,7 @@ const ns = await client.namespaceCreate('my-app', {
 console.log(`Token: ${ns.token}`);
 
 // Use namespace token
-const nsClient = new MessageDBClient('http://localhost:8080', {
+const nsClient = new EventoDBClient('http://localhost:8080', {
   token: ns.token
 });
 ```
@@ -815,7 +815,7 @@ const nsClient = new MessageDBClient('http://localhost:8080', {
 
 ## Testing
 
-Tests run against a live MessageDB server:
+Tests run against a live EventoDB server:
 
 ```bash
 # Start server
@@ -837,7 +837,7 @@ MIT
 
 Update `package.json` with:
 - Author, license, repository
-- Keywords: `messagedb`, `event-sourcing`, `message-store`, `cqrs`
+- Keywords: `eventodb`, `event-sourcing`, `message-store`, `cqrs`
 - Homepage and bug tracker URLs
 
 ---
@@ -879,7 +879,7 @@ Leverage TypeScript's type system:
 try {
   await client.streamWrite(stream, message, { expectedVersion: 5 });
 } catch (error) {
-  if (error instanceof MessageDBError) {
+  if (error instanceof EventoDBError) {
     console.log(`Error code: ${error.code}`);
     console.log(`Message: ${error.message}`);
     console.log(`Details:`, error.details);
@@ -908,8 +908,8 @@ if [[ "$SDK" == "node" || "$SDK" == "all" ]]; then
     echo -e "${BLUE}  Node.js SDK Tests${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    if [ -f "clients/messagedb-node/run_tests.sh" ]; then
-        cd clients/messagedb-node
+    if [ -f "clients/eventodb-node/run_tests.sh" ]; then
+        cd clients/eventodb-node
         if MESSAGEDB_URL="$MESSAGEDB_URL" MESSAGEDB_ADMIN_TOKEN="$ADMIN_TOKEN" ./run_tests.sh; then
             PASSED=$((PASSED + 1))
         else
@@ -933,7 +933,7 @@ fi
 3. **Connection Pooling**: HTTP agent with keep-alive
 4. **Batched Writes**: Helper for writing multiple messages
 5. **Stream Helpers**: Higher-level abstractions (projections, aggregates)
-6. **CLI Tool**: Command-line interface for MessageDB operations
+6. **CLI Tool**: Command-line interface for EventoDB operations
 7. **Logging**: Optional structured logging integration
 8. **Metrics**: Optional telemetry/metrics integration
 
@@ -942,6 +942,6 @@ fi
 ## References
 
 - Test Spec: `docs/SDK-TEST-SPEC.md`
-- Elixir SDK: `clients/messagedb_ex/`
+- Elixir SDK: `clients/eventodb_ex/`
 - TypeScript Client (test): `test_external/lib/client.ts`
 - Test Runner: `bin/run_sdk_tests.sh`

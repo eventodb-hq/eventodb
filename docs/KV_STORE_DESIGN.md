@@ -1,8 +1,8 @@
-# KV Store Backend Design for MessageDB
+# KV Store Backend Design for EventoDB
 
 ## Executive Summary
 
-This document proposes a key structure design for implementing MessageDB on top of **Pebble** (LSM-based key-value store from CockroachDB) while maintaining full compatibility with the existing SQL-based API.
+This document proposes a key structure design for implementing EventoDB on top of **Pebble** (LSM-based key-value store from CockroachDB) while maintaining full compatibility with the existing SQL-based API.
 
 ### Architecture Decision: Separate Pebble DB Per Namespace ✅
 
@@ -17,7 +17,7 @@ This document proposes a key structure design for implementing MessageDB on top 
 
 **Directory Structure**:
 ```
-/data/messagedb/
+/data/eventodb/
 ├── _metadata/          # Namespace registry (Pebble DB)
 ├── production/         # Namespace "production" (Pebble DB)
 ├── staging/            # Namespace "staging" (Pebble DB)
@@ -99,7 +99,7 @@ NS:{namespace_id}
   "id": "myapp",
   "tokenHash": "sha256_hash",
   "description": "My Application",
-  "dbPath": "/data/messagedb/myapp.db",
+  "dbPath": "/data/eventodb/myapp.db",
   "createdAt": "2024-01-15T10:30:00Z",
   "metadata": {}
 }
@@ -108,10 +108,10 @@ NS:{namespace_id}
 **Example**:
 ```
 Key:   NS:myapp
-Value: {"id":"myapp","tokenHash":"abc123...","dbPath":"/data/messagedb/myapp.db",...}
+Value: {"id":"myapp","tokenHash":"abc123...","dbPath":"/data/eventodb/myapp.db",...}
 ```
 
-**Storage Location**: Separate metadata Pebble DB at `/data/messagedb/_metadata`
+**Storage Location**: Separate metadata Pebble DB at `/data/eventodb/_metadata`
 
 ---
 
@@ -404,7 +404,7 @@ Value: account-123
 
 **Directory Structure**:
 ```
-/data/messagedb/
+/data/eventodb/
 ├── _metadata/          # Metadata Pebble DB
 │   ├── 000001.log
 │   ├── MANIFEST

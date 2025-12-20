@@ -6,7 +6,7 @@
 
 **Architecture**:
 ```
-/data/messagedb/
+/data/eventodb/
 └── messages.db/        # Single Pebble DB for all namespaces
     ├── 000001.log
     ├── MANIFEST
@@ -60,7 +60,7 @@ Total overhead per message: ~190-210 bytes
 
 **Architecture**:
 ```
-/data/messagedb/
+/data/eventodb/
 ├── _metadata/          # Namespace registry
 │   ├── 000001.log
 │   └── ...

@@ -10,9 +10,9 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/internal/store/postgres"
-	"github.com/message-db/message-db/internal/store/sqlite"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/internal/store/postgres"
+	"github.com/eventodb/eventodb/internal/store/sqlite"
 )
 
 // BenchmarkWriteMessage_Postgres benchmarks WriteMessage operation on Postgres backend
@@ -428,7 +428,7 @@ func setupSQLiteFileForBenchmark(b *testing.B) store.Store {
 	b.Helper()
 
 	// Create temp directory for benchmark databases
-	tmpDir := fmt.Sprintf("/tmp/messagedb-bench-%d", os.Getpid())
+	tmpDir := fmt.Sprintf("/tmp/eventodb-bench-%d", os.Getpid())
 	os.MkdirAll(tmpDir, 0755)
 
 	metadataPath := fmt.Sprintf("%s/metadata.db", tmpDir)

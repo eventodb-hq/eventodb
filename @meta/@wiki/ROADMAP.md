@@ -1,6 +1,6 @@
-# MessageDB Go - Roadmap
+# EventoDB Go - Roadmap
 
-**Project:** MessageDB Go Server  
+**Project:** EventoDB Go Server  
 **Status:** Planning Phase  
 **Last Updated:** 2024-12-17
 
@@ -8,7 +8,7 @@
 
 ## Vision
 
-Build a production-ready HTTP API server that wraps Message DB, providing simple RPC-style access to event sourcing capabilities with multi-tenant namespace support.
+Build a production-ready HTTP API server that wraps EventoDB, providing simple RPC-style access to event sourcing capabilities with multi-tenant namespace support.
 
 ---
 
@@ -44,7 +44,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 - `internal/store/sqlite/` - SQLite implementation
 - `internal/migrate/` - Migration engine
 - `migrations/metadata/` - Namespace registry migrations
-- `migrations/namespace/` - Message DB structure templates
+- `migrations/namespace/` - EventoDB structure templates
 
 **Success Criteria:**
 - Can create/delete namespaces
@@ -52,7 +52,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 - Can query categories with consumer groups
 - Migrations run automatically on startup
 - Both backends pass same test suite
-- Existing Message DB functions all accessible
+- Existing EventoDB functions all accessible
 
 ---
 
@@ -75,7 +75,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 - `internal/api/sse.go` - Server-Sent Events
 - `internal/api/middleware.go` - Auth middleware
 - `internal/auth/` - Token generation/validation
-- `cmd/messagedb/main.go` - Server binary
+- `cmd/eventodb/main.go` - Server binary
 
 **API Methods:**
 - `stream.write`, `stream.get`, `stream.last`, `stream.version`
@@ -105,7 +105,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 - Documentation and examples
 - Docker/deployment setup
 - CI/CD pipeline
-- Migration from existing Message DB guide
+- Migration from existing EventoDB guide
 
 **Key Components:**
 - `test/` - Bun.js black-box tests
@@ -128,7 +128,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 
 **Success Criteria:**
 - All external tests pass
-- Can import and run existing Message DB tests
+- Can import and run existing EventoDB tests
 - Performance within 20% of direct Postgres access
 - Complete API documentation
 - Docker image builds and runs
@@ -163,7 +163,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 ### v1.0.0 (Stable)
 - Production-ready
 - Full documentation
-- Migration guide from Message DB
+- Migration guide from EventoDB
 - Client libraries
 
 ---
@@ -222,7 +222,7 @@ Epic 1: Core Storage & Migrations (Foundation)
 - Error messages actionable
 
 **Production:**
-- Can migrate existing Message DB instance
+- Can migrate existing EventoDB instance
 - Can run in Docker/K8s
 - Monitoring integration straightforward
 
@@ -241,4 +241,4 @@ Epic 1: Core Storage & Migrations (Foundation)
 
 - ADRs: `@meta/@adr/`
 - Design Doc: `@meta/DESIGN.md`
-- Message DB Repo: https://github.com/message-db/message-db
+- EventoDB Repo: https://github.com/eventodb/eventodb

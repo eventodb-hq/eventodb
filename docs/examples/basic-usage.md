@@ -1,6 +1,6 @@
 # Basic Usage Examples
 
-This guide demonstrates basic MessageDB operations with curl and TypeScript examples.
+This guide demonstrates basic EventoDB operations with curl and TypeScript examples.
 
 ## Setup
 
@@ -9,8 +9,8 @@ This guide demonstrates basic MessageDB operations with curl and TypeScript exam
 ```bash
 # Build and run
 cd golang
-go build -o messagedb ./cmd/messagedb
-./messagedb serve --test-mode --port=8080
+go build -o eventodb ./cmd/eventodb
+./eventodb serve --test-mode --port=8080
 ```
 
 Save the token printed at startup:
@@ -62,9 +62,9 @@ curl -X POST http://localhost:8080/rpc \
 
 **TypeScript:**
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: process.env.TOKEN
 });
 
@@ -376,9 +376,9 @@ curl -X POST http://localhost:8080/rpc \
 ## Complete Example: Bank Account
 
 ```typescript
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
-const client = new MessageDBClient('http://localhost:8080', {
+const client = new EventoDBClient('http://localhost:8080', {
   token: process.env.TOKEN
 });
 

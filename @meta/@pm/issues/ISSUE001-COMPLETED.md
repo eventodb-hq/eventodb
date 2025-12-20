@@ -26,7 +26,7 @@ Successfully migrated all logging from Go's standard `log` package to `zerolog`,
    - Supports formats: console (colored, human-readable) and JSON (production)
    - Context-aware logging with request ID support
 
-3. **`golang/cmd/messagedb/main.go`** (20 log statements → structured)
+3. **`golang/cmd/eventodb/main.go`** (20 log statements → structured)
    - Added `--log-level` flag (default: "info")
    - Added `--log-format` flag (default: "console")
    - Migrated startup logs with structured fields (db_type, address, version)
@@ -120,13 +120,13 @@ logger.Get().Debug().
 ### Examples:
 ```bash
 # Development: console format with debug logging
-./messagedb --log-level debug --log-format console
+./eventodb --log-level debug --log-format console
 
 # Production: JSON format with info logging
-./messagedb --log-level info --log-format json
+./eventodb --log-level info --log-format json
 
 # Silent: error-level only
-./messagedb --log-level error
+./eventodb --log-level error
 ```
 
 ---
@@ -196,7 +196,7 @@ logger.Get().Debug().
 ### Console Format (Development):
 ```
 2024-12-18T20:15:09+01:00 INF Connected to PostgreSQL database db_type=postgres
-2024-12-18T20:15:09+01:00 INF Message DB server starting address=:8080 version=1.4.0
+2024-12-18T20:15:09+01:00 INF EventoDB server starting address=:8080 version=1.4.0
 2024-12-18T20:15:10+01:00 INF HTTP request method=POST path=/rpc status=200 duration=2.5ms
 2024-12-18T20:15:10+01:00 DBG RPC method invoked method=stream.write args_count=3
 ```
@@ -204,7 +204,7 @@ logger.Get().Debug().
 ### JSON Format (Production):
 ```json
 {"level":"info","time":"2024-12-18T20:15:09+01:00","message":"Connected to PostgreSQL database","db_type":"postgres"}
-{"level":"info","time":"2024-12-18T20:15:09+01:00","message":"Message DB server starting","address":":8080","version":"1.4.0"}
+{"level":"info","time":"2024-12-18T20:15:09+01:00","message":"EventoDB server starting","address":":8080","version":"1.4.0"}
 {"level":"info","time":"2024-12-18T20:15:10+01:00","message":"HTTP request","method":"POST","path":"/rpc","status":200,"duration":2.5}
 {"level":"debug","time":"2024-12-18T20:15:10+01:00","message":"RPC method invoked","method":"stream.write","args_count":3}
 ```

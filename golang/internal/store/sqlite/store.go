@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/message-db/message-db/internal/migrate"
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/migrations"
+	"github.com/eventodb/eventodb/internal/migrate"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/migrations"
 	_ "modernc.org/sqlite"
 )
 
@@ -43,12 +43,12 @@ func New(metadataDB *sql.DB, config *Config) (*SQLiteStore, error) {
 	if config == nil {
 		config = &Config{
 			TestMode: false,
-			DataDir:  "/tmp/messagedb",
+			DataDir:  "/tmp/eventodb",
 		}
 	}
 
 	if config.DataDir == "" {
-		config.DataDir = "/tmp/messagedb"
+		config.DataDir = "/tmp/eventodb"
 	}
 
 	s := &SQLiteStore{

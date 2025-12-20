@@ -7,7 +7,7 @@
 
 ## Problem Statement
 
-We need a comprehensive test suite based on `docs/SDK-TEST-SPEC.md` that can validate all MessageDB backends (SQLite, Postgres, Pebble) against the same specification to ensure consistent behavior.
+We need a comprehensive test suite based on `docs/SDK-TEST-SPEC.md` that can validate all EventoDB backends (SQLite, Postgres, Pebble) against the same specification to ensure consistent behavior.
 
 ## Decision: Golang Implementation ✅
 
@@ -166,7 +166,7 @@ jobs:
       - name: Run SDK spec tests
         env:
           TEST_BACKEND: postgres
-          TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/messagedb_test?sslmode=disable
+          TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/eventodb_test?sslmode=disable
         run: go test -v ./golang/test_integration/sdk_spec_*
         
   test-pebble:

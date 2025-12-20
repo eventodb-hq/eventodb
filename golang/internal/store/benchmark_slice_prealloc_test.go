@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/internal/store/sqlite"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/internal/store/sqlite"
 	_ "modernc.org/sqlite"
 )
 

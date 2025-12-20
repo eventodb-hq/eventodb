@@ -5,7 +5,7 @@
 ### Phase 1: HTTP Server & RPC Foundation (Day 1-3)
 
 #### Phase MDB002_1A: CODE: Server Setup and RPC Handler
-- [ ] Create `cmd/messagedb/main.go` - server binary entry point
+- [ ] Create `cmd/eventodb/main.go` - server binary entry point
 - [ ] Set up HTTP server with port configuration
 - [ ] Add health check endpoint `GET /health`
 - [ ] Add version endpoint `GET /version`
@@ -179,7 +179,7 @@
 - [ ] Add --test-mode flag to server
 - [ ] Enable SQLite in-memory backend in test mode
 - [ ] Implement auto-namespace creation on first write
-- [ ] Return token in X-MessageDB-Token header
+- [ ] Return token in X-EventoDB-Token header
 - [ ] Disable auth requirement in test mode
 - [ ] Add test mode indicator to logs
 - [ ] Implement `handleSystemVersion()` in handlers.go
@@ -221,9 +221,9 @@ For **EACH** phase:
 ## File Structure
 
 ```
-message-db/
+eventodb/
 ├── cmd/
-│   └── messagedb/
+│   └── eventodb/
 │       └── main.go                    # Server entry point, startup logic
 ├── internal/
 │   ├── api/
@@ -255,7 +255,7 @@ message-db/
 ## Code Size Estimates
 
 ```
-cmd/messagedb/main.go:          ~150 lines  (server setup, default namespace)
+cmd/eventodb/main.go:          ~150 lines  (server setup, default namespace)
 internal/api/rpc.go:            ~200 lines  (RPC parsing, routing, errors)
 internal/api/handlers.go:       ~600 lines  (all RPC methods)
 internal/api/sse.go:            ~250 lines  (SSE connection management)

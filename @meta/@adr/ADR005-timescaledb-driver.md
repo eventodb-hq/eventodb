@@ -37,7 +37,7 @@ Implement a **TimescaleDB driver** that uses **hypertables** with time-based par
 | **Partition Key** | `time` (not `global_position`) | Aligns with data lifecycle, enables efficient chunk drops |
 | **Chunk Interval** | 7 days default | Balance between granularity and management overhead |
 | **Compression** | Segment by `stream_name` | Efficient stream queries on compressed data |
-| **Schema Prefix** | `tsdb_` | Distinguish from standard Postgres schemas (`messagedb_`) |
+| **Schema Prefix** | `tsdb_` | Distinguish from standard Postgres schemas (`eventodb_`) |
 
 ---
 
@@ -47,7 +47,7 @@ Implement a **TimescaleDB driver** that uses **hypertables** with time-based par
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Database: messagedb_timescale_test                                     │
+│  Database: eventodb_timescale_test                                     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  public.schema_migrations      → Migration tracking                     │
 │  message_store.namespaces      → Namespace registry                     │
@@ -230,7 +230,7 @@ golang/
 │           ├── types.go                      # ChunkInfo types
 │           └── README.md                     # Driver documentation
 └── cmd/
-    └── messagedb/
+    └── eventodb/
         └── main.go                           # Added -db-type flag
 
 bin/
@@ -245,10 +245,10 @@ bin/
 
 ```bash
 # Standard PostgreSQL
-./messagedb -db-url "postgres://user:pass@host:5432/db"
+./eventodb -db-url "postgres://user:pass@host:5432/db"
 
 # TimescaleDB (explicit)
-./messagedb -db-url "postgres://user:pass@host:5432/db" -db-type timescale
+./eventodb -db-url "postgres://user:pass@host:5432/db" -db-type timescale
 ```
 
 ### CLI Flags
@@ -264,7 +264,7 @@ bin/
 ### Go API
 
 ```go
-import "github.com/message-db/message-db/internal/store/timescale"
+import "github.com/eventodb/eventodb/internal/store/timescale"
 
 // Connect
 db, _ := sql.Open("postgres", "postgres://...")
@@ -391,7 +391,7 @@ To migrate from standard PostgreSQL to TimescaleDB:
 
 ```sql
 -- Export from Postgres
-COPY (SELECT * FROM messagedb_myapp.messages ORDER BY global_position)
+COPY (SELECT * FROM eventodb_myapp.messages ORDER BY global_position)
 TO '/tmp/messages.csv' CSV HEADER;
 
 -- Import to TimescaleDB (after creating namespace)

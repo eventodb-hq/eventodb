@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Run external tests against MessageDB server
+# Run external tests against EventoDB server
 #
 # This script:
 # 1. Kills any existing test server on port 6789
@@ -12,7 +12,7 @@
 set -e
 
 PORT=6789
-SERVER_BIN="./golang/messagedb"
+SERVER_BIN="./dist/eventodb"
 TEST_DIR="./test_external"
 
 # Known tokens - these are deterministic and match what tests expect
@@ -24,7 +24,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}=== MessageDB External Tests ===${NC}"
+echo -e "${YELLOW}=== EventoDB External Tests ===${NC}"
 
 # Kill any existing server on the port
 if lsof -ti:$PORT > /dev/null 2>&1; then
@@ -36,7 +36,7 @@ fi
 # Build server if needed
 if [ ! -f "$SERVER_BIN" ]; then
     echo -e "${YELLOW}Building server...${NC}"
-    cd golang && go build -o messagedb ./cmd/messagedb && cd ..
+    cd golang cd golang && go build -o eventodb ./cmd/eventodbcd golang && go build -o eventodb ./cmd/eventodb CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb && cd ..
 fi
 
 # Start test server with known token
@@ -70,7 +70,7 @@ done
 # Run tests (with concurrency limited to avoid overwhelming the server)
 echo -e "${YELLOW}Running tests...${NC}"
 cd $TEST_DIR
-MESSAGEDB_URL="http://localhost:$PORT" bun test --max-concurrency=1
+EVENTODB_URL="http://localhost:$PORT" bun test --max-concurrency=1
 TEST_EXIT_CODE=$?
 
 if [ $TEST_EXIT_CODE -eq 0 ]; then

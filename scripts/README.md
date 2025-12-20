@@ -1,4 +1,4 @@
-# Message DB Profiling Scripts
+# EventoDB Profiling Scripts
 
 Consistent, repeatable profiling infrastructure for performance optimization work.
 
@@ -124,7 +124,7 @@ Configurable in `scripts/load-test.go`:
 ### Start Server with Profiling
 
 ```bash
-./bin/messagedb --test-mode --port 8080
+./bin/eventodb --test-mode --port 8080
 ```
 
 pprof endpoints are automatically available at:

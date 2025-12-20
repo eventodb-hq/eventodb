@@ -1,6 +1,6 @@
 # Performance Profiling Scripts
 
-This directory contains scripts for profiling MessageDB performance across different backends.
+This directory contains scripts for profiling EventoDB performance across different backends.
 
 ## Available Scripts
 
@@ -14,7 +14,7 @@ Profiles the Pebble key-value store backend.
 
 **What it does:**
 - Cleans up any existing Pebble data
-- Starts MessageDB server with Pebble backend
+- Starts EventoDB server with Pebble backend
 - Runs 30-second load test with 10 workers
 - Captures CPU, memory, and allocation profiles
 - Measures Pebble-specific metrics (disk usage, namespace count)
@@ -31,7 +31,7 @@ Profiles the Pebble key-value store backend.
   - `README.md` - Analysis guide
 
 **Environment Variables:**
-- `PEBBLE_DATA_DIR` - Pebble data directory (default: `/tmp/messagedb-pebble-profile`)
+- `PEBBLE_DATA_DIR` - Pebble data directory (default: `/tmp/eventodb-pebble-profile`)
 
 ### 2. `profile-baseline.sh` - Multi-Backend Profiling
 

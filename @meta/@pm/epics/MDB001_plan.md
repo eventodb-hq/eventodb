@@ -10,8 +10,8 @@
 - [ ] Create `migrations/embed.go` with embed directives
 - [ ] Create `migrations/metadata/postgres/001_namespace_registry.sql`
 - [ ] Create `migrations/metadata/sqlite/001_namespace_registry.sql`
-- [ ] Create `migrations/namespace/postgres/001_message_db.sql` (template with {{SCHEMA_NAME}})
-- [ ] Create `migrations/namespace/sqlite/001_message_db.sql`
+- [ ] Create `migrations/namespace/postgres/001_eventodb.sql` (template with {{SCHEMA_NAME}})
+- [ ] Create `migrations/namespace/sqlite/001_eventodb.sql`
 - [ ] Create `internal/migrate/migrate.go` with Migrator struct
 - [ ] Implement `AutoMigrate()` method
 - [ ] Implement `ApplyNamespaceMigration()` with template substitution
@@ -176,11 +176,11 @@ For **EACH** phase:
 ## File Structure
 
 ```
-messagedb-go/
+eventodb-go/
 ├── go.mod
 ├── go.sum
 ├── cmd/
-│   └── messagedb/
+│   └── eventodb/
 │       └── main.go                 # Server binary (later epic)
 ├── internal/
 │   ├── store/
@@ -208,9 +208,9 @@ messagedb-go/
 │   │       └── 001_namespace_registry.sql
 │   └── namespace/
 │       ├── postgres/
-│       │   └── 001_message_db.sql  # Template with {{SCHEMA_NAME}}
+│       │   └── 001_eventodb.sql  # Template with {{SCHEMA_NAME}}
 │       └── sqlite/
-│           └── 001_message_db.sql
+│           └── 001_eventodb.sql
 └── internal/store/
     ├── store_test.go               # Interface tests
     ├── postgres/

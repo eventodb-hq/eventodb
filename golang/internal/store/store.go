@@ -1,7 +1,7 @@
 // Package store provides a unified interface for message storage with support
 // for multiple backend implementations (Postgres and SQLite).
 //
-// The store implements a Message DB-compatible storage layer with physical namespace
+// The store implements a EventoDB-compatible storage layer with physical namespace
 // isolation, optimistic locking, category queries, and consumer group support.
 //
 // Basic usage:
@@ -123,7 +123,7 @@ type Store interface {
 	// Returns an error if the namespace doesn't exist.
 	GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error)
 
-	// Utility Functions (Message DB compatible)
+	// Utility Functions (EventoDB compatible)
 
 	// Category extracts the category name from a stream name.
 	//
@@ -156,10 +156,10 @@ type Store interface {
 	//   IsCategory("account-123") → false
 	IsCategory(name string) bool
 
-	// Hash64 computes a 64-bit hash compatible with Message DB.
+	// Hash64 computes a 64-bit hash compatible with EventoDB.
 	//
 	// Uses MD5 hash, takes first 8 bytes, converts to int64.
-	// Critical for consumer group compatibility with Message DB.
+	// Critical for consumer group compatibility with EventoDB.
 	Hash64(value string) int64
 
 	// Lifecycle
@@ -186,7 +186,7 @@ type Message struct {
 	ExpectedVersion *int64 // Expected stream version for optimistic locking
 }
 
-// StandardMetadata represents standard metadata fields (Message DB compatible)
+// StandardMetadata represents standard metadata fields (EventoDB compatible)
 type StandardMetadata struct {
 	CorrelationStreamName string `json:"correlationStreamName,omitempty"` // For category correlation filtering
 	// Other standard fields can be added here

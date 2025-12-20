@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/message-db/message-db/internal/api"
-	"github.com/message-db/message-db/internal/auth"
-	"github.com/message-db/message-db/internal/store"
-	"github.com/message-db/message-db/internal/store/pebble"
-	"github.com/message-db/message-db/internal/store/postgres"
-	"github.com/message-db/message-db/internal/store/sqlite"
+	"github.com/eventodb/eventodb/internal/api"
+	"github.com/eventodb/eventodb/internal/auth"
+	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/internal/store/pebble"
+	"github.com/eventodb/eventodb/internal/store/postgres"
+	"github.com/eventodb/eventodb/internal/store/sqlite"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"

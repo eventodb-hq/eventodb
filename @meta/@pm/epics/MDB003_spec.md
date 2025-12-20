@@ -9,7 +9,7 @@
 **Priority:** high
 **Depends On:** MDB002 (RPC API & Authentication)
 
-**Goal:** Establish comprehensive test coverage, performance validation, and production deployment capability for the MessageDB Go server.
+**Goal:** Establish comprehensive test coverage, performance validation, and production deployment capability for the EventoDB Go server.
 
 ## Architecture
 
@@ -23,7 +23,7 @@
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ MessageDB Server (test-mode enabled)                         │
+│ EventoDB Server (test-mode enabled)                         │
 │ - SQLite in-memory backend                                   │
 │ - Auto-namespace creation                                    │
 │ - All RPC methods exposed                                    │
@@ -58,7 +58,7 @@ test/
 ├── fixtures/
 │   └── test-data.json
 └── lib/
-    ├── client.ts               # MessageDB HTTP client
+    ├── client.ts               # EventoDB HTTP client
     └── helpers.ts              # Test utilities
 ```
 
@@ -92,7 +92,7 @@ test/
 **TypeScript Client Implementation:**
 ```typescript
 // test/lib/client.ts
-export class MessageDBClient {
+export class EventoDBClient {
   private token?: string;
   
   constructor(
@@ -118,7 +118,7 @@ export class MessageDBClient {
     });
     
     // Capture token from response header (test mode)
-    const newToken = response.headers.get('X-MessageDB-Token');
+    const newToken = response.headers.get('X-EventoDB-Token');
     if (newToken && !this.token) {
       this.token = newToken;
     }
@@ -176,11 +176,11 @@ export class MessageDBClient {
 ```typescript
 // test/tests/stream.test.ts
 import { test, expect, afterEach } from 'bun:test';
-import { startTestServer, MessageDBClient } from '../lib';
+import { startTestServer, EventoDBClient } from '../lib';
 
 test('write and read message', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   const writeResult = await client.writeMessage('account-123', {
     type: 'Opened',
@@ -199,7 +199,7 @@ test('write and read message', async () => {
 
 test('optimistic locking prevents conflicts', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   await client.writeMessage('account-1', {
     type: 'Opened',
@@ -230,7 +230,7 @@ test('optimistic locking prevents conflicts', async () => {
 // test/tests/category.test.ts
 test('consumer groups partition streams', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // Write to multiple streams
   await client.writeMessage('account-1', { type: 'Opened', data: {} });
@@ -260,7 +260,7 @@ test('consumer groups partition streams', async () => {
 
 test('compound IDs route to same consumer', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // Write to streams with compound IDs (same cardinal ID)
   await client.writeMessage('account-123+alice', { type: 'Opened', data: {} });
@@ -296,7 +296,7 @@ test('compound IDs route to same consumer', async () => {
 
 test('correlation filtering works', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // Write messages with correlation metadata
   await client.writeMessage('account-1', {
@@ -338,7 +338,7 @@ test('correlation filtering works', async () => {
 // test/tests/subscription.test.ts
 test('stream subscription receives pokes', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   const pokes: any[] = [];
   const subscription = client.subscribe('account-1', {
@@ -370,7 +370,7 @@ test('stream subscription receives pokes', async () => {
 // test/tests/util.test.ts
 test('category extraction', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   expect(await client.rpc('util.category', 'account-123')).toBe('account');
   expect(await client.rpc('util.category', 'account-123+456')).toBe('account');
@@ -381,7 +381,7 @@ test('category extraction', async () => {
 
 test('id extraction', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   expect(await client.rpc('util.id', 'account-123')).toBe('123');
   expect(await client.rpc('util.id', 'account-123+456')).toBe('123+456');
@@ -392,7 +392,7 @@ test('id extraction', async () => {
 
 test('cardinal id extraction', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   expect(await client.rpc('util.cardinalId', 'account-123')).toBe('123');
   expect(await client.rpc('util.cardinalId', 'account-123+456')).toBe('123');
@@ -403,7 +403,7 @@ test('cardinal id extraction', async () => {
 
 test('category check', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   expect(await client.rpc('util.isCategory', 'account')).toBe(true);
   expect(await client.rpc('util.isCategory', 'account-123')).toBe(false);
@@ -413,7 +413,7 @@ test('category check', async () => {
 
 test('hash64 consistency', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   const hash1 = await client.rpc('util.hash64', 'account-123');
   const hash2 = await client.rpc('util.hash64', 'account-123');
@@ -431,8 +431,8 @@ test('hash64 consistency', async () => {
 test('namespaces are isolated', async () => {
   const server = await startTestServer();
   
-  const client1 = new MessageDBClient(server.url);
-  const client2 = new MessageDBClient(server.url);
+  const client1 = new EventoDBClient(server.url);
+  const client2 = new EventoDBClient(server.url);
   
   // Write to first namespace (auto-created)
   await client1.writeMessage('account-123', { type: 'Opened', data: {} });
@@ -458,7 +458,7 @@ test('namespaces are isolated', async () => {
 // test/tests/concurrency.test.ts
 test('concurrent writes to different streams', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   const writes = Array.from({ length: 100 }, (_, i) =>
     client.writeMessage(`account-${i}`, {
@@ -476,20 +476,20 @@ test('concurrent writes to different streams', async () => {
 });
 ```
 
-#### Message DB Compatibility Tests
+#### EventoDB Compatibility Tests
 ```typescript
 // test/tests/compatibility.test.ts
-// These tests verify compatibility with Message DB reference implementation
+// These tests verify compatibility with EventoDB reference implementation
 
-test('hash64 matches Message DB', async () => {
+test('hash64 matches EventoDB', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
-  // Test vectors from Message DB
+  // Test vectors from EventoDB
   const testCases = [
     { input: 'account-123', expected: 'EXPECTED_HASH_FROM_MESSAGE_DB' },
     { input: 'order-456', expected: 'EXPECTED_HASH_FROM_MESSAGE_DB' },
-    // Add reference hashes from actual Message DB instance
+    // Add reference hashes from actual EventoDB instance
   ];
   
   for (const tc of testCases) {
@@ -500,11 +500,11 @@ test('hash64 matches Message DB', async () => {
   server.close();
 });
 
-test('consumer group assignment matches Message DB', async () => {
+test('consumer group assignment matches EventoDB', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
-  // Write test data matching Message DB test suite
+  // Write test data matching EventoDB test suite
   const streams = [
     'account-123', 'account-456', 'account-789',
     'account-123+alice', 'account-123+bob'
@@ -514,14 +514,14 @@ test('consumer group assignment matches Message DB', async () => {
     await client.writeMessage(stream, { type: 'Test', data: {} });
   }
   
-  // Verify consumer 0 of 2 gets same streams as Message DB
+  // Verify consumer 0 of 2 gets same streams as EventoDB
   const messages = await client.getCategory('account', {
     consumerGroup: { member: 0, size: 2 }
   });
   
   const streamNames = messages.map(m => m[1]);
   
-  // Verify against known Message DB behavior
+  // Verify against known EventoDB behavior
   // Streams with cardinal_id 123 should be together
   const has123 = streamNames.includes('account-123');
   const has123Alice = streamNames.includes('account-123+alice');
@@ -536,7 +536,7 @@ test('consumer group assignment matches Message DB', async () => {
 
 test('time format matches ISO 8601', async () => {
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   await client.writeMessage('test-1', { type: 'Test', data: {} });
   const messages = await client.getStream('test-1');
@@ -561,7 +561,7 @@ test('time format matches ISO 8601', async () => {
 // test/lib/helpers.ts
 export async function startTestServer(opts = {}) {
   const proc = Bun.spawn([
-    './messagedb',
+    './eventodb',
     'serve',
     '--test-mode',
     '--port=0',  // Random available port
@@ -619,16 +619,16 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o messagedb ./cmd/messagedb
+RUN go build -o eventodb ./cmd/eventodb
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
-COPY --from=builder /app/messagedb .
+COPY --from=builder /app/eventodb .
 
 EXPOSE 8080
-CMD ["./messagedb", "serve"]
+CMD ["./eventodb", "serve"]
 ```
 
 **Docker Compose Example:**
@@ -637,7 +637,7 @@ CMD ["./messagedb", "serve"]
 version: '3.8'
 
 services:
-  messagedb:
+  eventodb:
     build: .
     ports:
       - "8080:8080"
@@ -697,8 +697,8 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v1
       
-      - name: Build MessageDB server
-        run: go build -o messagedb ./cmd/messagedb
+      - name: Build EventoDB server
+        run: go build -o eventodb ./cmd/eventodb
       
       - name: Install test dependencies
         working-directory: ./test
@@ -708,7 +708,7 @@ jobs:
         working-directory: ./test
         run: bun test
         env:
-          MESSAGEDB_BIN: ../messagedb
+          MESSAGEDB_BIN: ../eventodb
   
   benchmark:
     runs-on: ubuntu-latest
@@ -733,7 +733,7 @@ docs/
 ├── README.md                   # Getting started
 ├── API.md                      # Complete API reference
 ├── DEPLOYMENT.md               # Production deployment guide
-├── MIGRATION.md                # Migrating from Message DB
+├── MIGRATION.md                # Migrating from EventoDB
 ├── PERFORMANCE.md              # Performance tuning
 └── examples/
     ├── basic-usage.md
@@ -746,7 +746,7 @@ docs/
 
 ### Phase 1: External Test Client (Day 1-2)
 - Set up Bun.js test environment
-- Implement TypeScript MessageDB client
+- Implement TypeScript EventoDB client
 - Create test server helper
 - Add test utilities and fixtures
 
@@ -791,7 +791,7 @@ docs/
 ## Acceptance Criteria
 
 ### AC-1: External Tests Pass
-- **GIVEN** MessageDB server running in test mode
+- **GIVEN** EventoDB server running in test mode
 - **WHEN** External test suite executes
 - **THEN** All tests pass (100% success rate)
 
@@ -813,15 +813,15 @@ docs/
 ### AC-5: Documentation Complete
 - **GIVEN** Documentation files
 - **WHEN** User follows guides
-- **THEN** Can successfully deploy and use MessageDB
+- **THEN** Can successfully deploy and use EventoDB
 
 ### AC-6: Namespace Isolation Verified
 - **GIVEN** Multiple concurrent tests
 - **WHEN** Tests run in parallel
 - **THEN** No data leakage between namespaces
 
-### AC-7: Message DB Compatibility Verified
-- **GIVEN** Reference data from Message DB
+### AC-7: EventoDB Compatibility Verified
+- **GIVEN** Reference data from EventoDB
 - **WHEN** Running compatibility tests
 - **THEN** Hash function produces identical results
 - **AND** Consumer group assignments match exactly
@@ -844,7 +844,7 @@ docs/
 ## Definition of Done
 
 - [ ] Bun.js test suite implemented
-- [ ] TypeScript MessageDB client working
+- [ ] TypeScript EventoDB client working
 - [ ] All stream operation tests passing
 - [ ] All category operation tests passing
 - [ ] Consumer group tests with compound IDs passing
@@ -853,7 +853,7 @@ docs/
 - [ ] SSE subscription tests passing
 - [ ] Namespace isolation tests passing
 - [ ] Concurrent operation tests passing
-- [ ] Message DB compatibility tests passing
+- [ ] EventoDB compatibility tests passing
 - [ ] Hash function compatibility verified
 - [ ] Consumer group assignment compatibility verified
 - [ ] Time format standardization verified
@@ -865,7 +865,7 @@ docs/
 - [ ] All CI jobs passing on every commit
 - [ ] API documentation complete (including utility functions)
 - [ ] Deployment guide complete
-- [ ] Migration guide from Message DB complete
+- [ ] Migration guide from EventoDB complete
 - [ ] Usage examples complete (including compound IDs)
 - [ ] Performance tuning guide complete
 - [ ] Ready for alpha release
@@ -908,4 +908,4 @@ docs/
 
 - ADR-003: External Test Suite with Bun.js
 - ADR-001: RPC-Style API Format
-- Message DB Test Suite: https://github.com/message-db/message-db/tree/master/test
+- EventoDB Test Suite: https://github.com/eventodb/eventodb/tree/master/test

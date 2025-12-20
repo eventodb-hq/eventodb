@@ -48,13 +48,13 @@
 │ message_store      │        │ metadata.db        │
 │ ├─ namespaces      │        │ default.db         │
 │                    │        │ tenant-a.db        │
-│ messagedb_default  │        └────────────────────┘
+│ eventodb_default  │        └────────────────────┘
 │ ├─ messages        │
 │ ├─ write_message() │
 │ ├─ hash_64()       │
 │ ├─ acquire_lock()  │
 │                    │
-│ messagedb_tenant_a │
+│ eventodb_tenant_a │
 │ ├─ messages        │
 │ ├─ write_message() │
 └────────────────────┘
@@ -104,13 +104,13 @@ CREATE INDEX messages_category ON "{{SCHEMA_NAME}}".messages (
   (metadata->>'correlationStreamName')
 );
 
--- Utility Functions (compatible with Message DB)
+-- Utility Functions (compatible with EventoDB)
 CREATE OR REPLACE FUNCTION "{{SCHEMA_NAME}}".hash_64(value VARCHAR) RETURNS BIGINT AS $$
 DECLARE
   _hash BIGINT;
 BEGIN
   -- Uses MD5, takes left 64 bits (8 bytes), converts to bigint
-  -- Compatible with Message DB hash implementation
+  -- Compatible with EventoDB hash implementation
   SELECT left('x' || md5(value), 17)::bit(64)::bigint INTO _hash;
   RETURN _hash;
 END;
@@ -234,7 +234,7 @@ type Store interface {
     GetNamespace(ctx context.Context, id string) (*Namespace, error)
     ListNamespaces(ctx context.Context) ([]*Namespace, error)
     
-    // Utility Functions (Message DB compatible)
+    // Utility Functions (EventoDB compatible)
     Category(streamName string) string
     ID(streamName string) string
     CardinalID(streamName string) string
@@ -256,7 +256,7 @@ type Message struct {
     Time           time.Time              // UTC timestamp (no timezone)
 }
 
-// Standard metadata fields (Message DB compatible)
+// Standard metadata fields (EventoDB compatible)
 type StandardMetadata struct {
     CorrelationStreamName string `json:"correlationStreamName,omitempty"` // For category correlation filtering
     // Other standard fields can be added here
@@ -294,7 +294,7 @@ type Namespace struct {
 }
 ```
 
-### FR-2: Utility Functions (Message DB Compatible)
+### FR-2: Utility Functions (EventoDB Compatible)
 
 ```go
 package store
@@ -346,9 +346,9 @@ func IsCategory(name string) bool {
     return !strings.Contains(name, "-")
 }
 
-// Hash64 computes a 64-bit hash compatible with Message DB
+// Hash64 computes a 64-bit hash compatible with EventoDB
 // Uses MD5, takes first 8 bytes, converts to int64
-// CRITICAL: Must produce identical results to Message DB for consumer group compatibility
+// CRITICAL: Must produce identical results to EventoDB for consumer group compatibility
 func Hash64(value string) int64 {
     hash := md5.Sum([]byte(value))
     // Take first 8 bytes of MD5 hash
@@ -468,7 +468,7 @@ func (s *PostgresStore) CreateNamespace(ctx context.Context, id, tokenHash, desc
     defer tx.Rollback()
     
     // 1. Generate schema name
-    schemaName := fmt.Sprintf("messagedb_%s", sanitize(id))
+    schemaName := fmt.Sprintf("eventodb_%s", sanitize(id))
     
     // 2. Create schema
     _, err := tx.ExecContext(ctx, fmt.Sprintf(`CREATE SCHEMA "%s"`, schemaName))
@@ -614,7 +614,7 @@ func (s *SQLiteStore) getOrCreateNamespaceDB(namespace string) (*sql.DB, error) 
     if s.testMode {
         connString = fmt.Sprintf("file:%s?mode=memory&cache=shared", namespace)
     } else {
-        connString = fmt.Sprintf("/tmp/messagedb-%s.db", namespace)
+        connString = fmt.Sprintf("/tmp/eventodb-%s.db", namespace)
     }
     
     // Open database
@@ -640,7 +640,7 @@ func (s *SQLiteStore) CreateNamespace(ctx context.Context, id, tokenHash, descri
     if s.testMode {
         dbPath = fmt.Sprintf("memory:%s", id)
     } else {
-        dbPath = fmt.Sprintf("/tmp/messagedb-%s.db", id)
+        dbPath = fmt.Sprintf("/tmp/eventodb-%s.db", id)
     }
     
     _, err := s.metadataDB.ExecContext(ctx,
@@ -691,7 +691,7 @@ func (s *SQLiteStore) DeleteNamespace(ctx context.Context, id string) error {
 
 Consumer groups partition streams across multiple consumers using deterministic hashing.
 
-**Algorithm (Message DB Compatible):**
+**Algorithm (EventoDB Compatible):**
 ```
 For each message in a category:
   1. Extract cardinal_id from stream_name
@@ -756,17 +756,17 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 ```
 
 **Critical Compatibility Notes:**
-1. Hash function MUST produce identical results to Message DB
+1. Hash function MUST produce identical results to EventoDB
 2. Cardinal ID extraction MUST handle compound IDs (`+` separator)
 3. Consumer assignment MUST be deterministic across restarts
-4. Test with Message DB reference data to verify compatibility
+4. Test with EventoDB reference data to verify compatibility
 
 ## Implementation Strategy
 
 ### Phase 1: Utility Functions & Hashing (2 days)
 - Implement Category, ID, CardinalID, IsCategory functions
 - Implement Hash64 with MD5-based algorithm
-- Test against Message DB reference data
+- Test against EventoDB reference data
 - Verify consumer group assignments match
 
 ### Phase 2: Migration System (2-3 days)
@@ -826,7 +826,7 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 ### AC-2: Namespace Creation
 - **GIVEN** Valid namespace ID and token
 - **WHEN** CreateNamespace is called
-- **THEN** Namespace schema/DB created with full Message DB structure
+- **THEN** Namespace schema/DB created with full EventoDB structure
 
 ### AC-3: Physical Isolation
 - **GIVEN** Multiple namespaces
@@ -875,7 +875,7 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 
 ### AC-12: Hash Function Compatible
 - **GIVEN** Same input value
-- **WHEN** Hash64 called in Go vs Message DB Postgres
+- **WHEN** Hash64 called in Go vs EventoDB Postgres
 - **THEN** Produces identical int64 result
 
 ### AC-13: Compound IDs with Consumer Groups
@@ -891,7 +891,7 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 ## Definition of Done
 
 - [ ] Utility functions implemented (Category, ID, CardinalID, IsCategory, Hash64)
-- [ ] Hash64 produces identical results to Message DB (verified with test data)
+- [ ] Hash64 produces identical results to EventoDB (verified with test data)
 - [ ] Migration system with AutoMigrate implemented
 - [ ] Metadata migrations for both backends
 - [ ] Namespace migrations with template support (includes utility functions)
@@ -913,7 +913,7 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 - [ ] Performance benchmarks meet targets
 - [ ] Code documented with comments
 - [ ] Integration tests passing
-- [ ] Compatibility with Message DB verified
+- [ ] Compatibility with EventoDB verified
 
 ## Performance Expectations
 
@@ -929,10 +929,10 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 
 - ❌ Clustering / Replication
 - ❌ Query optimization beyond indexes
-- ❌ Custom stored procedures (only Message DB functions)
+- ❌ Custom stored procedures (only EventoDB functions)
 - ❌ Schema versioning/migrations beyond initial
 - ❌ Backup/restore functionality
 - ❌ Cross-namespace queries
-- ❌ SQL condition parameter (security risk, skip this Message DB feature)
+- ❌ SQL condition parameter (security risk, skip this EventoDB feature)
 - ❌ Debug mode / NOTICE logging (can add later if needed)
 - ❌ Reporting views (can add as separate API endpoints later)

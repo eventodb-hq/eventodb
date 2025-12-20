@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/message-db/message-db/internal/api"
+	"github.com/eventodb/eventodb/internal/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

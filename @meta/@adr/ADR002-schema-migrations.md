@@ -8,7 +8,7 @@
 
 ## Problem Statement
 
-Current Message DB installation approach:
+Current EventoDB installation approach:
 
 ### Issues
 1. **Bash scripts everywhere**: `install.sh`, `update.sh`, multiple shell scripts
@@ -198,7 +198,7 @@ CREATE INDEX IF NOT EXISTS messages_category ON messages (
 
 ```bash
 # Just start the server
-messagedb serve
+eventodb serve
 
 # Output:
 # [MIGRATE] Checking schema...
@@ -210,7 +210,7 @@ messagedb serve
 
 **Optional status command:**
 ```bash
-messagedb migrate status
+eventodb migrate status
 
 # Output:
 # Version | Name              | Applied At
@@ -472,7 +472,7 @@ Response:
 
 ### 3. Dry Run
 ```bash
-messagedb migrate up --dry-run
+eventodb migrate up --dry-run
 # Shows what would be executed without applying
 ```
 
@@ -510,12 +510,12 @@ MESSAGEDB_DB_SSLMODE=disable
 
 **Or connection string:**
 ```bash
-messagedb migrate up --dsn="postgres://user:pass@localhost/message_store"
+eventodb migrate up --dsn="postgres://user:pass@localhost/message_store"
 ```
 
 **Or config file:**
 ```yaml
-# messagedb.yaml
+# eventodb.yaml
 database:
   host: localhost
   port: 5432
@@ -553,7 +553,7 @@ Pros:
 ### First-time Setup
 ```bash
 # 1. Start server (migrations run automatically)
-messagedb serve --backend=postgres
+eventodb serve --backend=postgres
 
 # Output:
 # [MIGRATE] Checking schema...
@@ -565,7 +565,7 @@ messagedb serve --backend=postgres
 
 ### SQLite Mode (for tests/dev)
 ```bash
-messagedb serve --backend=sqlite --db-path=./test.db
+eventodb serve --backend=sqlite --db-path=./test.db
 
 # Output:
 # [MIGRATE] Checking schema...
@@ -583,7 +583,7 @@ touch migrations/sqlite/003_add_statistics.sql
 # 2. Edit both files with appropriate SQL for each dialect
 
 # 3. Restart server - migration runs automatically
-messagedb serve
+eventodb serve
 ```
 
 ---
@@ -604,7 +604,7 @@ messagedb serve
 ## Startup Flow
 
 ```go
-// cmd/messagedb/main.go
+// cmd/eventodb/main.go
 func main() {
     // 1. Parse config (backend, connection string)
     cfg := loadConfig()

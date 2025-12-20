@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 // CreateNamespace creates a new namespace

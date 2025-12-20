@@ -8,7 +8,7 @@
 
 ## Decision
 
-Implement an **external test suite using Bun.js** that tests the MessageDB server as a black box via HTTP.
+Implement an **external test suite using Bun.js** that tests the EventoDB server as a black box via HTTP.
 
 ---
 
@@ -30,7 +30,7 @@ test/
 ├── fixtures/
 │   └── test-data.json
 └── lib/
-    ├── client.ts               # MessageDB HTTP client
+    ├── client.ts               # EventoDB HTTP client
     └── helpers.ts
 ```
 
@@ -44,12 +44,12 @@ Each test gets its own namespace → no conflicts, parallel execution.
 
 ```typescript
 import { test, afterEach } from 'bun:test';
-import { MessageDBClient } from './lib/client';
+import { EventoDBClient } from './lib/client';
 
 test('write and read message', async () => {
   // Server in test mode auto-creates namespace on first use
   const server = await startTestServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // First request auto-creates namespace and returns token
   const writeResult = await client.writeMessage('account-123', {
@@ -77,13 +77,13 @@ test('write and read message', async () => {
 
 ### 2. Test Mode with In-Memory SQLite
 
-Tests spawn MessageDB server with `--test-mode` flag.
+Tests spawn EventoDB server with `--test-mode` flag.
 
 ```typescript
 // lib/helpers.ts
 export async function startTestServer(opts = {}) {
   const proc = Bun.spawn([
-    './messagedb',
+    './eventodb',
     'serve',
     '--test-mode',     // Enables in-memory SQLite + auto-namespace creation
     '--port=0',        // Random port
@@ -102,7 +102,7 @@ export async function startTestServer(opts = {}) {
 **Test mode behavior:**
 1. **Backend:** SQLite in-memory (`:memory:`)
 2. **Auto-create namespaces:** First request creates namespace automatically
-3. **Token in response:** Server returns token in `X-MessageDB-Token` header
+3. **Token in response:** Server returns token in `X-EventoDB-Token` header
 4. **Cleanup supported:** Can delete namespaces via API
 5. **Data lost on shutdown:** Perfect for tests
 
@@ -121,7 +121,7 @@ export async function startTestServer(opts = {}) {
 ```typescript
 test('write message with expected version', async () => {
   const server = await startServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   await client.writeMessage('account-1', {
     type: 'Opened',
@@ -150,7 +150,7 @@ test('write message with expected version', async () => {
 ```typescript
 test('read category with consumer groups', async () => {
   const server = await startServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // Write to multiple streams in same category
   await client.writeMessage('account-1', { type: 'Opened', data: {} });
@@ -180,7 +180,7 @@ test('read category with consumer groups', async () => {
 ```typescript
 test('stream subscription receives pokes', async () => {
   const server = await startServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   const pokes: any[] = [];
   const subscription = client.subscribe('account-1', {
@@ -213,8 +213,8 @@ test('namespaces are isolated', async () => {
   const server = await startTestServer();
   
   // Each client auto-creates its own namespace on first request
-  const client1 = new MessageDBClient(server.url);
-  const client2 = new MessageDBClient(server.url);
+  const client1 = new EventoDBClient(server.url);
+  const client2 = new EventoDBClient(server.url);
   
   // Write to first namespace (auto-created)
   await client1.writeMessage('account-123', { type: 'Opened', data: {} });
@@ -244,7 +244,7 @@ test('namespaces are isolated', async () => {
 ```typescript
 test('concurrent writes to different streams', async () => {
   const server = await startServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // 100 concurrent writes to different streams
   const writes = Array.from({ length: 100 }, (_, i) =>
@@ -267,7 +267,7 @@ test('concurrent writes to different streams', async () => {
 
 test('concurrent writes to same stream with optimistic locking', async () => {
   const server = await startServer();
-  const client = new MessageDBClient(server.url);
+  const client = new EventoDBClient(server.url);
   
   // First write
   await client.writeMessage('account-1', { type: 'Opened', data: {} });
@@ -299,7 +299,7 @@ test('concurrent writes to same stream with optimistic locking', async () => {
 
 ```typescript
 // lib/client.ts
-export class MessageDBClient {
+export class EventoDBClient {
   private token?: string;
   
   constructor(
@@ -326,7 +326,7 @@ export class MessageDBClient {
     });
     
     // Capture token from response header (test mode)
-    const newToken = response.headers.get('X-MessageDB-Token');
+    const newToken = response.headers.get('X-EventoDB-Token');
     if (newToken && !this.token) {
       this.token = newToken;
     }
@@ -430,8 +430,8 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v1
       
-      - name: Build MessageDB server
-        run: go build -o messagedb ./cmd/messagedb
+      - name: Build EventoDB server
+        run: go build -o eventodb ./cmd/eventodb
       
       - name: Install test dependencies
         working-directory: ./test
@@ -441,7 +441,7 @@ jobs:
         working-directory: ./test
         run: bun test
         env:
-          MESSAGEDB_BIN: ../messagedb
+          MESSAGEDB_BIN: ../eventodb
 ```
 
 ---

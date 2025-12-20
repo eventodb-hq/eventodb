@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/message-db/message-db/internal/store"
+	"github.com/eventodb/eventodb/internal/store"
 )
 
 func TestWriteMessage_SingleStream(t *testing.T) {

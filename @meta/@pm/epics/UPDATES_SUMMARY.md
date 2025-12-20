@@ -1,11 +1,11 @@
 # Epic Specification Updates Summary
 
 **Date:** December 17, 2024  
-**Purpose:** Added missing Message DB compatibility features to ensure full feature parity
+**Purpose:** Added missing EventoDB compatibility features to ensure full feature parity
 
 ## Overview
 
-After analyzing the Message DB PostgreSQL codebase, I identified several critical features missing from the original specifications. This document summarizes all updates made to MDB001, MDB002, and MDB003.
+After analyzing the EventoDB PostgreSQL codebase, I identified several critical features missing from the original specifications. This document summarizes all updates made to MDB001, MDB002, and MDB003.
 
 ---
 
@@ -18,7 +18,7 @@ After analyzing the Message DB PostgreSQL codebase, I identified several critica
 - `ID(streamName)` - Extract ID portion from stream name  
 - `CardinalID(streamName)` - Extract cardinal ID (handles compound IDs)
 - `IsCategory(name)` - Check if name is a category (no ID part)
-- `Hash64(value)` - 64-bit hash compatible with Message DB
+- `Hash64(value)` - 64-bit hash compatible with EventoDB
 
 **Implementation Details:**
 ```go
@@ -30,7 +30,7 @@ CardinalID("account-123+456") → "123"  // Extracts part before '+'
 
 ---
 
-### ✅ Added: Hash Function (Message DB Compatible)
+### ✅ Added: Hash Function (EventoDB Compatible)
 
 **Algorithm:**
 ```go
@@ -41,7 +41,7 @@ func Hash64(value string) int64 {
 }
 ```
 
-**Why Critical:** Consumer group assignments MUST produce identical results to Message DB for data compatibility and migration scenarios.
+**Why Critical:** Consumer group assignments MUST produce identical results to EventoDB for data compatibility and migration scenarios.
 
 ---
 
@@ -123,7 +123,7 @@ For each message in category:
 
 **New Phase 1:** Utility Functions & Hashing (2 days)
 - Implement all utility functions
-- Test against Message DB reference data
+- Test against EventoDB reference data
 - Verify consumer group assignments match
 
 **Updated Phases:**
@@ -136,7 +136,7 @@ For each message in category:
 ### ✅ Added: New Acceptance Criteria
 
 - **AC-11:** Utility Functions Work
-- **AC-12:** Hash Function Compatible with Message DB
+- **AC-12:** Hash Function Compatible with EventoDB
 - **AC-13:** Compound IDs with Consumer Groups
 - **AC-14:** Advisory Locks Prevent Conflicts
 
@@ -146,10 +146,10 @@ For each message in category:
 
 Added items:
 - [ ] Utility functions implemented
-- [ ] Hash64 produces identical results to Message DB
+- [ ] Hash64 produces identical results to EventoDB
 - [ ] Consumer groups use cardinal_id
 - [ ] Compound ID support tested
-- [ ] Compatibility with Message DB verified
+- [ ] Compatibility with EventoDB verified
 
 ---
 
@@ -341,30 +341,30 @@ test('correlation filtering works', async () => {
 
 ---
 
-### ✅ Added: Message DB Compatibility Tests
+### ✅ Added: EventoDB Compatibility Tests
 
 **New Test Suite:**
 
 ```typescript
 // test/tests/compatibility.test.ts
 
-test('hash64 matches Message DB', ...)
-  // Test against reference hashes from Message DB
+test('hash64 matches EventoDB', ...)
+  // Test against reference hashes from EventoDB
 
-test('consumer group assignment matches Message DB', ...)
+test('consumer group assignment matches EventoDB', ...)
   // Verify identical consumer assignments
 
 test('time format matches ISO 8601', ...)
   // Verify time field format
 ```
 
-**Purpose:** Ensure compatibility with Message DB for migration scenarios.
+**Purpose:** Ensure compatibility with EventoDB for migration scenarios.
 
 ---
 
 ### ✅ Added: New Acceptance Criteria
 
-- **AC-7:** Message DB Compatibility Verified (hash & consumer groups)
+- **AC-7:** EventoDB Compatibility Verified (hash & consumer groups)
 - **AC-8:** Utility Functions Work
 - **AC-9:** Compound IDs Tested
 - **AC-10:** Time Format Standardized
@@ -377,12 +377,12 @@ Added items:
 - [ ] Consumer group tests with compound IDs passing
 - [ ] Correlation filtering tests passing
 - [ ] All utility function tests passing
-- [ ] Message DB compatibility tests passing
+- [ ] EventoDB compatibility tests passing
 - [ ] Hash function compatibility verified
 - [ ] Consumer group assignment compatibility verified
 - [ ] Time format standardization verified
 - [ ] API documentation includes utility functions
-- [ ] Migration guide from Message DB complete
+- [ ] Migration guide from EventoDB complete
 - [ ] Usage examples include compound IDs
 
 ---
@@ -393,7 +393,7 @@ Added items:
 
 1. **Utility Functions** - Stream name parsing (category, id, cardinal_id, is_category, hash64)
 2. **Compound ID Support** - Format: `category-cardinalId+compoundPart`
-3. **Hash Function** - MD5-based, compatible with Message DB
+3. **Hash Function** - MD5-based, compatible with EventoDB
 4. **Advisory Locks** - Category-level locking in Postgres
 5. **Correlation Metadata** - Standard `metadata.correlationStreamName` field
 6. **Default Values** - Documented defaults for batch sizes, positions
@@ -409,7 +409,7 @@ Added items:
 
 1. **Utility Function Tests** - Complete test coverage
 2. **Compound ID Tests** - Consumer group partitioning
-3. **Compatibility Tests** - Verification against Message DB reference data
+3. **Compatibility Tests** - Verification against EventoDB reference data
 4. **Correlation Tests** - Metadata filtering
 
 ---
@@ -418,10 +418,10 @@ Added items:
 
 These updates ensure:
 
-✅ **Full Message DB Compatibility** - Can migrate data from Message DB  
+✅ **Full EventoDB Compatibility** - Can migrate data from EventoDB  
 ✅ **Identical Consumer Groups** - Same stream assignments  
 ✅ **Hash Compatibility** - Same hash values for same inputs  
-✅ **API Parity** - All Message DB utility functions available  
+✅ **API Parity** - All EventoDB utility functions available  
 ✅ **Compound ID Support** - Advanced stream partitioning scenarios  
 
 ---
@@ -430,8 +430,8 @@ These updates ensure:
 
 1. **Review Updates** - Verify all changes align with project goals
 2. **Implementation** - Follow updated phase plans in each epic
-3. **Testing** - Add Message DB reference data for compatibility tests
-4. **Documentation** - Create migration guide from Message DB to this system
+3. **Testing** - Add EventoDB reference data for compatibility tests
+4. **Documentation** - Create migration guide from EventoDB to this system
 
 ---
 
