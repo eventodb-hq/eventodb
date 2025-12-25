@@ -3,7 +3,7 @@ project_name: eventodb
 
 before:
   hooks:
-    - cd golang && go mod tidy
+    - bash -c "cd golang && go mod tidy"
 
 release:
   github:
