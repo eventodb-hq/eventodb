@@ -29,8 +29,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 const (
-	version          = "1.4.0"
 	defaultPort      = 8080
 	defaultNamespace = "default"
 	shutdownTimeout  = 10 * time.Second
@@ -278,6 +283,21 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 }
 
 func main() {
+	// Handle version command before flag parsing
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "version", "--version", "-v":
+			if len(os.Args) > 2 && (os.Args[2] == "--full" || os.Args[2] == "--detailed") {
+				fmt.Printf("eventodb version %s\n", version)
+				fmt.Printf("commit: %s\n", commit)
+				fmt.Printf("built: %s\n", date)
+			} else {
+				fmt.Println(version)
+			}
+			return
+		}
+	}
+
 	// Parse command-line flags
 	port := flag.Int("port", defaultPort, "HTTP server port")
 	testMode := flag.Bool("test-mode", false, "Run in test mode (in-memory SQLite)")
