@@ -12,6 +12,7 @@ import (
 )
 
 // getTestDB creates a new database connection for testing
+// Skips the test if PostgreSQL is not available
 func getTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -27,12 +28,13 @@ func getTestDB(t *testing.T) *sql.DB {
 
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
+		t.Skipf("PostgreSQL not available: %v", err)
 	}
 
 	// Ping to verify connection
 	if err := db.Ping(); err != nil {
-		t.Fatalf("Failed to ping database: %v", err)
+		db.Close()
+		t.Skipf("PostgreSQL not available: %v", err)
 	}
 
 	return db
