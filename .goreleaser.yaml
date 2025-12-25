@@ -7,7 +7,7 @@ before:
 
 release:
   github:
-    owner: "eventodb"
+    owner: "eventodb-hq"
     name: "eventodb"
 
 builds:
