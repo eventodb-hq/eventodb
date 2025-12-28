@@ -65,7 +65,7 @@ defmodule EventodbKit.ConsumerTest do
     Ecto.Adapters.SQL.Sandbox.mode(EventodbKit.TestRepo, {:shared, self()})
 
     # Start consumer
-    consumer =
+    _consumer =
       start_supervised!({
         TestConsumer,
         [

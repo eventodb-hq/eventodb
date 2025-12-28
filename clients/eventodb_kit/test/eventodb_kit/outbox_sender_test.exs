@@ -23,7 +23,7 @@ defmodule EventodbKit.OutboxSenderTest do
     {:ok, outbox_id, _kit} = EventodbKit.stream_write(kit, stream, message)
 
     # Start sender and allow sandbox access
-    {:ok, sender} =
+    {:ok, _sender} =
       start_supervised!({
         EventodbKit.OutboxSender,
         [
