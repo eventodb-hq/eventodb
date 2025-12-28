@@ -8,6 +8,7 @@ EventodbKit sits on top of the lightweight [EventodbEx](../eventodb_ex) SDK and 
 - **Consumer Position Tracking** - Automatic position management per namespace/category/consumer
 - **Idempotency** - Built-in deduplication for producers and consumers
 - **Background Workers** - GenServer-based outbox sender and consumer
+- **Type-Safe Event Handling** - Integration with code-generated event schemas (see [CODEGEN_API.md](CODEGEN_API.md))
 
 ## Installation
 
@@ -54,6 +55,39 @@ end
 ```bash
 mix ecto.migrate
 ```
+
+## Quick Start
+
+### Type-Safe Events with Code Generation
+
+**For the best developer experience, use with generated event schemas:**
+
+```elixir
+# 1. Define your event registry (using generated schemas)
+defmodule MyApp.Events do
+  use EventodbKit.EventDispatcher
+  
+  register "UserCreated", MyApp.Events.UserCreated
+  register "OrderPlaced", MyApp.Events.OrderPlaced
+end
+
+# 2. Use in consumers with automatic validation
+defmodule MyApp.MyConsumer do
+  use EventodbKit.Consumer
+  
+  def handle_message(message, state) do
+    MyApp.Events.dispatch(message["type"], message["data"], &handle_event/2)
+  end
+  
+  defp handle_event(MyApp.Events.UserCreated, event) do
+    # event is validated struct with all fields
+    IO.puts("User: #{event.user_id}")
+    :ok
+  end
+end
+```
+
+**See [CODEGEN_API.md](CODEGEN_API.md) for complete code generation integration guide.**
 
 ## Usage
 

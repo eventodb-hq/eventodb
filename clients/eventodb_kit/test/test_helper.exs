@@ -6,7 +6,8 @@ Application.put_env(:eventodb_kit, EventodbKit.TestRepo,
   port: String.to_integer(System.get_env("POSTGRES_PORT", "5432")),
   database: "eventodb_kit_test",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: 10
+  pool_size: 10,
+  log: false
 )
 
 # Create database (ignore if already exists)

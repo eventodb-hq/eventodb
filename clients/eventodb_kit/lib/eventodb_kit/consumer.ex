@@ -157,16 +157,16 @@ defmodule EventodbKit.Consumer do
 
   defp filter_by_group(messages, group_member, group_size) do
     Enum.filter(messages, fn message ->
-      # Message format: [id, stream, type, data, global_position, metadata, time, stream_position]
-      [_id, stream, _type, _data, _gpos, _metadata, _time, _spos] = message
+      # Message format from server: [id, stream, type, stream_position, global_position, data, metadata, time]
+      [_id, stream, _type, _stream_pos, _gpos, _data, _metadata, _time] = message
       stream_hash = :erlang.phash2(stream)
       rem(stream_hash, group_size) == group_member
     end)
   end
 
   defp process_message(state, message) do
-    # Message format from EventodbEx: [id, stream, type, data, global_position, metadata, time, stream_position]
-    [event_id, stream, type, data, global_position, metadata, _time, _stream_position] = message
+    # Message format from server: [id, stream, type, stream_position, global_position, data, metadata, time]
+    [event_id, stream, type, _stream_position, global_position, data, metadata, _time] = message
 
     # Convert to map for handler
     message_map = %{
