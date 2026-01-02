@@ -87,6 +87,9 @@ get_admin_token() {
     # Extract from logs
     if [ -f /tmp/eventodb_elixir_kit_test.log ]; then
         grep "DEFAULT NAMESPACE TOKEN" /tmp/eventodb_elixir_kit_test.log | tail -1 | awk '{print $NF}' | sed 's/\x1b\[[0-9;]*m//g'
+    else
+        # Use default test token
+        echo "ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000"
     fi
 }
 
