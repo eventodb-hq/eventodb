@@ -10,6 +10,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Install dependencies if node_modules doesn't exist
+if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}→ Installing dependencies...${NC}"
+    npm install
+fi
+
 echo -e "${YELLOW}→ Building TypeScript...${NC}"
 npm run build
 

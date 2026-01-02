@@ -63,10 +63,10 @@ mkdir -p dist
 cd golang && CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb && cd ..
 echo -e "${GREEN}✓ Server built to dist/eventodb${NC}"
 
-# Start test server (SQLite with proper auth)
+# Start test server (SQLite with auth enforcement)
 echo -e "${YELLOW}→ Starting test server on port $PORT...${NC}"
 echo -e "${YELLOW}→ Admin token: $ADMIN_TOKEN${NC}"
-# Use SQLite with a temp data directory for testing
+# Use in-memory SQLite with explicit data-dir to enforce auth (not test-mode)
 TEST_DATA_DIR="/tmp/eventodb-sdk-test-$$"
 mkdir -p "$TEST_DATA_DIR"
 $SERVER_BIN -db-url "sqlite://:memory:" -data-dir "$TEST_DATA_DIR" -port $PORT -token "$ADMIN_TOKEN" > /tmp/eventodb-test.log 2>&1 &
