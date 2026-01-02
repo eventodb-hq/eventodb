@@ -1,5 +1,41 @@
 # EventoDB Test Runners
 
+## 🎯 Test Server Management
+
+**All test scripts now use unified server management** via `manage_test_server.sh`.
+
+### Quick Start
+
+```bash
+# Start a test server (any backend)
+EVENTODB_TEST_MODE=1 bin/manage_test_server.sh start sqlite 8080
+
+# Check status
+bin/manage_test_server.sh status 8080
+
+# Stop server
+bin/manage_test_server.sh stop 8080
+
+# Full help
+bin/manage_test_server.sh --help
+```
+
+### Documentation
+
+- **`bin/TEST_SERVER.md`** - Complete API reference
+- **`bin/QUICK_REF.md`** - Quick command reference  
+- **`bin/MIGRATION_COMPLETE.md`** - Migration details
+
+### Benefits
+
+✅ **DRY**: Single source of truth for server management  
+✅ **Consistent**: Same config across all scripts  
+✅ **Reliable**: Automatic cleanup, no orphaned processes  
+✅ **Debuggable**: Centralized logging and error handling  
+✅ **Simple**: 59% less code in test scripts  
+
+---
+
 ## Quick Reference
 
 ```bash

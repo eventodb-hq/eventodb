@@ -13,9 +13,12 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 SDK="${1:-all}"
 PORT=6789
-SERVER_BIN="./dist/eventodb"
+BACKEND="sqlite"
 EVENTODB_URL="http://localhost:$PORT"
 # Known admin token for default namespace (used for creating test namespaces)
 ADMIN_TOKEN="ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000"
@@ -50,54 +53,22 @@ echo -e "${BLUE}║   EventoDB SDK Test Runner            ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
-# Kill any existing server on the port
-if lsof -ti:$PORT > /dev/null 2>&1; then
-    echo -e "${YELLOW}→ Killing existing process on port $PORT...${NC}"
-    kill $(lsof -ti:$PORT) 2>/dev/null || true
-    sleep 1
-fi
-
-# Always build server to ensure we have the latest version
-echo -e "${YELLOW}→ Building EventoDB server...${NC}"
-mkdir -p dist
-cd golang && CGO_ENABLED=0 go build -o ../dist/eventodb ./cmd/eventodb && cd ..
-echo -e "${GREEN}✓ Server built to dist/eventodb${NC}"
-
-# Start test server (SQLite with auth enforcement)
-echo -e "${YELLOW}→ Starting test server on port $PORT...${NC}"
-echo -e "${YELLOW}→ Admin token: $ADMIN_TOKEN${NC}"
-# Use in-memory SQLite with explicit data-dir to enforce auth (not test-mode)
-TEST_DATA_DIR="/tmp/eventodb-sdk-test-$$"
-mkdir -p "$TEST_DATA_DIR"
-$SERVER_BIN -db-url "sqlite://:memory:" -data-dir "$TEST_DATA_DIR" -port $PORT -token "$ADMIN_TOKEN" > /tmp/eventodb-test.log 2>&1 &
-SERVER_PID=$!
-
 # Cleanup function
 cleanup() {
     echo ""
     echo -e "${YELLOW}→ Cleaning up...${NC}"
-    kill $SERVER_PID 2>/dev/null || true
-    rm -f /tmp/eventodb-test.log
-    rm -rf "$TEST_DATA_DIR" 2>/dev/null || true
+    "$SCRIPT_DIR/manage_test_server.sh" stop "$PORT" || true
 }
 trap cleanup EXIT
 
-# Wait for server to be ready
-echo -e "${YELLOW}→ Waiting for server to start...${NC}"
-for i in {1..30}; do
-    if curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Server ready at $EVENTODB_URL${NC}"
-        sleep 0.5
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        echo -e "${RED}✗ Server failed to start${NC}"
-        echo -e "${YELLOW}Server log:${NC}"
-        cat /tmp/eventodb-test.log
-        exit 1
-    fi
-    sleep 0.1
-done
+# Start test server
+echo -e "${YELLOW}→ Starting test server on port $PORT...${NC}"
+if "$SCRIPT_DIR/manage_test_server.sh" start "$BACKEND" "$PORT"; then
+    echo -e "${GREEN}✓ Server ready at $EVENTODB_URL${NC}"
+else
+    echo -e "${RED}✗ Server failed to start${NC}"
+    exit 1
+fi
 
 echo ""
 
