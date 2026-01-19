@@ -8,7 +8,8 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 echo "==> Building production image..."
-BUILD_OUTPUT=$(s3dock --log-level 3 build eventodb --platform linux/amd64 --dockerfile Dockerfile --context . 2>&1 | tee /dev/tty)
+BUILD_OUTPUT=$(s3dock --log-level 3 build eventodb --platform linux/amd64 --dockerfile Dockerfile --context . 2>&1)
+echo "$BUILD_OUTPUT"
 
 # Extract the image name from the build output
 # Looking for pattern: Successfully built <image_name>:<tag>
