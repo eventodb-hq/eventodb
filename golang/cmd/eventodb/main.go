@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -298,15 +299,15 @@ func main() {
 		}
 	}
 
-	// Parse command-line flags
-	port := flag.Int("port", defaultPort, "HTTP server port")
-	testMode := flag.Bool("test-mode", false, "Run in test mode (in-memory SQLite)")
-	defaultToken := flag.String("token", "", "Token for default namespace (if empty, one is generated)")
-	dbURL := flag.String("db-url", "", "Database URL (postgres://... or sqlite://filename.db)")
-	dataDir := flag.String("data-dir", "", "Data directory for SQLite namespace databases (required for sqlite)")
-	dbType := flag.String("db-type", "", "Database type override (use 'timescale' for TimescaleDB with postgres:// URL)")
-	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
-	logFormat := flag.String("log-format", "console", "Log format (json, console)")
+	// Parse command-line flags (with environment variable fallbacks)
+	port := flag.Int("port", getEnvInt("EVENTODB_PORT", defaultPort), "HTTP server port")
+	testMode := flag.Bool("test-mode", getEnvBool("EVENTODB_TEST_MODE", false), "Run in test mode (in-memory SQLite)")
+	defaultToken := flag.String("token", getEnv("EVENTODB_TOKEN", ""), "Token for default namespace (if empty, one is generated)")
+	dbURL := flag.String("db-url", getEnv("EVENTODB_DB_URL", ""), "Database URL (postgres://... or sqlite://filename.db)")
+	dataDir := flag.String("data-dir", getEnv("EVENTODB_DATA_DIR", ""), "Data directory for SQLite namespace databases (required for sqlite)")
+	dbType := flag.String("db-type", getEnv("EVENTODB_DB_TYPE", ""), "Database type override (use 'timescale' for TimescaleDB with postgres:// URL)")
+	logLevel := flag.String("log-level", getEnv("EVENTODB_LOG_LEVEL", "info"), "Log level (debug, info, warn, error)")
+	logFormat := flag.String("log-format", getEnv("EVENTODB_LOG_FORMAT", "console"), "Log format (json, console)")
 	flag.Parse()
 
 	// Initialize logger
@@ -493,4 +494,30 @@ func ensureDefaultNamespace(ctx context.Context, st interface {
 	}
 
 	return token, nil
+}
+
+// Environment variable helpers
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolVal, err := strconv.ParseBool(value); err == nil {
+			return boolVal
+		}
+	}
+	return defaultValue
 }
