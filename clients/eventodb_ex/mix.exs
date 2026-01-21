@@ -23,7 +23,7 @@ defmodule EventodbEx.MixProject do
 
   defp deps do
     [
-      {:req, "~> 0.4.0"},
+      {:req, "~> 0.4 or ~> 0.5 or ~> 0.6 or ~> 1.0"},
       {:jason, "~> 1.4"},
       {:mint, "~> 1.5"}
     ]
