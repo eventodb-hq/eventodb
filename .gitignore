@@ -12,3 +12,6 @@ golang/eventodb
 # Profiler
 profiles/
 dist/
+
+data/
+
