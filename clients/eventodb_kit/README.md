@@ -2,13 +2,13 @@
 
 Production-ready Elixir SDK for EventoDB with built-in resilience patterns.
 
-EventodbKit sits on top of the lightweight [EventodbEx](../eventodb_ex) SDK and provides:
+EventodbKit sits on top of the lightweight [EventodbEx](https://hexdocs.pm/eventodb_ex) SDK and provides:
 
 - **Outbox Pattern** - Local persistence of writes before sending to EventoDB
 - **Consumer Position Tracking** - Automatic position management per namespace/category/consumer
 - **Idempotency** - Built-in deduplication for producers and consumers
 - **Background Workers** - GenServer-based outbox sender and consumer
-- **Type-Safe Event Handling** - Integration with code-generated event schemas (see [CODEGEN_API.md](CODEGEN_API.md))
+- **Type-Safe Event Handling** - Integration with code-generated event schemas
 
 ## Installation
 
@@ -87,7 +87,7 @@ defmodule MyApp.MyConsumer do
 end
 ```
 
-**See [CODEGEN_API.md](CODEGEN_API.md) for complete code generation integration guide.**
+**See the repository's CODEGEN_API.md for complete code generation integration guide.**
 
 ## Usage
 
@@ -395,4 +395,10 @@ bin/run_elixir_kit_specs.sh
 
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE)
+
+## Links
+
+- [EventoDB GitHub](https://github.com/eventodb-hq/eventodb)
+- [EventodbEx (low-level client)](https://hexdocs.pm/eventodb_ex)
+- [EventoDB API Documentation](https://github.com/eventodb-hq/eventodb/blob/main/docs/API.md)
