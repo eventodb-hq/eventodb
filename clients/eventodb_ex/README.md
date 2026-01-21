@@ -362,10 +362,10 @@ Track related messages across streams:
 
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE)
 
 ## Links
 
-- [EventoDB API Documentation](../../docs/API.md)
-- [Test Specification](../../docs/SDK-TEST-SPEC.md)
+- [EventoDB GitHub](https://github.com/eventodb-hq/eventodb)
+- [EventoDB API Documentation](https://github.com/eventodb-hq/eventodb/blob/main/docs/API.md)
 - [Req HTTP Client](https://github.com/wojtekmach/req)
