@@ -20,10 +20,12 @@ package eventodb
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -31,6 +33,7 @@ import (
 type Client struct {
 	baseURL    string
 	token      string
+	namespace  string
 	httpClient *http.Client
 }
 
@@ -53,11 +56,26 @@ func NewClient(baseURL string, opts ...ClientOption) *Client {
 // ClientOption configures a Client
 type ClientOption func(*Client)
 
-// WithToken sets the authentication token
+// WithToken sets the authentication token and extracts namespace
 func WithToken(token string) ClientOption {
 	return func(c *Client) {
 		c.token = token
+		c.namespace, _ = ExtractNamespace(token)
 	}
+}
+
+// ExtractNamespace extracts and decodes the namespace from a token.
+// Token format: ns_<base64url(namespace)>_<signature>
+func ExtractNamespace(token string) (string, error) {
+	parts := strings.Split(token, "_")
+	if len(parts) != 3 || parts[0] != "ns" {
+		return "", fmt.Errorf("invalid token format")
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("invalid namespace encoding: %w", err)
+	}
+	return string(decoded), nil
 }
 
 // WithHTTPClient sets a custom HTTP client
@@ -97,6 +115,7 @@ func (c *Client) rpc(ctx context.Context, method string, args ...interface{}) (j
 	// Capture token from response (for test mode auto-creation)
 	if newToken := resp.Header.Get("X-EventoDB-Token"); newToken != "" && c.token == "" {
 		c.token = newToken
+		c.namespace, _ = ExtractNamespace(newToken)
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -121,6 +140,11 @@ func (c *Client) rpc(ctx context.Context, method string, args ...interface{}) (j
 // GetToken returns the current authentication token
 func (c *Client) GetToken() string {
 	return c.token
+}
+
+// GetNamespace returns the decoded namespace from the token
+func (c *Client) GetNamespace() string {
+	return c.namespace
 }
 
 // Stream Operations

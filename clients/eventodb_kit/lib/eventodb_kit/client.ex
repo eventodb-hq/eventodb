@@ -57,13 +57,19 @@ defmodule EventodbKit.Client do
     %{kit | eventodb_client: eventodb_client, namespace: extract_namespace(token)}
   end
 
-  # Extract namespace from token (format: ns_<namespace>_<signature>)
+  # Extract and decode namespace from token (format: ns_<base64url(namespace)>_<signature>)
   defp extract_namespace(nil), do: nil
 
   defp extract_namespace(token) when is_binary(token) do
     case String.split(token, "_", parts: 3) do
-      ["ns", namespace, _signature] -> namespace
-      _ -> nil
+      ["ns", encoded_namespace, _signature] ->
+        case Base.url_decode64(encoded_namespace, padding: false) do
+          {:ok, decoded} -> decoded
+          :error -> nil
+        end
+
+      _ ->
+        nil
     end
   end
 end

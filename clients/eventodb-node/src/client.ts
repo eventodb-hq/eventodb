@@ -18,18 +18,39 @@ import type {
 } from './types.js';
 
 /**
- * MessageDB Client
+ * Extracts and decodes the namespace from a token.
+ * Token format: ns_<base64url(namespace)>_<signature>
+ */
+function extractNamespace(token: string | undefined): string | undefined {
+  if (!token) return undefined;
+  const parts = token.split('_');
+  if (parts.length !== 3 || parts[0] !== 'ns') return undefined;
+  try {
+    // base64url decode (no padding)
+    const encoded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    // Handle padding
+    const padded = encoded + '='.repeat((4 - encoded.length % 4) % 4);
+    return atob(padded);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * EventoDB Client
  * 
- * Core client for interacting with MessageDB via RPC API.
+ * Core client for interacting with EventoDB via RPC API.
  */
 export class EventoDBClient {
   private token?: string;
+  private namespace?: string;
 
   constructor(
     private readonly baseURL: string,
     options: { token?: string } = {}
   ) {
     this.token = options.token;
+    this.namespace = extractNamespace(options.token);
   }
 
   /**
@@ -59,9 +80,10 @@ export class EventoDBClient {
     }
 
     // Capture token from response header (auto-creation in test mode)
-    const newToken = response.headers.get('X-MessageDB-Token');
+    const newToken = response.headers.get('X-EventoDB-Token') || response.headers.get('X-MessageDB-Token');
     if (newToken && !this.token) {
       this.token = newToken;
+      this.namespace = extractNamespace(newToken);
     }
 
     if (!response.ok) {
@@ -192,6 +214,13 @@ export class EventoDBClient {
    */
   getToken(): string | undefined {
     return this.token;
+  }
+
+  /**
+   * Get decoded namespace from token
+   */
+  getNamespace(): string | undefined {
+    return this.namespace;
   }
 
   // ===================

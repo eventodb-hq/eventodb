@@ -8,10 +8,11 @@ defmodule EventodbEx.Client do
   @type t :: %__MODULE__{
           base_url: String.t(),
           token: String.t() | nil,
+          namespace: String.t() | nil,
           req: Req.Request.t()
         }
 
-  defstruct [:base_url, :token, :req]
+  defstruct [:base_url, :token, :namespace, :req]
 
   @doc """
   Creates a new EventoDB client.
@@ -39,6 +40,7 @@ defmodule EventodbEx.Client do
     %__MODULE__{
       base_url: base_url,
       token: token,
+      namespace: extract_namespace(token),
       req: req
     }
   end
@@ -81,6 +83,12 @@ defmodule EventodbEx.Client do
   def get_token(%__MODULE__{token: token}), do: token
 
   @doc """
+  Gets the decoded namespace from the token.
+  """
+  @spec get_namespace(t()) :: String.t() | nil
+  def get_namespace(%__MODULE__{namespace: namespace}), do: namespace
+
+  @doc """
   Sets the authentication token and rebuilds the request.
   """
   @spec set_token(t(), String.t()) :: t()
@@ -92,7 +100,7 @@ defmodule EventodbEx.Client do
         retry: false
       )
 
-    %{client | token: token, req: req}
+    %{client | token: token, namespace: extract_namespace(token), req: req}
   end
 
   # Private helpers
@@ -120,4 +128,21 @@ defmodule EventodbEx.Client do
   end
 
   defp maybe_capture_token(client, _headers), do: client
+
+  # Extracts and decodes namespace from token.
+  # Token format: ns_<base64url(namespace)>_<signature>
+  defp extract_namespace(nil), do: nil
+
+  defp extract_namespace(token) when is_binary(token) do
+    case String.split(token, "_", parts: 3) do
+      ["ns", encoded_namespace, _signature] ->
+        case Base.url_decode64(encoded_namespace, padding: false) do
+          {:ok, decoded} -> decoded
+          :error -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
 end

@@ -2,6 +2,8 @@ defmodule EventodbKit.OutboxSender do
   @moduledoc """
   Background worker that sends unsent outbox messages to EventoDB.
   Runs as a singleton using Chosen.
+
+  The namespace is automatically extracted from the token - no need to pass it separately.
   """
 
   use GenServer
@@ -17,7 +19,6 @@ defmodule EventodbKit.OutboxSender do
 
   @impl true
   def init(opts) do
-    namespace = Keyword.fetch!(opts, :namespace)
     base_url = Keyword.fetch!(opts, :base_url)
     token = Keyword.fetch!(opts, :token)
     repo = Keyword.fetch!(opts, :repo)
@@ -25,6 +26,13 @@ defmodule EventodbKit.OutboxSender do
     batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
 
     eventodb_client = EventodbEx.Client.new(base_url, token: token)
+
+    # Extract namespace from token (decoded plaintext)
+    namespace = EventodbEx.Client.get_namespace(eventodb_client)
+
+    if is_nil(namespace) do
+      raise ArgumentError, "Could not extract namespace from token. Token must be in format: ns_<base64url(namespace)>_<signature>"
+    end
 
     state = %{
       namespace: namespace,

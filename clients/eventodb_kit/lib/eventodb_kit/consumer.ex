@@ -5,6 +5,8 @@ defmodule EventodbKit.Consumer do
   Consumers automatically track position and handle idempotency.
   They run as singletons using Chosen.
 
+  The namespace is automatically extracted from the token - no need to pass it separately.
+
   ## Example
 
       defmodule MyApp.PartnershipConsumer do
@@ -17,11 +19,10 @@ defmodule EventodbKit.Consumer do
         @impl EventodbKit.Consumer
         def init(opts) do
           {:ok, %{
-            namespace: "analytics",
             category: "partnership",
             consumer_id: "singleton",
             base_url: "http://localhost:8080",
-            token: System.get_env("ANALYTICS_TOKEN"),
+            token: System.get_env("ANALYTICS_TOKEN"),  # namespace extracted from token
             repo: MyApp.Repo,
             poll_interval: 1_000,
             batch_size: 100
@@ -77,7 +78,6 @@ defmodule EventodbKit.Consumer do
         consumer_state
       end
 
-    namespace = Map.fetch!(consumer_state, :namespace)
     category = Map.fetch!(consumer_state, :category)
     consumer_id = Map.fetch!(consumer_state, :consumer_id)
     base_url = Map.fetch!(consumer_state, :base_url)
@@ -86,10 +86,17 @@ defmodule EventodbKit.Consumer do
     poll_interval = Map.get(consumer_state, :poll_interval, @default_poll_interval)
     batch_size = Map.get(consumer_state, :batch_size, @default_batch_size)
 
+    eventodb_client = EventodbEx.Client.new(base_url, token: token)
+
+    # Extract namespace from token (decoded plaintext)
+    namespace = EventodbEx.Client.get_namespace(eventodb_client)
+
+    if is_nil(namespace) do
+      raise ArgumentError, "Could not extract namespace from token. Token must be in format: ns_<base64url(namespace)>_<signature>"
+    end
+
     # Load current position
     position = Position.load(repo, namespace, category, consumer_id)
-
-    eventodb_client = EventodbEx.Client.new(base_url, token: token)
 
     state = %{
       module: module,
