@@ -66,7 +66,7 @@ defmodule EventodbKit.Outbox do
         limit: ^batch_size
       )
 
-    repo.all(query)
+    repo.all(query, log: EventodbKit.Config.log_sql?())
   end
 
   @doc """

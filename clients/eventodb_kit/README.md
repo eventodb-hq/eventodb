@@ -360,6 +360,20 @@ Tracks processed events for idempotency:
 
 ## Configuration
 
+### General Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `:log_sql` | `false` | Enable SQL query logging for debugging |
+
+```elixir
+# config/config.exs
+config :eventodb_kit, :log_sql, false  # default, quiet mode
+
+# config/dev.exs (for debugging)
+config :eventodb_kit, :log_sql, true
+```
+
 ### Outbox Sender Options
 
 - `:namespace` - Namespace to process (required)
