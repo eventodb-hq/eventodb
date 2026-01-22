@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-01-22
+
+### Added
+
+- `Client.get_namespace/1` - returns decoded plaintext namespace from token
+- `namespace` field in Client struct - cached decoded namespace
+
+### Changed
+
+- Namespace is now automatically decoded from base64url when client is created
+- `Client.set_token/2` now also updates the cached namespace
+
 ## [0.1.0] - 2024-01-21
 
 ### Added
