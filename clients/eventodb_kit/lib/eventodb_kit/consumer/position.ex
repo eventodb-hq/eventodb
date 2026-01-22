@@ -8,7 +8,7 @@ defmodule EventodbKit.Consumer.Position do
 
   @doc """
   Loads the current position for a consumer.
-  Returns 0 if no position is found.
+  Returns nil if no position is found (fresh consumer).
   """
   def load(repo, namespace, category, consumer_id) do
     query =
@@ -20,7 +20,7 @@ defmodule EventodbKit.Consumer.Position do
       )
 
     case repo.one(query) do
-      nil -> 0
+      nil -> nil
       position -> position.position
     end
   end

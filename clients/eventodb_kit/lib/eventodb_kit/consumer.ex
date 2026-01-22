@@ -133,8 +133,12 @@ defmodule EventodbKit.Consumer do
   end
 
   defp poll_and_process(state) do
+    # state.position is the last processed position (nil if none)
+    # EventoDB returns events starting AT position (inclusive), so we need position + 1
+    fetch_position = if state.position, do: state.position + 1, else: 0
+
     opts = %{
-      position: state.position,
+      position: fetch_position,
       batch_size: state.batch_size
     }
 

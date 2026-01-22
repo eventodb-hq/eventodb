@@ -97,9 +97,71 @@ defmodule EventodbKit.ConsumerTest do
     position = Position.load(EventodbKit.TestRepo, kit.namespace, "partnership", "consumer-1")
     assert position == 100
 
-    # Load non-existent position (should return 0)
+    # Load non-existent position (should return nil for fresh consumer)
     position2 = Position.load(EventodbKit.TestRepo, kit.namespace, "partnership", "consumer-2")
-    assert position2 == 0
+    assert position2 == nil
+  end
+
+  test "position semantics: fresh consumer starts at position 0", %{kit: kit} do
+    # Fresh consumer has no position saved
+    position = Position.load(EventodbKit.TestRepo, kit.namespace, "test-category", "fresh-consumer")
+    assert position == nil
+
+    # When position is nil, consumer should fetch from position 0 (start of stream)
+    # This is handled in poll_and_process: fetch_position = if state.position, do: state.position + 1, else: 0
+    fetch_position = if position, do: position + 1, else: 0
+    assert fetch_position == 0
+  end
+
+  test "position semantics: after processing event, fetch starts after last position", %{kit: kit} do
+    # Simulate: consumer processed event at global_position 5
+    Position.save(EventodbKit.TestRepo, kit.namespace, "test-category", "test-consumer", 5)
+
+    # Load saved position - this is the LAST PROCESSED position
+    position = Position.load(EventodbKit.TestRepo, kit.namespace, "test-category", "test-consumer")
+    assert position == 5
+
+    # When fetching, we need position + 1 to get events AFTER the last processed one
+    # EventoDB's position parameter is inclusive, so position=5 would re-fetch the same event
+    fetch_position = if position, do: position + 1, else: 0
+    assert fetch_position == 6
+  end
+
+  test "position semantics: processes each event exactly once", %{kit: kit, token: token} do
+    eventodb_client = kit.eventodb_client
+
+    # Write 3 events to streams in "postest" category
+    # Category is derived from stream name prefix before the hyphen
+    {:ok, _, _} = EventodbEx.stream_write(eventodb_client, "postest-1", %{type: "Event1", data: %{}})
+    {:ok, _, _} = EventodbEx.stream_write(eventodb_client, "postest-2", %{type: "Event2", data: %{}})
+    {:ok, _, _} = EventodbEx.stream_write(eventodb_client, "postest-3", %{type: "Event3", data: %{}})
+
+    Ecto.Adapters.SQL.Sandbox.mode(EventodbKit.TestRepo, {:shared, self()})
+
+    # Start consumer
+    _consumer =
+      start_supervised!({
+        TestConsumer,
+        [
+          namespace: kit.namespace,
+          category: "postest",
+          consumer_id: "position-test-consumer",
+          base_url: base_url(),
+          token: token,
+          repo: EventodbKit.TestRepo,
+          poll_interval: 50,
+          batch_size: 10,
+          test_pid: self()
+        ]
+      })
+
+    # Should receive exactly 3 messages
+    assert_receive {:message_received, %{"type" => "Event1"}}, 500
+    assert_receive {:message_received, %{"type" => "Event2"}}, 500
+    assert_receive {:message_received, %{"type" => "Event3"}}, 500
+
+    # Wait a bit for additional poll cycles - should NOT receive duplicates
+    refute_receive {:message_received, _}, 200
   end
 
   test "prevents duplicate processing", %{kit: kit} do
