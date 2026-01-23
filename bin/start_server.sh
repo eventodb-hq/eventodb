@@ -37,7 +37,12 @@ echo "  Data dir: ./data"
 echo ""
 
 # Use a fixed token for stable namespace across restarts
-FIXED_TOKEN="ns_ZGVmYXVsdA_4fbfef0ff8b8f25e4e26c294a3c03500c954adba32b0bfefc43853679dd7a700"
+#FIXED_TOKEN="ns_ZGVmYXVsdA_4fbfef0ff8b8f25e4e26c294a3c03500c954adba32b0bfefc43853679dd7a700"
+FIXED_TOKEN="ns_ZGVmYXVsdA_0000000000000000000000000000000000000000000000000000000000000000"
+
+
+
+
 
 ./dist/eventodb \
     --db-url="sqlite://eventodb.db" \
