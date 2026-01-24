@@ -193,9 +193,11 @@ defmodule EventodbKit.SubscriptionHubTest do
       wait_for_state(hub, :connected)
       assert SubscriptionHub.status(hub) == :connected
 
+      # Note: after :sse_error, hub goes to :disconnected then immediately
+      # schedules reconnect (delay 0), so it may already be back in :connecting
       send(hub, {:sse_error, :closed})
-      wait_for_state(hub, :disconnected)
-      assert SubscriptionHub.status(hub) == :disconnected
+      status = SubscriptionHub.status(hub)
+      assert status in [:disconnected, :connecting]
     end
   end
 
