@@ -158,6 +158,11 @@ defmodule EventodbKit.SubscriptionHub.Core do
     {:connecting, data, [{:demonitor, ref}]}
   end
 
+  # Ignore SSE errors while connecting (we'll get subscription_failed instead)
+  def handle_event(:connecting, data, {:sse_error, _error}) do
+    {:connecting, data, []}
+  end
+
   # ==========================================================================
   # State: :connected
   # ==========================================================================
@@ -292,6 +297,11 @@ defmodule EventodbKit.SubscriptionHub.Core do
 
   def handle_event(:disconnected, data, {:status, from}) do
     {:disconnected, data, [{:reply, from, :disconnected}]}
+  end
+
+  # Ignore SSE errors while disconnected (stale errors from previous connection)
+  def handle_event(:disconnected, data, {:sse_error, _error}) do
+    {:disconnected, data, []}
   end
 
   # ==========================================================================

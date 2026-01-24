@@ -82,7 +82,27 @@ defmodule EventodbEx.Subscription do
         {:stop, :normal, state}
 
       :unknown ->
-        {:noreply, state}
+        # Check for TCP close messages that Mint doesn't handle
+        case message do
+          {:tcp_closed, _} ->
+            if state.on_error, do: state.on_error.(:tcp_closed)
+            {:stop, :normal, state}
+
+          {:ssl_closed, _} ->
+            if state.on_error, do: state.on_error.(:ssl_closed)
+            {:stop, :normal, state}
+
+          {:tcp_error, _, reason} ->
+            if state.on_error, do: state.on_error.({:tcp_error, reason})
+            {:stop, :normal, state}
+
+          {:ssl_error, _, reason} ->
+            if state.on_error, do: state.on_error.({:ssl_error, reason})
+            {:stop, :normal, state}
+
+          _ ->
+            {:noreply, state}
+        end
     end
   end
 
@@ -123,6 +143,8 @@ defmodule EventodbEx.Subscription do
   end
 
   defp handle_response({:done, _ref}, state) do
+    # Connection closed by server - notify via on_error callback
+    if state.on_error, do: state.on_error.(:connection_closed)
     {:stop, :normal, state}
   end
 
