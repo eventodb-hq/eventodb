@@ -13,4 +13,6 @@ if config_env() == :test do
     log: false
 
   config :eventodb_kit, ecto_repos: [EventodbKit.TestRepo]
+
+
 end

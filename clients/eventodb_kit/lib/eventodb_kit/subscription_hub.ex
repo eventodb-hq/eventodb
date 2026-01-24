@@ -177,6 +177,11 @@ defmodule EventodbKit.SubscriptionHub do
     Enum.reduce(effects, shell_data, &execute_effect/2)
   end
 
+  defp execute_effect({:start_subscription, nil}, shell_data) do
+    # Skip subscription when kit_fn is nil (test mode)
+    shell_data
+  end
+
   defp execute_effect({:start_subscription, kit_fn}, shell_data) do
     hub_pid = self()
 

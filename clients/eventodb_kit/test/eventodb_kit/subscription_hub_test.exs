@@ -205,11 +205,14 @@ defmodule EventodbKit.SubscriptionHubTest do
 
   defp start_hub!(opts \\ []) do
     defaults = [
-      kit_fn: fn -> mock_kit() end,
+      # Use nil kit_fn to skip real subscription - tests inject events manually
+      kit_fn: nil,
       fallback_poll_interval: 5_000,
       health_check_interval: 30_000,
       reconnect_base_delay: 1_000,
-      reconnect_max_delay: 30_000
+      reconnect_max_delay: 30_000,
+      # Suppress logs in unit tests
+      quiet: true
     ]
 
     opts = Keyword.merge(defaults, opts)
@@ -220,16 +223,6 @@ defmodule EventodbKit.SubscriptionHubTest do
 
     {:ok, pid} = SubscriptionHub.start_link(opts)
     pid
-  end
-
-  defp mock_kit do
-    # Return a struct that looks like EventodbKit.Client
-    %{
-      eventodb_client: %{
-        base_url: "http://localhost:8080",
-        token: "test_token"
-      }
-    }
   end
 
   defp wait_for_state(hub, expected_state, timeout \\ 500) do

@@ -62,7 +62,8 @@ defmodule EventodbKit.SubscriptionHub.Core do
       fallback_poll_interval: 5_000,
       health_check_interval: 30_000,
       reconnect_base_delay: 1_000,
-      reconnect_max_delay: 30_000
+      reconnect_max_delay: 30_000,
+      quiet: false
     },
     now_fn: &__MODULE__.system_now/0
   ]
@@ -77,7 +78,8 @@ defmodule EventodbKit.SubscriptionHub.Core do
       fallback_poll_interval: Keyword.get(opts, :fallback_poll_interval, 5_000),
       health_check_interval: Keyword.get(opts, :health_check_interval, 30_000),
       reconnect_base_delay: Keyword.get(opts, :reconnect_base_delay, 1_000),
-      reconnect_max_delay: Keyword.get(opts, :reconnect_max_delay, 30_000)
+      reconnect_max_delay: Keyword.get(opts, :reconnect_max_delay, 30_000),
+      quiet: Keyword.get(opts, :quiet, false)
     }
 
     %__MODULE__{
@@ -106,10 +108,12 @@ defmodule EventodbKit.SubscriptionHub.Core do
         ""
       end
 
-    effects = [
-      {:log, :info, "[SubscriptionHub] Connecting to EventoDB#{attempt_msg}..."},
-      {:start_subscription, data.kit_fn}
-    ]
+    effects =
+      [
+        {:log, :info, "[SubscriptionHub] Connecting to EventoDB#{attempt_msg}..."},
+        {:start_subscription, data.kit_fn}
+      ]
+      |> maybe_quiet(data)
 
     {:connecting, data, effects}
   end
@@ -117,9 +121,9 @@ defmodule EventodbKit.SubscriptionHub.Core do
   def handle_event(:connecting, data, {:subscription_started, ref}) do
     data = %{data | subscription_ref: ref, reconnect_attempts: 0, last_poke_at: data.now_fn.()}
 
-    effects = [
-      {:log, :info, "[SubscriptionHub] ✓ Connected to EventoDB - SSE subscription active"}
-    ]
+    effects =
+      [{:log, :info, "[SubscriptionHub] ✓ Connected to EventoDB - SSE subscription active"}]
+      |> maybe_quiet(data)
 
     {:connected, data, effects}
   end
@@ -129,11 +133,12 @@ defmodule EventodbKit.SubscriptionHub.Core do
     data = %{data | reconnect_attempts: data.reconnect_attempts + 1}
     delay_sec = Float.round(delay / 1000, 1)
 
-    effects = [
-      {:log, :warning,
-       "[SubscriptionHub] Connection failed: #{format_error(reason)} - retrying in #{delay_sec}s"},
-      {:schedule, :reconnect, delay}
-    ]
+    effects =
+      [
+        {:log, :warning, "[SubscriptionHub] Connection failed: #{format_error(reason)} - retrying in #{delay_sec}s"},
+        {:schedule, :reconnect, delay}
+      ]
+      |> maybe_quiet(data)
 
     {:disconnected, data, effects}
   end
@@ -188,12 +193,14 @@ defmodule EventodbKit.SubscriptionHub.Core do
   end
 
   def handle_event(:connected, data, {:sse_error, error}) do
-    effects = [
-      {:log, :warning, "[SubscriptionHub] SSE connection lost: #{format_error(error)}"},
-      {:kill_subscription, data.subscription_ref},
-      {:cancel_timer, :health_check},
-      {:schedule, :reconnect, 0}
-    ]
+    effects =
+      [
+        {:log, :warning, "[SubscriptionHub] SSE connection lost: #{format_error(error)}"},
+        {:kill_subscription, data.subscription_ref},
+        {:cancel_timer, :health_check},
+        {:schedule, :reconnect, 0}
+      ]
+      |> maybe_quiet(data)
 
     {:disconnected, data, effects}
   end
@@ -206,12 +213,13 @@ defmodule EventodbKit.SubscriptionHub.Core do
     if silence > threshold do
       silence_sec = Float.round(silence / 1000, 1)
 
-      effects = [
-        {:log, :warning,
-         "[SubscriptionHub] No activity for #{silence_sec}s - connection may be dead, reconnecting"},
-        {:kill_subscription, data.subscription_ref},
-        {:schedule, :reconnect, 0}
-      ]
+      effects =
+        [
+          {:log, :warning, "[SubscriptionHub] No activity for #{silence_sec}s - connection may be dead, reconnecting"},
+          {:kill_subscription, data.subscription_ref},
+          {:schedule, :reconnect, 0}
+        ]
+        |> maybe_quiet(data)
 
       {:disconnected, data, effects}
     else
@@ -256,10 +264,12 @@ defmodule EventodbKit.SubscriptionHub.Core do
   def handle_event(:disconnected, data, :enter) do
     poll_sec = Float.round(data.config.fallback_poll_interval / 1000, 1)
 
-    effects = [
-      {:log, :info, "[SubscriptionHub] Using fallback polling (every #{poll_sec}s)"},
-      {:schedule, :fallback_poll, data.config.fallback_poll_interval}
-    ]
+    effects =
+      [
+        {:log, :info, "[SubscriptionHub] Using fallback polling (every #{poll_sec}s)"},
+        {:schedule, :fallback_poll, data.config.fallback_poll_interval}
+      ]
+      |> maybe_quiet(data)
 
     {:disconnected, data, effects}
   end
@@ -416,4 +426,8 @@ defmodule EventodbKit.SubscriptionHub.Core do
   defp format_error(error) when is_binary(error), do: error
   defp format_error(error) when is_atom(error), do: Atom.to_string(error)
   defp format_error(error), do: inspect(error)
+
+  # Filter out log effects when in quiet mode
+  defp maybe_quiet(effects, %{config: %{quiet: true}}), do: Enum.reject(effects, &match?({:log, _, _}, &1))
+  defp maybe_quiet(effects, _data), do: effects
 end
