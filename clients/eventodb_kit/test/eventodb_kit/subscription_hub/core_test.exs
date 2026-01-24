@@ -109,7 +109,8 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
       assert data.subscription_ref == :sub_ref
       assert data.reconnect_attempts == 0
       assert data.last_poke_at == 1000
-      assert effects == []
+      # Only log effects expected
+      assert Enum.all?(effects, fn {type, _, _} -> type == :log end)
     end
 
     test "subscription_started resets reconnect_attempts" do
@@ -127,7 +128,7 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
 
       assert state == :disconnected
       assert data.reconnect_attempts == 1
-      assert [{:schedule, :reconnect, 1_000}] = effects
+      assert has_effect?(effects, {:schedule, :reconnect, 1_000})
     end
 
     test "subscription_failed increments reconnect_attempts" do
@@ -334,7 +335,7 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
 
       {:disconnected, _data, effects} = Core.handle_event(:disconnected, data, :enter)
 
-      assert [{:schedule, :fallback_poll, 5_000}] = effects
+      assert has_effect?(effects, {:schedule, :fallback_poll, 5_000})
     end
 
     test "reconnect transitions to :connecting" do
@@ -424,10 +425,10 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
     test "first failure uses base delay" do
       data = new_core()
 
-      {_, data, [{:schedule, :reconnect, delay}]} =
+      {_, data, effects} =
         Core.handle_event(:connecting, data, {:subscription_failed, :error})
 
-      assert delay == 1_000
+      assert {:schedule, :reconnect, 1_000} = find_effect(effects, :schedule)
       assert data.reconnect_attempts == 1
     end
 
@@ -435,37 +436,37 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
       data = new_core()
 
       # 1st failure: 1000ms
-      {_, data, [{:schedule, :reconnect, delay1}]} =
+      {_, data, effects1} =
         Core.handle_event(:connecting, data, {:subscription_failed, :error})
 
-      assert delay1 == 1_000
+      assert {:schedule, :reconnect, 1_000} = find_effect(effects1, :schedule)
 
       # 2nd failure: 2000ms
-      {_, data, [{:schedule, :reconnect, delay2}]} =
+      {_, data, effects2} =
         Core.handle_event(:connecting, data, {:subscription_failed, :error})
 
-      assert delay2 == 2_000
+      assert {:schedule, :reconnect, 2_000} = find_effect(effects2, :schedule)
 
       # 3rd failure: 4000ms
-      {_, data, [{:schedule, :reconnect, delay3}]} =
+      {_, data, effects3} =
         Core.handle_event(:connecting, data, {:subscription_failed, :error})
 
-      assert delay3 == 4_000
+      assert {:schedule, :reconnect, 4_000} = find_effect(effects3, :schedule)
 
       # 4th failure: 8000ms
-      {_, _data, [{:schedule, :reconnect, delay4}]} =
+      {_, _data, effects4} =
         Core.handle_event(:connecting, data, {:subscription_failed, :error})
 
-      assert delay4 == 8_000
+      assert {:schedule, :reconnect, 8_000} = find_effect(effects4, :schedule)
     end
 
     test "delay caps at max" do
       data = %{new_core() | reconnect_attempts: 10}
 
-      {_, _, [{:schedule, :reconnect, delay}]} =
+      {_, _, effects} =
         Core.handle_event(:connecting, data, {:subscription_failed, :error})
 
-      assert delay == 30_000
+      assert {:schedule, :reconnect, 30_000} = find_effect(effects, :schedule)
     end
 
     test "reconnect_delay helper function" do

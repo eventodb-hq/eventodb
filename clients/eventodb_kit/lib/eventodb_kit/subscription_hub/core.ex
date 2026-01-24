@@ -33,6 +33,7 @@ defmodule EventodbKit.SubscriptionHub.Core do
           | {:monitor, pid :: pid()}
           | {:demonitor, ref :: reference()}
           | {:reply, from :: any(), response :: any()}
+          | {:log, level :: :info | :warning | :error, message :: String.t()}
 
   @type t :: %__MODULE__{
           kit_fn: (-> any()) | nil,
@@ -98,19 +99,42 @@ defmodule EventodbKit.SubscriptionHub.Core do
   # ==========================================================================
 
   def handle_event(:connecting, data, :enter) do
-    effects = [{:start_subscription, data.kit_fn}]
+    attempt_msg =
+      if data.reconnect_attempts > 0 do
+        " (attempt #{data.reconnect_attempts + 1})"
+      else
+        ""
+      end
+
+    effects = [
+      {:log, :info, "[SubscriptionHub] Connecting to EventoDB#{attempt_msg}..."},
+      {:start_subscription, data.kit_fn}
+    ]
+
     {:connecting, data, effects}
   end
 
   def handle_event(:connecting, data, {:subscription_started, ref}) do
     data = %{data | subscription_ref: ref, reconnect_attempts: 0, last_poke_at: data.now_fn.()}
-    {:connected, data, []}
+
+    effects = [
+      {:log, :info, "[SubscriptionHub] ✓ Connected to EventoDB - SSE subscription active"}
+    ]
+
+    {:connected, data, effects}
   end
 
-  def handle_event(:connecting, data, {:subscription_failed, _reason}) do
+  def handle_event(:connecting, data, {:subscription_failed, reason}) do
     delay = reconnect_delay(data)
     data = %{data | reconnect_attempts: data.reconnect_attempts + 1}
-    effects = [{:schedule, :reconnect, delay}]
+    delay_sec = Float.round(delay / 1000, 1)
+
+    effects = [
+      {:log, :warning,
+       "[SubscriptionHub] Connection failed: #{format_error(reason)} - retrying in #{delay_sec}s"},
+      {:schedule, :reconnect, delay}
+    ]
+
     {:disconnected, data, effects}
   end
 
@@ -158,8 +182,9 @@ defmodule EventodbKit.SubscriptionHub.Core do
     {:connected, data, effects}
   end
 
-  def handle_event(:connected, data, {:sse_error, _error}) do
+  def handle_event(:connected, data, {:sse_error, error}) do
     effects = [
+      {:log, :warning, "[SubscriptionHub] SSE connection lost: #{format_error(error)}"},
       {:kill_subscription, data.subscription_ref},
       {:cancel_timer, :health_check},
       {:schedule, :reconnect, 0}
@@ -174,7 +199,11 @@ defmodule EventodbKit.SubscriptionHub.Core do
     threshold = data.config.health_check_interval * 2
 
     if silence > threshold do
+      silence_sec = Float.round(silence / 1000, 1)
+
       effects = [
+        {:log, :warning,
+         "[SubscriptionHub] No activity for #{silence_sec}s - connection may be dead, reconnecting"},
         {:kill_subscription, data.subscription_ref},
         {:schedule, :reconnect, 0}
       ]
@@ -220,7 +249,13 @@ defmodule EventodbKit.SubscriptionHub.Core do
   end
 
   def handle_event(:disconnected, data, :enter) do
-    effects = [{:schedule, :fallback_poll, data.config.fallback_poll_interval}]
+    poll_sec = Float.round(data.config.fallback_poll_interval / 1000, 1)
+
+    effects = [
+      {:log, :info, "[SubscriptionHub] Using fallback polling (every #{poll_sec}s)"},
+      {:schedule, :fallback_poll, data.config.fallback_poll_interval}
+    ]
+
     {:disconnected, data, effects}
   end
 
@@ -353,4 +388,21 @@ defmodule EventodbKit.SubscriptionHub.Core do
         %{data | monitors: Map.delete(data.monitors, ref)}
     end
   end
+
+  defp format_error(%{__exception__: true} = exception) do
+    Exception.message(exception)
+  end
+
+  defp format_error(%{reason: reason}) do
+    format_error(reason)
+  end
+
+  defp format_error(:econnrefused), do: "connection refused"
+  defp format_error(:closed), do: "connection closed"
+  defp format_error(:timeout), do: "connection timeout"
+  defp format_error(:nxdomain), do: "host not found"
+
+  defp format_error(error) when is_binary(error), do: error
+  defp format_error(error) when is_atom(error), do: Atom.to_string(error)
+  defp format_error(error), do: inspect(error)
 end

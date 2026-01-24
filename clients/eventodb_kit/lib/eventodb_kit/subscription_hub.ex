@@ -107,7 +107,6 @@ defmodule EventodbKit.SubscriptionHub do
   end
 
   def handle_event(:info, {:sse_error, error}, state, shell_data) do
-    Logger.warning("SubscriptionHub: SSE error: #{inspect(error)}")
     handle_core_event(state, shell_data, {:sse_error, error})
   end
 
@@ -253,6 +252,21 @@ defmodule EventodbKit.SubscriptionHub do
 
   defp execute_effect({:reply, from, response}, shell_data) do
     :gen_statem.reply(from, response)
+    shell_data
+  end
+
+  defp execute_effect({:log, :info, message}, shell_data) do
+    Logger.info(message)
+    shell_data
+  end
+
+  defp execute_effect({:log, :warning, message}, shell_data) do
+    Logger.warning(message)
+    shell_data
+  end
+
+  defp execute_effect({:log, :error, message}, shell_data) do
+    Logger.error(message)
     shell_data
   end
 
