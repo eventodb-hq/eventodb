@@ -114,7 +114,8 @@ defmodule EventodbKit.SubscriptionHub do
   def handle_event(:info, {:subscription_result, result}, state, shell_data) do
     event =
       case result do
-        {:ok, ref} -> {:subscription_started, ref}
+        {:ok, pid} -> {:subscription_started, pid}
+        {:error, {:already_started, pid}} -> {:subscription_started, pid}
         {:error, reason} -> {:subscription_failed, reason}
       end
 
@@ -179,25 +180,29 @@ defmodule EventodbKit.SubscriptionHub do
   defp execute_effect({:start_subscription, kit_fn}, shell_data) do
     hub_pid = self()
 
-    # Start subscription async to not block
-    Task.start(fn ->
-      result =
-        try do
-          kit = kit_fn.()
+    # Trap exits temporarily so failed subscription doesn't crash us
+    old_trap = Process.flag(:trap_exit, true)
 
-          EventodbEx.subscribe_to_all(
-            kit.eventodb_client,
-            name: "hub-#{System.unique_integer([:positive])}",
-            position: 0,
-            on_poke: fn poke -> send(hub_pid, {:sse_poke, poke}) end,
-            on_error: fn err -> send(hub_pid, {:sse_error, err}) end
-          )
-        rescue
-          e -> {:error, e}
-        end
+    result =
+      try do
+        kit = kit_fn.()
 
-      send(hub_pid, {:subscription_result, result})
-    end)
+        EventodbEx.subscribe_to_all(
+          kit.eventodb_client,
+          name: "hub-#{System.unique_integer([:positive])}",
+          position: 0,
+          on_poke: fn poke -> send(hub_pid, {:sse_poke, poke}) end,
+          on_error: fn err -> send(hub_pid, {:sse_error, err}) end
+        )
+      catch
+        :exit, reason -> {:error, reason}
+        kind, reason -> {:error, {kind, reason}}
+      end
+
+    Process.flag(:trap_exit, old_trap)
+
+    # Send to self immediately - GenStateMachine will process it
+    send(hub_pid, {:subscription_result, result})
 
     shell_data
   end

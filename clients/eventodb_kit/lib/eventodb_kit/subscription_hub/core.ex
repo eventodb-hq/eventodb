@@ -265,9 +265,10 @@ defmodule EventodbKit.SubscriptionHub.Core do
   end
 
   def handle_event(:disconnected, data, :reconnect) do
+    # Just cancel fallback polling and transition to :connecting
+    # The :enter handler for :connecting will start the subscription
     effects = [
-      {:cancel_timer, :fallback_poll},
-      {:start_subscription, data.kit_fn}
+      {:cancel_timer, :fallback_poll}
     ]
 
     {:connecting, data, effects}

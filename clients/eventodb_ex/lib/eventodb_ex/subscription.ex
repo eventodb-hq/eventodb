@@ -33,7 +33,10 @@ defmodule EventodbEx.Subscription do
     scheme = String.to_existing_atom(uri.scheme || "http")
     port = uri.port || (if scheme == :https, do: 443, else: 80)
 
-    case Mint.HTTP.connect(scheme, uri.host, port) do
+    # Use a reasonable timeout so we don't hang forever
+    connect_opts = [timeout: 5_000]
+
+    case Mint.HTTP.connect(scheme, uri.host, port, connect_opts) do
       {:ok, conn} ->
         path = build_path(uri)
         headers = [

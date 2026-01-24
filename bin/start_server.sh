@@ -11,11 +11,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-# Stop any server running on port 8080
-echo "Checking for processes on port 8080..."
-PID=$(lsof -ti:8080 || true)
+# Stop any server LISTENING on port 8080 (not clients connected to it)
+echo "Checking for server listening on port 8080..."
+PID=$(lsof -ti:8080 -sTCP:LISTEN || true)
 if [ -n "$PID" ]; then
-    echo "Stopping process $PID on port 8080..."
+    echo "Stopping server process $PID on port 8080..."
     kill -9 $PID
     sleep 1
 fi

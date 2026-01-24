@@ -345,7 +345,8 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
 
       assert state == :connecting
       assert has_effect?(effects, {:cancel_timer, :fallback_poll})
-      assert {:start_subscription, _} = find_effect(effects, :start_subscription)
+      # Note: :start_subscription is triggered by :enter for :connecting, not by :reconnect
+      # This avoids duplicate subscription starts
     end
 
     test "fallback_poll sends synthetic pokes to all registered consumers" do
@@ -640,8 +641,12 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
       {:disconnected, data, effects} = Core.handle_event(:disconnected, data, :enter)
       assert {:schedule, :fallback_poll, _} = find_effect(effects, :schedule)
 
-      # Reconnect timer fires
+      # Reconnect timer fires - transitions to :connecting
       {:connecting, data, effects} = Core.handle_event(:disconnected, data, :reconnect)
+      assert has_effect?(effects, {:cancel_timer, :fallback_poll})
+
+      # Enter connecting starts subscription
+      {:connecting, data, effects} = Core.handle_event(:connecting, data, :enter)
       assert {:start_subscription, _} = find_effect(effects, :start_subscription)
 
       # This time it succeeds
@@ -657,8 +662,12 @@ defmodule EventodbKit.SubscriptionHub.CoreTest do
       assert has_effect?(effects, {:kill_subscription, :old_ref})
       assert has_effect?(effects, {:schedule, :reconnect, 0})
 
-      # Immediate reconnect
-      {:connecting, _data, effects} = Core.handle_event(:disconnected, data, :reconnect)
+      # Immediate reconnect - transitions to :connecting
+      {:connecting, data, effects} = Core.handle_event(:disconnected, data, :reconnect)
+      assert has_effect?(effects, {:cancel_timer, :fallback_poll})
+
+      # Enter connecting starts subscription
+      {:connecting, _data, effects} = Core.handle_event(:connecting, data, :enter)
       assert {:start_subscription, _} = find_effect(effects, :start_subscription)
     end
 
