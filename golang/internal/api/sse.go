@@ -64,10 +64,15 @@ func (h *SSEHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	streamName := query.Get("stream")
 	categoryName := query.Get("category")
+	subscribeAll := query.Get("all") == "true"
 
-	// Validate that either stream or category is specified, but not both
-	if streamName == "" && categoryName == "" {
-		http.Error(w, "Either 'stream' or 'category' parameter required", http.StatusBadRequest)
+	// Validate: need exactly one of stream, category, or all
+	if !subscribeAll && streamName == "" && categoryName == "" {
+		http.Error(w, "Either 'stream', 'category', or 'all=true' parameter required", http.StatusBadRequest)
+		return
+	}
+	if subscribeAll && (streamName != "" || categoryName != "") {
+		http.Error(w, "Cannot combine 'all' with 'stream' or 'category'", http.StatusBadRequest)
 		return
 	}
 	if streamName != "" && categoryName != "" {
@@ -121,10 +126,61 @@ func (h *SSEHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start subscription
-	if streamName != "" {
+	if subscribeAll {
+		h.subscribeToAll(ctx, w, namespace, position)
+	} else if streamName != "" {
 		h.subscribeToStream(ctx, w, namespace, streamName, position)
 	} else {
 		h.subscribeToCategory(ctx, w, namespace, categoryName, position, consumerMember, consumerSize)
+	}
+}
+
+// subscribeToAll handles namespace-wide subscriptions (all events)
+func (h *SSEHandler) subscribeToAll(ctx context.Context, w http.ResponseWriter, namespace string, startPosition int64) {
+	// Subscribe to all events for this namespace
+	var sub Subscriber
+	if h.Pubsub != nil {
+		sub = h.Pubsub.SubscribeAll(namespace)
+		defer h.Pubsub.UnsubscribeAll(namespace, sub)
+	}
+
+	// Send a ready comment to signal subscription is established
+	fmt.Fprintf(w, ": ready\n\n")
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Note: No initial fetch for all-subscription - client tracks position per category
+
+	// If no pubsub, just wait for context cancellation
+	if h.Pubsub == nil {
+		<-ctx.Done()
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-sub:
+			if !ok {
+				return
+			}
+			// Only send if globalPosition >= startPosition
+			if event.GlobalPosition >= startPosition {
+				poke := pokePool.Get().(*Poke)
+				poke.Stream = event.Stream
+				poke.Position = event.Position
+				poke.GlobalPosition = event.GlobalPosition
+
+				err := h.sendPoke(w, poke)
+				pokePool.Put(poke)
+
+				if err != nil {
+					return
+				}
+			}
+		}
 	}
 }
 

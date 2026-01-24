@@ -488,12 +488,13 @@ Subscribe to real-time notifications when messages are written.
 |------|------|----------|-------------|
 | `stream` | string | * | Stream to subscribe to |
 | `category` | string | * | Category to subscribe to |
-| `position` | number | No | Starting position (default: 0) |
-| `consumerGroupMember` | number | No | Consumer group member index |
-| `consumerGroupSize` | number | No | Consumer group size |
+| `all` | boolean | * | Subscribe to all events in namespace |
+| `position` | number | No | Starting global position (default: 0) |
+| `consumer` | number | No | Consumer group member index |
+| `size` | number | No | Consumer group size |
 | `token` | string | Yes | Authentication token |
 
-*Either `stream` or `category` is required (not both).
+*Exactly one of `stream`, `category`, or `all=true` is required.
 
 **Poke Event Format:**
 ```
@@ -508,8 +509,15 @@ curl -N "http://localhost:8080/subscribe?stream=account-123&position=0&token=$TO
 
 **Example - Category Subscription with Consumer Group:**
 ```bash
-curl -N "http://localhost:8080/subscribe?category=account&consumerGroupMember=0&consumerGroupSize=4&token=$TOKEN"
+curl -N "http://localhost:8080/subscribe?category=account&consumer=0&size=4&token=$TOKEN"
 ```
+
+**Example - All Events in Namespace:**
+```bash
+curl -N "http://localhost:8080/subscribe?all=true&position=0&token=$TOKEN"
+```
+
+The `all=true` option is useful when a service has multiple consumers for different categories. Instead of opening N SSE connections (one per category), a single connection receives pokes for all writes. The client can then filter by extracting the category from the stream name and only fetching for categories it cares about.
 
 **JavaScript Example:**
 ```javascript
@@ -520,6 +528,27 @@ const eventSource = new EventSource(
 eventSource.addEventListener('poke', (event) => {
   const poke = JSON.parse(event.data);
   console.log(`New message at position ${poke.position}`);
+});
+```
+
+**Global Subscription Example:**
+```javascript
+// Subscribe to all events, dispatch to registered handlers
+const eventSource = new EventSource(
+  `http://localhost:8080/subscribe?all=true&token=${token}`
+);
+
+const handlers = new Map(); // category -> handler function
+
+eventSource.addEventListener('poke', (event) => {
+  const poke = JSON.parse(event.data);
+  const category = poke.stream.split('-')[0]; // Extract category
+  
+  const handler = handlers.get(category);
+  if (handler) {
+    handler(poke); // Only process categories we care about
+  }
+  // Pokes for unregistered categories are ignored (no fetch)
 });
 ```
 

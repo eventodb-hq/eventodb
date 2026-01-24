@@ -26,6 +26,9 @@ type PubSub struct {
 
 	// Category subscribers: namespace -> category -> subscribers
 	categorySubs map[string]map[string]map[Subscriber]struct{}
+
+	// All subscribers: namespace -> subscribers (for ?all=true subscriptions)
+	allSubs map[string]map[Subscriber]struct{}
 }
 
 // NewPubSub creates a new PubSub instance
@@ -33,6 +36,7 @@ func NewPubSub() *PubSub {
 	return &PubSub{
 		streamSubs:   make(map[string]map[string]map[Subscriber]struct{}),
 		categorySubs: make(map[string]map[string]map[Subscriber]struct{}),
+		allSubs:      make(map[string]map[Subscriber]struct{}),
 	}
 }
 
@@ -106,6 +110,35 @@ func (ps *PubSub) UnsubscribeCategory(namespace, category string, sub Subscriber
 	close(sub)
 }
 
+// SubscribeAll subscribes to all events in a namespace
+func (ps *PubSub) SubscribeAll(namespace string) Subscriber {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	sub := make(Subscriber, 100) // Buffer to avoid blocking
+
+	if ps.allSubs[namespace] == nil {
+		ps.allSubs[namespace] = make(map[Subscriber]struct{})
+	}
+	ps.allSubs[namespace][sub] = struct{}{}
+
+	return sub
+}
+
+// UnsubscribeAll removes an all-events subscription
+func (ps *PubSub) UnsubscribeAll(namespace string, sub Subscriber) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.allSubs[namespace] != nil {
+		delete(ps.allSubs[namespace], sub)
+		if len(ps.allSubs[namespace]) == 0 {
+			delete(ps.allSubs, namespace)
+		}
+	}
+	close(sub)
+}
+
 // Publish notifies all relevant subscribers about a write
 func (ps *PubSub) Publish(event WriteEvent) {
 	ps.mu.RLock()
@@ -133,6 +166,17 @@ func (ps *PubSub) Publish(event WriteEvent) {
 				default:
 					// Channel full, skip (subscriber is slow)
 				}
+			}
+		}
+	}
+
+	// Notify "all" subscribers for this namespace
+	if subs := ps.allSubs[event.Namespace]; subs != nil {
+		for sub := range subs {
+			select {
+			case sub <- event:
+			default:
+				// Channel full, skip (subscriber is slow)
 			}
 		}
 	}

@@ -644,6 +644,218 @@ func TestMDB002_6A_T11_ConnectionCleanupOnDisconnect(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
+// MDB002_6A_T12: Test all=true subscription receives pokes from any stream
+func TestMDB002_6A_T12_AllSubscriptionReceivesPokes(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
+
+	// Subscribe to all events
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	url := testCtx.URL + "/subscribe?all=true&position=0"
+	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("SSE request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	reader := bufio.NewReader(resp.Body)
+	time.Sleep(200 * time.Millisecond)
+
+	// Write messages to different categories
+	streams := []string{"account-111", "order-222", "product-333"}
+	for _, stream := range streams {
+		err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, stream, "Created", map[string]interface{}{"stream": stream})
+		if err != nil {
+			t.Fatalf("Failed to write message to %s: %v", stream, err)
+		}
+	}
+
+	// Should receive pokes for all streams
+	receivedStreams := make(map[string]bool)
+	for i := 0; i < len(streams); i++ {
+		poke, err := readNextPoke(reader, 1*time.Second)
+		if err != nil {
+			t.Logf("Received %d of %d pokes before timeout", i, len(streams))
+			break
+		}
+		receivedStreams[poke.Stream] = true
+	}
+
+	// Verify we received pokes from multiple categories
+	if len(receivedStreams) < 2 {
+		t.Errorf("Expected pokes from multiple streams, got %d: %v", len(receivedStreams), receivedStreams)
+	}
+}
+
+// MDB002_6A_T13: Test all=true cannot be combined with stream parameter
+func TestMDB002_6A_T13_AllCannotCombineWithStream(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
+
+	reqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	url := testCtx.URL + "/subscribe?all=true&stream=test&position=0"
+	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+// MDB002_6A_T14: Test all=true cannot be combined with category parameter
+func TestMDB002_6A_T14_AllCannotCombineWithCategory(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
+
+	reqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	url := testCtx.URL + "/subscribe?all=true&category=account&position=0"
+	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+// MDB002_6A_T15: Test all=true subscription respects position parameter
+func TestMDB002_6A_T15_AllSubscriptionRespectsPosition(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
+
+	// Write messages before subscribing
+	for i := 0; i < 3; i++ {
+		stream := fmt.Sprintf("preexist-%d", i)
+		err := writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, stream, "Created", map[string]interface{}{"seq": i})
+		if err != nil {
+			t.Fatalf("Failed to write message: %v", err)
+		}
+	}
+
+	// Subscribe with high position to skip existing messages
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	url := testCtx.URL + "/subscribe?all=true&position=1000"
+	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("SSE request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	reader := bufio.NewReader(resp.Body)
+	time.Sleep(200 * time.Millisecond)
+
+	// Write new message
+	err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, "new-stream", "Created", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Failed to write message: %v", err)
+	}
+
+	// Should NOT receive poke because globalPosition < 1000
+	poke, err := readNextPoke(reader, 500*time.Millisecond)
+	if err == nil && poke.GlobalPosition < 1000 {
+		t.Errorf("Should not receive poke with globalPosition %d < 1000", poke.GlobalPosition)
+	}
+}
+
+// MDB002_6A_T16: Test all=true subscription with multiple namespaces (isolation)
+func TestMDB002_6A_T16_AllSubscriptionNamespaceIsolation(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupSSETestServer(t)
+	defer testCtx.Cleanup()
+
+	// Create a second namespace
+	ns2 := "ns2_test"
+	token2, err := createSSENamespace(ctx, testCtx.Env.Store, ns2)
+	if err != nil {
+		t.Fatalf("Failed to create second namespace: %v", err)
+	}
+
+	// Subscribe to all events in first namespace
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	url := testCtx.URL + "/subscribe?all=true&position=0"
+	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+testCtx.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("SSE request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	reader := bufio.NewReader(resp.Body)
+	time.Sleep(200 * time.Millisecond)
+
+	// Write message to second namespace - should NOT be received
+	err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, ns2, "other-ns-stream", "Created", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Failed to write message to ns2: %v", err)
+	}
+
+	// Write message to first namespace - SHOULD be received
+	err = writeSSEMessage(ctx, testCtx.Env.Store, testCtx.PubSub, testCtx.Namespace, "our-ns-stream", "Created", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Failed to write message to ns1: %v", err)
+	}
+
+	// Should receive poke only from first namespace
+	poke, err := readNextPoke(reader, 1*time.Second)
+	if err != nil {
+		t.Fatalf("Failed to receive poke: %v", err)
+	}
+
+	if poke.Stream != "our-ns-stream" {
+		t.Errorf("Expected poke from our-ns-stream, got %s", poke.Stream)
+	}
+
+	_ = token2 // silence unused warning
+}
+
 // Helper function to read next poke from SSE stream
 func readNextPoke(reader *bufio.Reader, timeout time.Duration) (*Poke, error) {
 	deadline := time.Now().Add(timeout)
