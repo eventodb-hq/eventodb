@@ -1,7 +1,7 @@
 defmodule EventodbKit.MixProject do
   use Mix.Project
 
-  @version "0.2.2"
+  @version "0.3.0"
   @source_url "https://github.com/eventodb-hq/eventodb"
 
   def project do
@@ -56,7 +56,7 @@ defmodule EventodbKit.MixProject do
     if local_exists and not use_hex do
       {:eventodb_ex, path: "../eventodb_ex"}
     else
-      {:eventodb_ex, "~> 0.2"}
+      {:eventodb_ex, "~> 0.2.1"}
     end
   end
 

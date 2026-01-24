@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-01-24
+
+### Added
+
+- `EventodbKit.SubscriptionHub` - centralized hub for SSE poke distribution
+  - Maintains single SSE connection to EventoDB per process
+  - Distributes pokes locally to registered consumers by category
+  - Reduces N polling connections to 1 SSE connection
+- `EventodbKit.SubscriptionHub.Core` - pure functional state machine core
+  - Three states: `:connecting`, `:connected`, `:disconnected`
+  - Automatic reconnection with exponential backoff (1s to 30s)
+  - Fallback polling when SSE is disconnected
+  - Health check to detect silent connection failures
+- Added `subscribe_to_all/2` to EventodbEx for global SSE subscription
+
+### Changed
+
+- Consumer can now optionally use SubscriptionHub for poke-based updates instead of polling
+
 ## [0.2.2] - 2025-01-22
 
 ### Added
