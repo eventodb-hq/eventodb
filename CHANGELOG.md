@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2026-01-24
+
+### Features
+
+- **Namespace-wide SSE subscription**: New `?all=true` parameter for `/subscribe` endpoint to receive poke notifications for all events in a namespace
+
+### Fixes
+
+- **Graceful shutdown**: Fixed server hanging on shutdown when SSE connections were active. PubSub now closes all subscriber channels on SIGTERM/SIGINT, allowing immediate cleanup
+
 ## [0.5.1] - 2025-01-24
 
 ### Features
