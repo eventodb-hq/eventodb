@@ -68,8 +68,14 @@ defmodule EventodbEx.Subscription do
     case Mint.HTTP.stream(state.conn, message) do
       {:ok, conn, responses} ->
         state = %{state | conn: conn}
-        state = handle_responses(responses, state)
-        {:noreply, state}
+
+        case handle_responses(responses, state) do
+          {:stop, reason, new_state} ->
+            {:stop, reason, new_state}
+
+          new_state ->
+            {:noreply, new_state}
+        end
 
       {:error, _conn, error, _responses} ->
         if state.on_error, do: state.on_error.(error)
@@ -82,9 +88,11 @@ defmodule EventodbEx.Subscription do
 
   @impl true
   def terminate(_reason, state) when is_map(state) do
-    if Map.has_key?(state, :conn) do
-      Mint.HTTP.close(state.conn)
+    case Map.get(state, :conn) do
+      nil -> :ok
+      conn -> Mint.HTTP.close(conn)
     end
+
     :ok
   end
 
@@ -98,8 +106,11 @@ defmodule EventodbEx.Subscription do
   end
 
   defp handle_responses(responses, state) do
-    Enum.reduce(responses, state, fn response, acc ->
-      handle_response(response, acc)
+    Enum.reduce_while(responses, state, fn response, acc ->
+      case handle_response(response, acc) do
+        {:stop, _reason, _state} = stop -> {:halt, stop}
+        new_state -> {:cont, new_state}
+      end
     end)
   end
 
