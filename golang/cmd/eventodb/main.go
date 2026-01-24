@@ -283,31 +283,132 @@ func createStore(cfg *dbConfig) (store.Store, func(), error) {
 	}
 }
 
+const banner = `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║   ███████╗██╗   ██╗███████╗███╗   ██╗████████╗ ██████╗ ██████╗ ██████╗       ║
+║   ██╔════╝██║   ██║██╔════╝████╗  ██║╚══██╔══╝██╔═══██╗██╔══██╗██╔══██╗      ║
+║   █████╗  ██║   ██║█████╗  ██╔██╗ ██║   ██║   ██║   ██║██║  ██║██████╔╝      ║
+║   ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║╚██╗██║   ██║   ██║   ██║██║  ██║██╔══██╗      ║
+║   ███████╗ ╚████╔╝ ███████╗██║ ╚████║   ██║   ╚██████╔╝██████╔╝██████╔╝      ║
+║   ╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═════╝       ║
+║                                                                              ║
+║   High-performance event store for Event Sourcing & Pub/Sub                  ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+`
+
+const helpText = `
+USAGE:
+    eventodb [OPTIONS]
+    eventodb [COMMAND]
+
+COMMANDS:
+    version, -v, --version    Show version information
+    help, -h, --help          Show this help message
+
+OPTIONS:
+    -port <port>              HTTP server port (default: 8080)
+                              Env: EVENTODB_PORT
+
+    -db-url <url>             Database connection URL (required unless --test-mode)
+                              Formats:
+                                postgres://user:pass@host:5432/dbname
+                                sqlite://filename.db
+                                pebble:///path/to/data (or pebble://memory)
+                              Env: EVENTODB_DB_URL
+
+    -data-dir <path>          Data directory for SQLite namespace databases
+                              Required when using sqlite:// URL
+                              Env: EVENTODB_DATA_DIR
+
+    -db-type <type>           Database type override
+                              Use 'timescale' with postgres:// URL for TimescaleDB
+                              Env: EVENTODB_DB_TYPE
+
+    -token <token>            Token for default namespace
+                              If empty, one is auto-generated
+                              Env: EVENTODB_TOKEN
+
+    -test-mode                Run in test mode with in-memory SQLite
+                              Auth is optional, namespaces auto-created
+                              Env: EVENTODB_TEST_MODE
+
+    -log-level <level>        Log level: debug, info, warn, error (default: info)
+                              Env: EVENTODB_LOG_LEVEL
+
+    -log-format <format>      Log format: json, console (default: console)
+                              Env: EVENTODB_LOG_FORMAT
+
+EXAMPLES:
+    # Development (in-memory)
+    eventodb --test-mode --port 8080
+
+    # SQLite (persistent)
+    eventodb --db-url sqlite://eventodb.db --data-dir ./data
+
+    # PostgreSQL
+    eventodb --db-url postgres://user:pass@localhost:5432/eventodb
+
+    # Pebble KV (persistent)
+    eventodb --db-url pebble:///var/lib/eventodb/data
+
+ENDPOINTS:
+    POST /rpc                 JSON-RPC API endpoint
+    GET  /subscribe           SSE subscription endpoint
+    GET  /health              Health check
+    GET  /version             Version info
+
+DOCUMENTATION:
+    https://github.com/eventodb-hq/eventodb
+`
+
+func printHelp() {
+	fmt.Print(banner)
+	fmt.Print(helpText)
+}
+
+func printVersion(full bool) {
+	if full {
+		fmt.Print(banner)
+		fmt.Printf("Version:  %s\n", version)
+		fmt.Printf("Commit:   %s\n", commit)
+		fmt.Printf("Built:    %s\n", date)
+	} else {
+		fmt.Println(version)
+	}
+}
+
 func main() {
-	// Handle version command before flag parsing
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "version", "--version", "-v":
-			if len(os.Args) > 2 && (os.Args[2] == "--full" || os.Args[2] == "--detailed") {
-				fmt.Printf("eventodb version %s\n", version)
-				fmt.Printf("commit: %s\n", commit)
-				fmt.Printf("built: %s\n", date)
-			} else {
-				fmt.Println(version)
-			}
-			return
-		}
+	// No arguments: show help
+	if len(os.Args) == 1 {
+		printHelp()
+		return
 	}
 
+	// Handle commands before flag parsing
+	switch os.Args[1] {
+	case "version", "--version", "-v":
+		full := len(os.Args) > 2 && (os.Args[2] == "--full" || os.Args[2] == "-f")
+		printVersion(full)
+		return
+	case "help", "--help", "-h":
+		printHelp()
+		return
+	}
+
+	// Custom usage function
+	flag.Usage = printHelp
+
 	// Parse command-line flags (with environment variable fallbacks)
-	port := flag.Int("port", getEnvInt("EVENTODB_PORT", defaultPort), "HTTP server port")
-	testMode := flag.Bool("test-mode", getEnvBool("EVENTODB_TEST_MODE", false), "Run in test mode (in-memory SQLite)")
-	defaultToken := flag.String("token", getEnv("EVENTODB_TOKEN", ""), "Token for default namespace (if empty, one is generated)")
-	dbURL := flag.String("db-url", getEnv("EVENTODB_DB_URL", ""), "Database URL (postgres://... or sqlite://filename.db)")
-	dataDir := flag.String("data-dir", getEnv("EVENTODB_DATA_DIR", ""), "Data directory for SQLite namespace databases (required for sqlite)")
-	dbType := flag.String("db-type", getEnv("EVENTODB_DB_TYPE", ""), "Database type override (use 'timescale' for TimescaleDB with postgres:// URL)")
-	logLevel := flag.String("log-level", getEnv("EVENTODB_LOG_LEVEL", "info"), "Log level (debug, info, warn, error)")
-	logFormat := flag.String("log-format", getEnv("EVENTODB_LOG_FORMAT", "console"), "Log format (json, console)")
+	port := flag.Int("port", getEnvInt("EVENTODB_PORT", defaultPort), "")
+	testMode := flag.Bool("test-mode", getEnvBool("EVENTODB_TEST_MODE", false), "")
+	defaultToken := flag.String("token", getEnv("EVENTODB_TOKEN", ""), "")
+	dbURL := flag.String("db-url", getEnv("EVENTODB_DB_URL", ""), "")
+	dataDir := flag.String("data-dir", getEnv("EVENTODB_DATA_DIR", ""), "")
+	dbType := flag.String("db-type", getEnv("EVENTODB_DB_TYPE", ""), "")
+	logLevel := flag.String("log-level", getEnv("EVENTODB_LOG_LEVEL", "info"), "")
+	logFormat := flag.String("log-format", getEnv("EVENTODB_LOG_FORMAT", "console"), "")
 	flag.Parse()
 
 	// Initialize logger
