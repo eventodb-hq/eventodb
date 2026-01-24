@@ -26,11 +26,17 @@ func FastHTTPSSEHandler(h *SSEHandler, testMode bool) fasthttp.RequestHandler {
 		args := ctx.QueryArgs()
 		streamName := string(args.Peek("stream"))
 		categoryName := string(args.Peek("category"))
+		subscribeAll := string(args.Peek("all")) == "true"
 
-		// Validate that either stream or category is specified, but not both
-		if streamName == "" && categoryName == "" {
+		// Validate: need exactly one of stream, category, or all
+		if !subscribeAll && streamName == "" && categoryName == "" {
 			ctx.SetStatusCode(fasthttp.StatusBadRequest)
-			ctx.SetBodyString("Either 'stream' or 'category' parameter required")
+			ctx.SetBodyString("Either 'stream', 'category', or 'all=true' parameter required")
+			return
+		}
+		if subscribeAll && (streamName != "" || categoryName != "") {
+			ctx.SetStatusCode(fasthttp.StatusBadRequest)
+			ctx.SetBodyString("Cannot combine 'all' with 'stream' or 'category'")
 			return
 		}
 		if streamName != "" && categoryName != "" {
@@ -88,29 +94,22 @@ func FastHTTPSSEHandler(h *SSEHandler, testMode bool) fasthttp.RequestHandler {
 
 		// Use SetBodyStreamWriter for streaming response
 		ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
-			// Create a context that can be cancelled
-			reqCtx := context.Background()
-			if namespace != "" {
-				reqCtx = context.WithValue(reqCtx, ContextKeyNamespace, namespace)
-			}
-			if testMode {
-				reqCtx = context.WithValue(reqCtx, ContextKeyTestMode, true)
-			}
-
 			// Start subscription based on type
-			if streamName != "" {
-				handleStreamSubscriptionFast(reqCtx, w, h, namespace, streamName, position)
+			if subscribeAll {
+				handleAllSubscriptionFast(w, h, namespace, position)
+			} else if streamName != "" {
+				handleStreamSubscriptionFast(w, h, namespace, streamName, position)
 			} else {
-				handleCategorySubscriptionFast(reqCtx, w, h, namespace, categoryName, position, consumerMember, consumerSize)
+				handleCategorySubscriptionFast(w, h, namespace, categoryName, position, consumerMember, consumerSize)
 			}
 		})
 	}
 }
 
 // handleStreamSubscriptionFast handles stream-specific subscriptions for fasthttp
-func handleStreamSubscriptionFast(ctx context.Context, w *bufio.Writer, h *SSEHandler, namespace, streamName string, startPosition int64) {
+func handleStreamSubscriptionFast(w *bufio.Writer, h *SSEHandler, namespace, streamName string, startPosition int64) {
 	// First, send any existing messages from startPosition
-	messages, err := h.Store.GetStreamMessages(ctx, namespace, streamName, &store.GetOpts{
+	messages, err := h.Store.GetStreamMessages(context.Background(), namespace, streamName, &store.GetOpts{
 		Position:  startPosition,
 		BatchSize: 1000,
 	})
@@ -141,43 +140,33 @@ func handleStreamSubscriptionFast(ctx context.Context, w *bufio.Writer, h *SSEHa
 
 	// Subscribe to real-time updates (if pubsub is available)
 	if h.Pubsub == nil {
-		// No pubsub, just wait for context cancellation
-		<-ctx.Done()
 		return
 	}
 
 	sub := h.Pubsub.SubscribeStream(namespace, streamName)
 	defer h.Pubsub.UnsubscribeStream(namespace, streamName, sub)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case event, ok := <-sub:
-			if !ok {
+	for event := range sub {
+		// Only send if position >= our tracking position
+		if event.Position >= lastPosition {
+			poke := pokePool.Get().(*Poke)
+			poke.Stream = event.Stream
+			poke.Position = event.Position
+			poke.GlobalPosition = event.GlobalPosition
+
+			err := sendPokeFast(w, poke)
+			pokePool.Put(poke)
+
+			if err != nil {
 				return
 			}
-			// Only send if position >= our tracking position
-			if event.Position >= lastPosition {
-				poke := pokePool.Get().(*Poke)
-				poke.Stream = event.Stream
-				poke.Position = event.Position
-				poke.GlobalPosition = event.GlobalPosition
-
-				err := sendPokeFast(w, poke)
-				pokePool.Put(poke)
-
-				if err != nil {
-					return
-				}
-				lastPosition = event.Position + 1
-			}
+			lastPosition = event.Position + 1
 		}
 	}
 }
 
 // handleCategorySubscriptionFast handles category subscriptions for fasthttp
-func handleCategorySubscriptionFast(ctx context.Context, w *bufio.Writer, h *SSEHandler, namespace, categoryName string, startPosition, consumerMember, consumerSize int64) {
+func handleCategorySubscriptionFast(w *bufio.Writer, h *SSEHandler, namespace, categoryName string, startPosition, consumerMember, consumerSize int64) {
 	// First, send any existing messages from startPosition
 	opts := &store.CategoryOpts{
 		Position:  startPosition,
@@ -188,7 +177,7 @@ func handleCategorySubscriptionFast(ctx context.Context, w *bufio.Writer, h *SSE
 		opts.ConsumerMember = &consumerMember
 	}
 
-	messages, err := h.Store.GetCategoryMessages(ctx, namespace, categoryName, opts)
+	messages, err := h.Store.GetCategoryMessages(context.Background(), namespace, categoryName, opts)
 	if err != nil {
 		logger.Get().Error().
 			Err(err).
@@ -216,41 +205,31 @@ func handleCategorySubscriptionFast(ctx context.Context, w *bufio.Writer, h *SSE
 
 	// Subscribe to real-time updates (if pubsub is available)
 	if h.Pubsub == nil {
-		// No pubsub, just wait for context cancellation
-		<-ctx.Done()
 		return
 	}
 
 	sub := h.Pubsub.SubscribeCategory(namespace, categoryName)
 	defer h.Pubsub.UnsubscribeCategory(namespace, categoryName, sub)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case event, ok := <-sub:
-			if !ok {
+	for event := range sub {
+		// Only send if globalPosition >= our tracking position
+		if event.GlobalPosition >= lastGlobalPosition {
+			// Apply consumer group filter if needed
+			if consumerSize > 0 && !matchesConsumerGroup(event.Stream, consumerMember, consumerSize) {
+				continue
+			}
+			poke := pokePool.Get().(*Poke)
+			poke.Stream = event.Stream
+			poke.Position = event.Position
+			poke.GlobalPosition = event.GlobalPosition
+
+			err := sendPokeFast(w, poke)
+			pokePool.Put(poke)
+
+			if err != nil {
 				return
 			}
-			// Only send if globalPosition >= our tracking position
-			if event.GlobalPosition >= lastGlobalPosition {
-				// Apply consumer group filter if needed
-				if consumerSize > 0 && !matchesConsumerGroup(event.Stream, consumerMember, consumerSize) {
-					continue
-				}
-				poke := pokePool.Get().(*Poke)
-				poke.Stream = event.Stream
-				poke.Position = event.Position
-				poke.GlobalPosition = event.GlobalPosition
-
-				err := sendPokeFast(w, poke)
-				pokePool.Put(poke)
-
-				if err != nil {
-					return
-				}
-				lastGlobalPosition = event.GlobalPosition + 1
-			}
+			lastGlobalPosition = event.GlobalPosition + 1
 		}
 	}
 }
@@ -279,4 +258,36 @@ func matchesConsumerGroup(streamName string, member, size int64) bool {
 		hash = hash*31 + uint64(c)
 	}
 	return int64(hash%uint64(size)) == member
+}
+
+// handleAllSubscriptionFast handles namespace-wide subscriptions for fasthttp
+func handleAllSubscriptionFast(w *bufio.Writer, h *SSEHandler, namespace string, startPosition int64) {
+	// Send ready signal
+	fmt.Fprintf(w, ": ready\n\n")
+	w.Flush()
+
+	// Subscribe to real-time updates (if pubsub is available)
+	if h.Pubsub == nil {
+		return
+	}
+
+	sub := h.Pubsub.SubscribeAll(namespace)
+	defer h.Pubsub.UnsubscribeAll(namespace, sub)
+
+	for event := range sub {
+		// Only send if globalPosition >= startPosition
+		if event.GlobalPosition >= startPosition {
+			poke := pokePool.Get().(*Poke)
+			poke.Stream = event.Stream
+			poke.Position = event.Position
+			poke.GlobalPosition = event.GlobalPosition
+
+			err := sendPokeFast(w, poke)
+			pokePool.Put(poke)
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }

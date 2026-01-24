@@ -691,3 +691,128 @@ func getKeys(m map[string]bool) []string {
 	}
 	return keys
 }
+
+// TestSSE010_SubscribeToAll validates subscribing to all events in a namespace
+func TestSSE010_SubscribeToAll(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
+
+	// Subscribe to all events using ?all=true
+	subscribeURL := fmt.Sprintf("%s/subscribe?all=true&token=%s", ts.URL(), ts.Token)
+	client, err := NewSSEClient(subscribeURL, ts.Token)
+	require.NoError(t, err, "Should be able to subscribe with all=true")
+	defer client.Close()
+
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
+
+	// Write messages to different categories
+	stream1 := randomStreamName("category1")
+	stream2 := randomStreamName("category2")
+	stream3 := randomStreamName("category3")
+
+	msg := map[string]interface{}{
+		"type": "TestEvent",
+		"data": map[string]interface{}{"foo": "bar"},
+	}
+
+	// Write to stream1
+	result1, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", stream1, msg)
+	require.NoError(t, err)
+	result1Map := result1.(map[string]interface{})
+
+	// Write to stream2
+	result2, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", stream2, msg)
+	require.NoError(t, err)
+	result2Map := result2.(map[string]interface{})
+
+	// Write to stream3
+	result3, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", stream3, msg)
+	require.NoError(t, err)
+	result3Map := result3.(map[string]interface{})
+
+	// Collect all received pokes
+	receivedStreams := make(map[string]int64)
+	for i := 0; i < 3; i++ {
+		event, err := client.WaitForEvent(2 * time.Second)
+		require.NoError(t, err, "Should receive poke event %d", i+1)
+		streamName := event["stream"].(string)
+		globalPos := int64(event["globalPosition"].(float64))
+		receivedStreams[streamName] = globalPos
+	}
+
+	// Verify we received pokes for all three streams
+	assert.Contains(t, receivedStreams, stream1, "Should receive poke for stream1")
+	assert.Contains(t, receivedStreams, stream2, "Should receive poke for stream2")
+	assert.Contains(t, receivedStreams, stream3, "Should receive poke for stream3")
+
+	// Verify global positions match
+	assert.Equal(t, int64(result1Map["globalPosition"].(float64)), receivedStreams[stream1])
+	assert.Equal(t, int64(result2Map["globalPosition"].(float64)), receivedStreams[stream2])
+	assert.Equal(t, int64(result3Map["globalPosition"].(float64)), receivedStreams[stream3])
+}
+
+// TestSSE011_SubscribeToAllWithPosition validates subscribing to all from a specific position
+func TestSSE011_SubscribeToAllWithPosition(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
+
+	// Write some messages first
+	streams := make([]string, 3)
+	globalPositions := make([]int64, 3)
+	for i := 0; i < 3; i++ {
+		streams[i] = randomStreamName(fmt.Sprintf("cat%d", i))
+		msg := map[string]interface{}{
+			"type": "TestEvent",
+			"data": map[string]interface{}{"seq": i},
+		}
+		result, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", streams[i], msg)
+		require.NoError(t, err)
+		globalPositions[i] = int64(result.(map[string]interface{})["globalPosition"].(float64))
+	}
+
+	// Subscribe from position after the first message
+	startPosition := globalPositions[0] + 1
+	subscribeURL := fmt.Sprintf("%s/subscribe?all=true&position=%d&token=%s",
+		ts.URL(), startPosition, ts.Token)
+	client, err := NewSSEClient(subscribeURL, ts.Token)
+	require.NoError(t, err)
+	defer client.Close()
+
+	// Wait for subscription to be ready
+	err = client.WaitForReady(2 * time.Second)
+	require.NoError(t, err, "Subscription should be ready")
+
+	// Write a new message
+	newStream := randomStreamName("newcat")
+	msg := map[string]interface{}{
+		"type": "TestEvent",
+		"data": map[string]interface{}{"new": true},
+	}
+	result, err := makeRPCCall(t, ts.Port, ts.Token, "stream.write", newStream, msg)
+	require.NoError(t, err)
+	newGlobalPos := int64(result.(map[string]interface{})["globalPosition"].(float64))
+
+	// Should receive poke for the new message
+	event, err := client.WaitForEvent(2 * time.Second)
+	require.NoError(t, err, "Should receive poke for new message")
+	assert.Equal(t, newStream, event["stream"])
+	assert.Equal(t, float64(newGlobalPos), event["globalPosition"])
+}
+
+// TestSSE012_SubscribeToAllCannotCombineWithStreamOrCategory validates error handling
+func TestSSE012_SubscribeToAllCannotCombineWithStreamOrCategory(t *testing.T) {
+	ts := SetupTestServer(t)
+	defer ts.Cleanup()
+
+	// Try to combine all=true with stream - should fail
+	subscribeURL := fmt.Sprintf("%s/subscribe?all=true&stream=test&token=%s", ts.URL(), ts.Token)
+	_, err := NewSSEClient(subscribeURL, ts.Token)
+	require.Error(t, err, "Should fail when combining all=true with stream")
+
+	// Try to combine all=true with category - should fail
+	subscribeURL = fmt.Sprintf("%s/subscribe?all=true&category=test&token=%s", ts.URL(), ts.Token)
+	_, err = NewSSEClient(subscribeURL, ts.Token)
+	require.Error(t, err, "Should fail when combining all=true with category")
+}
