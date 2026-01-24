@@ -366,6 +366,60 @@ defmodule EventodbEx do
     EventodbEx.Subscription.start_link(sub_opts)
   end
 
+  @doc """
+  Subscribes to real-time notifications for all events in the namespace.
+
+  Returns immediately with subscription reference. The `on_poke` callback
+  is invoked when any message is written to any stream in the namespace.
+
+  ## Options
+
+    * `:name` - Required. Unique string name for this subscription
+    * `:position` - Starting global position (default: 0)
+    * `:on_poke` - Required. Callback function `fn poke -> ... end`
+    * `:on_error` - Optional. Error callback `fn error -> ... end`
+
+  ## Examples
+
+      {:ok, _pid} = EventodbEx.subscribe_to_all(
+        client,
+        name: "global-hub",
+        position: 0,
+        on_poke: fn poke ->
+          IO.inspect(poke, label: "poke")
+        end
+      )
+
+      # Close subscription
+      EventodbEx.Subscription.close("global-hub")
+
+  """
+  @spec subscribe_to_all(Client.t(), keyword()) ::
+          {:ok, pid()} | {:error, term()}
+  def subscribe_to_all(client, opts) do
+    name = Keyword.fetch!(opts, :name)
+    on_poke = Keyword.fetch!(opts, :on_poke)
+    on_error = Keyword.get(opts, :on_error)
+    position = Keyword.get(opts, :position, 0)
+
+    params = [
+      {"all", "true"},
+      {"position", to_string(position)},
+      {"token", client.token}
+    ]
+
+    url = build_subscribe_url(client.base_url, params)
+
+    sub_opts = [
+      name: name,
+      url: url,
+      on_poke: on_poke,
+      on_error: on_error
+    ]
+
+    EventodbEx.Subscription.start_link(sub_opts)
+  end
+
   defp build_subscribe_url(base_url, params) do
     query = URI.encode_query(params)
     "#{base_url}/subscribe?#{query}"
