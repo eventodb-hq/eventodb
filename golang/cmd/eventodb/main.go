@@ -505,7 +505,7 @@ func main() {
 		Handler:                       requestHandler,
 		Name:                          "EventoDB/" + version,
 		ReadTimeout:                   30 * time.Second,
-		WriteTimeout:                  30 * time.Second,
+		WriteTimeout:                  0, // Disabled for SSE support
 		IdleTimeout:                   120 * time.Second,
 		MaxRequestBodySize:            4 * 1024 * 1024, // 4 MB
 		Concurrency:                   256 * 1024,      // Handle up to 256K concurrent connections
@@ -542,6 +542,9 @@ func main() {
 
 	case sig := <-shutdown:
 		logger.Get().Info().Str("signal", sig.String()).Msg("Shutdown signal received")
+
+		// Close all SSE subscriptions first - this unblocks all SSE handlers
+		pubsub.Close()
 
 		// Attempt graceful shutdown
 		if err := server.Shutdown(); err != nil {

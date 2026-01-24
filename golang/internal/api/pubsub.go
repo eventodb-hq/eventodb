@@ -29,6 +29,9 @@ type PubSub struct {
 
 	// All subscribers: namespace -> subscribers (for ?all=true subscriptions)
 	allSubs map[string]map[Subscriber]struct{}
+
+	// closed indicates if Close() has been called
+	closed bool
 }
 
 // NewPubSub creates a new PubSub instance
@@ -62,6 +65,11 @@ func (ps *PubSub) SubscribeStream(namespace, stream string) Subscriber {
 func (ps *PubSub) UnsubscribeStream(namespace, stream string, sub Subscriber) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
+
+	// If already closed globally, channel is already closed
+	if ps.closed {
+		return
+	}
 
 	if ps.streamSubs[namespace] != nil && ps.streamSubs[namespace][stream] != nil {
 		delete(ps.streamSubs[namespace][stream], sub)
@@ -98,6 +106,11 @@ func (ps *PubSub) UnsubscribeCategory(namespace, category string, sub Subscriber
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
+	// If already closed globally, channel is already closed
+	if ps.closed {
+		return
+	}
+
 	if ps.categorySubs[namespace] != nil && ps.categorySubs[namespace][category] != nil {
 		delete(ps.categorySubs[namespace][category], sub)
 		if len(ps.categorySubs[namespace][category]) == 0 {
@@ -129,6 +142,11 @@ func (ps *PubSub) SubscribeAll(namespace string) Subscriber {
 func (ps *PubSub) UnsubscribeAll(namespace string, sub Subscriber) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
+
+	// If already closed globally, channel is already closed
+	if ps.closed {
+		return
+	}
 
 	if ps.allSubs[namespace] != nil {
 		delete(ps.allSubs[namespace], sub)
@@ -180,4 +198,43 @@ func (ps *PubSub) Publish(event WriteEvent) {
 			}
 		}
 	}
+}
+
+// Close closes all subscriber channels, causing all SSE handlers to exit
+func (ps *PubSub) Close() {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.closed {
+		return
+	}
+	ps.closed = true
+
+	// Close all stream subscribers
+	for _, streams := range ps.streamSubs {
+		for _, subs := range streams {
+			for sub := range subs {
+				close(sub)
+			}
+		}
+	}
+	ps.streamSubs = make(map[string]map[string]map[Subscriber]struct{})
+
+	// Close all category subscribers
+	for _, categories := range ps.categorySubs {
+		for _, subs := range categories {
+			for sub := range subs {
+				close(sub)
+			}
+		}
+	}
+	ps.categorySubs = make(map[string]map[string]map[Subscriber]struct{})
+
+	// Close all "all" subscribers
+	for _, subs := range ps.allSubs {
+		for sub := range subs {
+			close(sub)
+		}
+	}
+	ps.allSubs = make(map[string]map[Subscriber]struct{})
 }
