@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2025-01-24
+
+### Features
+
+- **Global SSE subscription**: New `?all=true` parameter for `/subscribe` endpoint to receive pokes for all events in a namespace via single connection
+- **Simplified dev token**: Easier token handling in development mode
+- **Config module**: Added `log_sql` option for SQL query logging
+
+### Fixes
+
+- Fixed consumer events fetching with correct position (EventodbKit)
+- Fixed health check to use 127.0.0.1 instead of localhost
+
+### SDKs
+
+- Elixir SDKs (`eventodb_ex`, `eventodb_kit`) prepared for hex.pm release
+- Plain-text namespace encoding in tokens (ADR-006)
+
+### Operations
+
+- Added Docker deployment support with environment variable configuration
+- Added server management script (`bin/server.sh`)
+
 ## [0.5.0] - 2025-12-25
 
 Initial public release of EventoDB.
