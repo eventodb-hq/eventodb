@@ -62,10 +62,30 @@ eventodb export \
 |------|----------|-------------|
 | `--url` | Yes | EventoDB server URL |
 | `--token` | Yes | Namespace token |
-| `--categories` | Yes | Comma-separated category list |
+| `--categories` | No | Comma-separated category list (default: all) |
 | `--since` | No | Start date (inclusive), ISO 8601 or YYYY-MM-DD |
 | `--until` | No | End date (exclusive), ISO 8601 or YYYY-MM-DD |
 | `--output` | No | Output file (default: stdout) |
+| `--gzip` | No | Compress output with gzip |
+
+**Examples:**
+
+```bash
+# Full namespace backup (no filters)
+eventodb export --url http://prod:8080 --token $TOKEN --output backup.ndjson
+
+# Compressed export
+eventodb export --url http://prod:8080 --token $TOKEN --gzip --output backup.ndjson.gz
+
+# Specific categories only
+eventodb export --url http://prod:8080 --token $TOKEN --categories workflow,order --output partial.ndjson
+
+# Time-bounded export
+eventodb export --url http://prod:8080 --token $TOKEN --since 2025-07-01 --until 2025-07-25 --output july.ndjson
+
+# Combine filters + compression
+eventodb export --url http://prod:8080 --token $TOKEN --categories workflow --since 2025-07-01 --gzip --output workflow-july.ndjson.gz
+```
 
 **Output Format (NDJSON):**
 
@@ -165,9 +185,18 @@ pg_dump ... | psql local_service_db
 ### Export Logic
 
 ```go
-func runExport(url, token string, categories []string, since, until *time.Time, output io.Writer) error {
+func runExport(url, token string, categories []string, since, until *time.Time, output io.Writer, useGzip bool) error {
     client := eventodb.NewClient(url, token)
-    encoder := json.NewEncoder(output)
+    
+    // Wrap with gzip if requested
+    var writer io.Writer = output
+    if useGzip {
+        gzWriter := gzip.NewWriter(output)
+        defer gzWriter.Close()
+        writer = gzWriter
+    }
+    
+    encoder := json.NewEncoder(writer)
     
     for _, category := range categories {
         position := int64(0)
@@ -327,19 +356,26 @@ func sendError(w *bufio.Writer, code, message string, line int) {
 ### Import CLI Client
 
 ```go
-func runImport(url, token string, inputPath string) error {
+func runImport(url, token string, inputPath string, useGzip bool) error {
     file, err := os.Open(inputPath)
     if err != nil {
         return err
     }
     defer file.Close()
     
-    // Get file size for progress bar (optional)
-    stat, _ := file.Stat()
-    fileSize := stat.Size()
+    // Wrap with gzip reader if compressed
+    var reader io.Reader = file
+    if useGzip {
+        gzReader, err := gzip.NewReader(file)
+        if err != nil {
+            return fmt.Errorf("failed to open gzip: %w", err)
+        }
+        defer gzReader.Close()
+        reader = gzReader
+    }
     
     // Create request with streaming body
-    req, err := http.NewRequest("POST", url+"/import", file)
+    req, err := http.NewRequest("POST", url+"/import", reader)
     req.Header.Set("Authorization", "Bearer "+token)
     req.Header.Set("Content-Type", "application/x-ndjson")
     req.Header.Set("Transfer-Encoding", "chunked")
@@ -534,6 +570,7 @@ IMPORT OPTIONS:
     --url <url>               EventoDB server URL
     --token <token>           Namespace token
     --input <file>            Input file (default: stdin)
+    --gzip                    Decompress input with gzip
 ```
 
 ## HTTP Endpoint
@@ -592,9 +629,9 @@ golang/
 
 2. **Incremental export** - Track last exported position, only export new messages.
 
-3. **Compression** - gzip support for large exports (`--gzip` flag).
+3. **Resume on failure** - Track progress, allow resuming interrupted imports.
 
-4. **Resume on failure** - Track progress, allow resuming interrupted imports.
+4. **Auto-detect gzip** - Detect `.gz` extension or magic bytes instead of requiring `--gzip` flag.
 
 ---
 
