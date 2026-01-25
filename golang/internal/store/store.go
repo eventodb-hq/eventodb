@@ -66,6 +66,11 @@ type Store interface {
 	// Metadata, and Time already set.
 	ImportBatch(ctx context.Context, namespace string, messages []*Message) error
 
+	// ClearNamespaceMessages deletes all messages from a namespace without deleting
+	// the namespace itself. This is used before import with --force flag.
+	// Returns the number of messages deleted.
+	ClearNamespaceMessages(ctx context.Context, namespace string) (int64, error)
+
 	// GetStreamMessages retrieves messages from a specific stream.
 	//
 	// Use opts.Position to specify the starting stream position (default: 0).
