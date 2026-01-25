@@ -66,21 +66,42 @@ func (s *SQLiteStore) GetCategoryMessages(ctx context.Context, namespace, catego
 		position = *opts.GlobalPosition
 	}
 
-	query := `SELECT id, stream_name, type, position, global_position, data, metadata, time
-		FROM messages
-		WHERE substr(stream_name, 1, instr(stream_name || '-', '-') - 1) = ?
-		AND global_position >= ?
-		ORDER BY global_position ASC`
-	args := []interface{}{categoryName, position}
+	var query string
+	var args []interface{}
 
-	if opts.Correlation != nil && *opts.Correlation != "" {
+	if categoryName == "" {
+		// Empty category = all messages
+		query = `SELECT id, stream_name, type, position, global_position, data, metadata, time
+			FROM messages
+			WHERE global_position >= ?
+			ORDER BY global_position ASC`
+		args = []interface{}{position}
+
+		if opts.Correlation != nil && *opts.Correlation != "" {
+			query = `SELECT id, stream_name, type, position, global_position, data, metadata, time
+				FROM messages
+				WHERE global_position >= ?
+				AND json_extract(metadata, '$.correlationStreamName') LIKE ?
+				ORDER BY global_position ASC`
+			args = append(args, *opts.Correlation+"-%")
+		}
+	} else {
 		query = `SELECT id, stream_name, type, position, global_position, data, metadata, time
 			FROM messages
 			WHERE substr(stream_name, 1, instr(stream_name || '-', '-') - 1) = ?
 			AND global_position >= ?
-			AND json_extract(metadata, '$.correlationStreamName') LIKE ?
 			ORDER BY global_position ASC`
-		args = append(args, *opts.Correlation+"-%")
+		args = []interface{}{categoryName, position}
+
+		if opts.Correlation != nil && *opts.Correlation != "" {
+			query = `SELECT id, stream_name, type, position, global_position, data, metadata, time
+				FROM messages
+				WHERE substr(stream_name, 1, instr(stream_name || '-', '-') - 1) = ?
+				AND global_position >= ?
+				AND json_extract(metadata, '$.correlationStreamName') LIKE ?
+				ORDER BY global_position ASC`
+			args = append(args, *opts.Correlation+"-%")
+		}
 	}
 
 	rows, err := handle.db.QueryContext(ctx, query, args...)

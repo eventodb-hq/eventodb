@@ -162,12 +162,8 @@ func (s *PebbleStore) GetStreamMessages(ctx context.Context, namespace, streamNa
 }
 
 // GetCategoryMessages retrieves messages from all streams in a category
+// If categoryName is empty, returns all messages ordered by global position
 func (s *PebbleStore) GetCategoryMessages(ctx context.Context, namespace, categoryName string, opts *store.CategoryOpts) ([]*store.Message, error) {
-	// Validate category name
-	if categoryName == "" {
-		return nil, fmt.Errorf("category name cannot be empty")
-	}
-
 	// Get namespace handle
 	handle, err := s.getNamespaceDB(ctx, namespace)
 	if err != nil {
@@ -184,6 +180,11 @@ func (s *PebbleStore) GetCategoryMessages(ctx context.Context, namespace, catego
 		batchSize = opts.BatchSize
 	} else if opts != nil && opts.BatchSize == -1 {
 		batchSize = -1 // unlimited
+	}
+
+	// Empty category = all messages by global position
+	if categoryName == "" {
+		return s.getAllMessages(ctx, handle, globalPosition, batchSize, opts)
 	}
 
 	// Create range scan iterator over category index
@@ -294,6 +295,76 @@ func (s *PebbleStore) GetCategoryMessages(ctx context.Context, namespace, catego
 		messages = append(messages, &msg)
 
 		// Check if we've collected enough messages
+		if batchSize != -1 && int64(len(messages)) >= batchSize {
+			break
+		}
+	}
+
+	if err := iter.Error(); err != nil {
+		return nil, fmt.Errorf("iterator error: %w", err)
+	}
+
+	return messages, nil
+}
+
+// getAllMessages retrieves all messages ordered by global position
+func (s *PebbleStore) getAllMessages(ctx context.Context, handle *namespaceHandle, startPosition, batchSize int64, opts *store.CategoryOpts) ([]*store.Message, error) {
+	// Iterate over M: prefix (all messages by global position)
+	startKey := formatMessageKey(startPosition)
+	endKey := formatMessageKey(999999999999999999) // Max 18-digit number
+
+	iter, err := handle.db.NewIter(&pebble.IterOptions{
+		LowerBound: startKey,
+		UpperBound: endKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create iterator: %w", err)
+	}
+	defer iter.Close()
+
+	// Parse correlation filter
+	var correlationCategory *string
+	if opts != nil && opts.Correlation != nil && *opts.Correlation != "" {
+		cat := extractCategory(*opts.Correlation)
+		correlationCategory = &cat
+	}
+
+	messages := make([]*store.Message, 0, batchSize)
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		// Decompress and deserialize message
+		compressedData := iter.Value()
+		msgData, err := decompressJSON(compressedData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		}
+
+		var msg store.Message
+		if err := json.Unmarshal(msgData, &msg); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+		}
+
+		// Apply correlation filter if specified
+		if correlationCategory != nil {
+			if msg.Metadata == nil {
+				continue
+			}
+			corrVal, ok := msg.Metadata["correlationStreamName"]
+			if !ok {
+				continue
+			}
+			corr, ok := corrVal.(string)
+			if !ok {
+				continue
+			}
+			corrCat := extractCategory(corr)
+			if corrCat != *correlationCategory {
+				continue
+			}
+		}
+
+		messages = append(messages, &msg)
+
 		if batchSize != -1 && int64(len(messages)) >= batchSize {
 			break
 		}

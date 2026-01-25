@@ -457,12 +457,12 @@ func (h *RPCHandler) handleCategoryGet(ctx context.Context, args []interface{}) 
 		}
 	}
 
-	// Parse category name
+	// Parse category name (empty string = all messages)
 	categoryName, ok := args[0].(string)
-	if !ok || categoryName == "" {
+	if !ok {
 		return nil, &RPCError{
 			Code:    "INVALID_REQUEST",
-			Message: "categoryName must be a non-empty string",
+			Message: "categoryName must be a string",
 		}
 	}
 
