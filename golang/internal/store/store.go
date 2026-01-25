@@ -130,6 +130,11 @@ type Store interface {
 	// ListNamespaces returns all namespaces in the store.
 	ListNamespaces(ctx context.Context) ([]*Namespace, error)
 
+	// MigrateNamespaces applies pending schema migrations to all existing namespaces.
+	// Returns the total number of migrations applied across all namespaces.
+	// This should be called on server startup before processing requests.
+	MigrateNamespaces(ctx context.Context) (int, error)
+
 	// GetNamespaceMessageCount returns the total number of messages in a namespace.
 	//
 	// This is useful for getting statistics about a namespace.

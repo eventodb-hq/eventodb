@@ -3,13 +3,18 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/eventodb/eventodb/internal/store"
+	"github.com/eventodb/eventodb/migrations"
 )
+
+// sqliteMigrations is a reference to the embedded SQLite namespace migrations
+var sqliteMigrations embed.FS = migrations.NamespaceSQLiteFS
 
 // CreateNamespace creates a new namespace
 func (s *SQLiteStore) CreateNamespace(ctx context.Context, id, tokenHash, description string) error {
@@ -132,4 +137,93 @@ func (s *SQLiteStore) GetNamespaceMessageCount(ctx context.Context, namespace st
 	}
 
 	return count, nil
+}
+
+// MigrateNamespaces applies pending schema migrations to all existing namespaces
+func (s *SQLiteStore) MigrateNamespaces(ctx context.Context) (int, error) {
+	namespaces, err := s.ListNamespaces(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	totalApplied := 0
+	for _, ns := range namespaces {
+		handle, err := s.getNamespaceHandle(ns.ID)
+		if err != nil {
+			return totalApplied, fmt.Errorf("failed to get handle for namespace %s: %w", ns.ID, err)
+		}
+
+		applied, err := s.migrateNamespaceDB(ctx, handle.db)
+		if err != nil {
+			return totalApplied, fmt.Errorf("failed to migrate namespace %s: %w", ns.ID, err)
+		}
+		totalApplied += applied
+	}
+
+	return totalApplied, nil
+}
+
+// migrateNamespaceDB applies pending migrations to a single namespace database
+func (s *SQLiteStore) migrateNamespaceDB(ctx context.Context, db *sql.DB) (int, error) {
+	baseDir := "namespace/sqlite"
+
+	// Load migration files
+	migrationFiles, err := sqliteMigrations.ReadDir(baseDir)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read namespace migrations: %w", err)
+	}
+
+	// Get current schema version
+	currentVersion := getNamespaceSchemaVersion(ctx, db)
+
+	applied := 0
+	for _, entry := range migrationFiles {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+
+		// Extract version from filename
+		version := extractVersionFromFilename(entry.Name())
+		if version <= currentVersion {
+			continue // Already applied
+		}
+
+		// Read and apply migration
+		filePath := fmt.Sprintf("%s/%s", baseDir, entry.Name())
+		content, err := sqliteMigrations.ReadFile(filePath)
+		if err != nil {
+			return applied, fmt.Errorf("failed to read migration %s: %w", filePath, err)
+		}
+
+		if _, err := db.ExecContext(ctx, string(content)); err != nil {
+			return applied, fmt.Errorf("failed to apply migration %s: %w", entry.Name(), err)
+		}
+		applied++
+	}
+
+	return applied, nil
+}
+
+// getNamespaceSchemaVersion returns the current schema version for a namespace DB
+func getNamespaceSchemaVersion(ctx context.Context, db *sql.DB) int {
+	var version int
+	err := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM _schema_version").Scan(&version)
+	if err != nil {
+		// Table doesn't exist - treat as version 0
+		return 0
+	}
+	return version
+}
+
+// extractVersionFromFilename extracts version number from filename like "001_xxx.sql"
+func extractVersionFromFilename(filename string) int {
+	var version int
+	for _, ch := range filename {
+		if ch >= '0' && ch <= '9' {
+			version = version*10 + int(ch-'0')
+		} else {
+			break
+		}
+	}
+	return version
 }

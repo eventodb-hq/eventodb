@@ -245,3 +245,89 @@ func (s *TimescaleStore) GetNamespaceMessageCount(ctx context.Context, namespace
 
 	return count, nil
 }
+
+// MigrateNamespaces applies pending schema migrations to all existing namespaces
+func (s *TimescaleStore) MigrateNamespaces(ctx context.Context) (int, error) {
+	namespaces, err := s.ListNamespaces(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	totalApplied := 0
+	for _, ns := range namespaces {
+		applied, err := s.migrateNamespaceSchema(ctx, ns.SchemaName)
+		if err != nil {
+			return totalApplied, fmt.Errorf("failed to migrate namespace %s: %w", ns.ID, err)
+		}
+		totalApplied += applied
+	}
+
+	return totalApplied, nil
+}
+
+// migrateNamespaceSchema applies pending migrations to a single namespace schema
+func (s *TimescaleStore) migrateNamespaceSchema(ctx context.Context, schemaName string) (int, error) {
+	baseDir := "namespace/timescale"
+
+	// Load migration files
+	migrationFiles, err := migrations.NamespaceTimescaleFS.ReadDir(baseDir)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read namespace migrations: %w", err)
+	}
+
+	// Get current schema version
+	currentVersion := s.getNamespaceSchemaVersion(ctx, schemaName)
+
+	applied := 0
+	for _, entry := range migrationFiles {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+
+		// Extract version from filename
+		version := extractVersionFromFilename(entry.Name())
+		if version <= currentVersion {
+			continue // Already applied
+		}
+
+		// Read and apply migration
+		filePath := fmt.Sprintf("%s/%s", baseDir, entry.Name())
+		content, err := migrations.NamespaceTimescaleFS.ReadFile(filePath)
+		if err != nil {
+			return applied, fmt.Errorf("failed to read migration %s: %w", filePath, err)
+		}
+
+		sql := strings.ReplaceAll(string(content), "{{SCHEMA_NAME}}", schemaName)
+		if _, err := s.db.ExecContext(ctx, sql); err != nil {
+			return applied, fmt.Errorf("failed to apply migration %s: %w", entry.Name(), err)
+		}
+		applied++
+	}
+
+	return applied, nil
+}
+
+// getNamespaceSchemaVersion returns the current schema version for a namespace
+func (s *TimescaleStore) getNamespaceSchemaVersion(ctx context.Context, schemaName string) int {
+	query := fmt.Sprintf(`SELECT COALESCE(MAX(version), 0) FROM "%s"._schema_version`, schemaName)
+	var version int
+	err := s.db.QueryRowContext(ctx, query).Scan(&version)
+	if err != nil {
+		// Table doesn't exist - treat as version 0
+		return 0
+	}
+	return version
+}
+
+// extractVersionFromFilename extracts version number from filename like "001_xxx.sql"
+func extractVersionFromFilename(filename string) int {
+	var version int
+	for _, ch := range filename {
+		if ch >= '0' && ch <= '9' {
+			version = version*10 + int(ch-'0')
+		} else {
+			break
+		}
+	}
+	return version
+}

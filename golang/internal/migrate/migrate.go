@@ -78,6 +78,7 @@ func (m *Migrator) AutoMigrate() error {
 }
 
 // ApplyNamespaceMigration applies namespace migration with template substitution
+// This applies ALL migrations (used for new namespace creation)
 func (m *Migrator) ApplyNamespaceMigration(schemaName string) error {
 	// Load migration files from embedded FS
 	migrations, err := m.loadMigrations()
@@ -95,6 +96,75 @@ func (m *Migrator) ApplyNamespaceMigration(schemaName string) error {
 	}
 
 	return nil
+}
+
+// MigrateNamespaceSchema applies pending migrations to an existing namespace schema
+// schemaName is the full schema name (e.g., "eventodb_default" for Postgres)
+// Returns the number of migrations applied
+func (m *Migrator) MigrateNamespaceSchema(schemaName string) (int, error) {
+	// Load migration files from embedded FS
+	migrations, err := m.loadMigrations()
+	if err != nil {
+		return 0, fmt.Errorf("failed to load namespace migrations: %w", err)
+	}
+
+	if len(migrations) == 0 {
+		return 0, nil
+	}
+
+	// Get current schema version
+	currentVersion := m.getNamespaceSchemaVersion(schemaName)
+
+	// Apply pending migrations
+	applied := 0
+	for _, migration := range migrations {
+		version := extractVersionFromFilename(migration.name)
+		if version <= currentVersion {
+			continue // Already applied
+		}
+
+		sql := strings.ReplaceAll(migration.content, "{{SCHEMA_NAME}}", schemaName)
+
+		if _, err := m.db.ExecContext(m.ctx, sql); err != nil {
+			return applied, fmt.Errorf("failed to apply namespace migration %s: %w", migration.name, err)
+		}
+		applied++
+	}
+
+	return applied, nil
+}
+
+// getNamespaceSchemaVersion returns the current schema version for a namespace
+// Returns 0 if _schema_version table doesn't exist (legacy namespace)
+func (m *Migrator) getNamespaceSchemaVersion(schemaName string) int {
+	var query string
+	if m.dialect == "sqlite" {
+		query = "SELECT COALESCE(MAX(version), 0) FROM _schema_version"
+	} else {
+		query = fmt.Sprintf(`SELECT COALESCE(MAX(version), 0) FROM "%s"._schema_version`, schemaName)
+	}
+
+	var version int
+	err := m.db.QueryRowContext(m.ctx, query).Scan(&version)
+	if err != nil {
+		// Table doesn't exist or other error - treat as version 0
+		return 0
+	}
+	return version
+}
+
+// extractVersionFromFilename extracts version number from filename like "001_xxx.sql"
+func extractVersionFromFilename(filename string) int {
+	// Extract leading digits
+	var version int
+	for _, ch := range filename {
+		if ch >= '0' && ch <= '9' {
+			version = version*10 + int(ch-'0')
+		} else {
+			break
+		}
+	}
+	return version
 }
 
 // migration represents a single migration file

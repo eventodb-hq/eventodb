@@ -225,3 +225,12 @@ func (s *PebbleStore) GetNamespaceMessageCount(ctx context.Context, namespace st
 
 	return count, nil
 }
+
+// MigrateNamespaces applies pending schema migrations to all existing namespaces
+// For Pebble, schema migrations are no-ops since all logic is in Go code.
+// This method exists to satisfy the Store interface.
+func (s *PebbleStore) MigrateNamespaces(ctx context.Context) (int, error) {
+	// Pebble doesn't need SQL migrations - all logic is in Go
+	// Schema version is tracked but migrations are applied via code updates
+	return 0, nil
+}
