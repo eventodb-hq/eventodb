@@ -456,6 +456,17 @@ func main() {
 	}
 	defer cleanup()
 
+	// Apply pending namespace schema migrations
+	migrationsApplied, err := st.MigrateNamespaces(context.Background())
+	if err != nil {
+		logger.Get().Fatal().Err(err).Msg("Failed to migrate namespaces")
+	}
+	if migrationsApplied > 0 {
+		logger.Get().Info().
+			Int("count", migrationsApplied).
+			Msg("Applied namespace schema migrations")
+	}
+
 	// Ensure default namespace exists and get/create token
 	token, err := ensureDefaultNamespace(context.Background(), st, *defaultToken)
 	if err != nil {
