@@ -453,6 +453,9 @@ func main() {
 	// Create SSE handler
 	sseHandler := api.NewSSEHandler(st, pubsub, cfg.testMode)
 
+	// Create import handler
+	importHandler := api.NewImportHandler(st)
+
 	// Create fasthttp middleware
 	authMiddlewareFast := api.AuthMiddlewareFast(st, cfg.testMode)
 
@@ -465,6 +468,10 @@ func main() {
 	sseHandlerFast := api.FastHTTPSSEHandler(sseHandler, cfg.testMode)
 	sseWithAuthFast := authMiddlewareFast(sseHandlerFast)
 	sseWithLoggingFast := api.LoggingMiddlewareFast(sseWithAuthFast)
+
+	// Create import handler wrapper with auth
+	importWithAuthFast := authMiddlewareFast(importHandler.HandleImport)
+	importWithLoggingFast := api.LoggingMiddlewareFast(importWithAuthFast)
 
 	// Set up fasthttp router
 	requestHandler := func(ctx *fasthttp.RequestCtx) {
@@ -489,6 +496,10 @@ func main() {
 			// SSE handler with auth and logging
 			sseWithLoggingFast(ctx)
 
+		case "/import":
+			// Import handler with auth and logging
+			importWithLoggingFast(ctx)
+
 		default:
 			// Handle all pprof endpoints with a prefix check
 			if len(path) >= 13 && path[:13] == "/debug/pprof/" {
@@ -512,8 +523,8 @@ func main() {
 		ReadTimeout:                   30 * time.Second,
 		WriteTimeout:                  0, // Disabled for SSE support
 		IdleTimeout:                   120 * time.Second,
-		MaxRequestBodySize:            4 * 1024 * 1024, // 4 MB
-		Concurrency:                   256 * 1024,      // Handle up to 256K concurrent connections
+		MaxRequestBodySize:            100 * 1024 * 1024, // 100 MB for bulk imports
+		Concurrency:                   256 * 1024,        // Handle up to 256K concurrent connections
 		DisableKeepalive:              false,
 		TCPKeepalive:                  true,
 		TCPKeepalivePeriod:            30 * time.Second,

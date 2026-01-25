@@ -499,6 +499,9 @@ func SetupTestServer(t *testing.T) *TestServer {
 	// Create SSE handler
 	sseHandler := api.NewSSEHandler(env.Store, pubsub, true)
 
+	// Create import handler
+	importHandler := api.NewImportHandler(env.Store)
+
 	// Set up HTTP routes
 	mux := http.NewServeMux()
 
@@ -522,6 +525,10 @@ func SetupTestServer(t *testing.T) *TestServer {
 
 	// SSE subscription endpoint
 	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
+
+	// Import endpoint with auth middleware (test mode)
+	importWithAuth := api.AuthMiddleware(env.Store, true)(importHandler)
+	mux.Handle("/import", api.LoggingMiddleware(importWithAuth))
 
 	// Start server
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
