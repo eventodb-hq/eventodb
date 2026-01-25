@@ -231,3 +231,59 @@ func (s *PebbleStore) ImportBatch(ctx context.Context, namespace string, message
 
 	return nil
 }
+
+// ClearNamespaceMessages deletes all messages from a namespace
+func (s *PebbleStore) ClearNamespaceMessages(ctx context.Context, namespace string) (int64, error) {
+	handle, err := s.getNamespaceDB(ctx, namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	handle.writeMu.Lock()
+	defer handle.writeMu.Unlock()
+
+	// Count messages first
+	var count int64
+	iter, err := handle.db.NewIter(&pebble.IterOptions{
+		LowerBound: []byte("M:"),
+		UpperBound: prefixUpperBound([]byte("M:")),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create iterator: %w", err)
+	}
+	for iter.First(); iter.Valid(); iter.Next() {
+		count++
+	}
+	iter.Close()
+
+	// Delete all data using prefix deletion
+	// Delete M: (messages), SI: (stream index), CI: (category index), VI: (version index)
+	prefixes := []string{"M:", "SI:", "CI:", "VI:"}
+
+	batch := handle.db.NewBatch()
+	defer batch.Close()
+
+	for _, prefix := range prefixes {
+		iter, err := handle.db.NewIter(&pebble.IterOptions{
+			LowerBound: []byte(prefix),
+			UpperBound: prefixUpperBound([]byte(prefix)),
+		})
+		if err != nil {
+			return 0, fmt.Errorf("failed to create iterator for %s: %w", prefix, err)
+		}
+
+		for iter.First(); iter.Valid(); iter.Next() {
+			batch.Delete(iter.Key(), nil)
+		}
+		iter.Close()
+	}
+
+	// Reset global position counter
+	batch.Set(formatGlobalPositionKey(), []byte(encodeInt64(1)), nil)
+
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return 0, fmt.Errorf("failed to commit clear batch: %w", err)
+	}
+
+	return count, nil
+}

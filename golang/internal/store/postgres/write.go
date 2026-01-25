@@ -240,3 +240,30 @@ func isPostgresUniqueConstraintError(err error) bool {
 		strings.Contains(errStr, "unique constraint") ||
 		strings.Contains(errStr, "23505") // PostgreSQL error code for unique_violation
 }
+
+// ClearNamespaceMessages deletes all messages from a namespace
+func (s *PostgresStore) ClearNamespaceMessages(ctx context.Context, namespace string) (int64, error) {
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	// Delete all messages and reset sequence
+	result, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM "%s".messages`, schemaName))
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete messages: %w", err)
+	}
+
+	deleted, _ := result.RowsAffected()
+
+	// Reset the sequence to 1
+	_, err = s.db.ExecContext(ctx, fmt.Sprintf(
+		`ALTER SEQUENCE "%s".messages_global_position_seq RESTART WITH 1`,
+		schemaName,
+	))
+	if err != nil {
+		return deleted, fmt.Errorf("failed to reset sequence: %w", err)
+	}
+
+	return deleted, nil
+}

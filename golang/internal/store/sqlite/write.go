@@ -176,3 +176,27 @@ func isUniqueConstraintError(err error) bool {
 	return strings.Contains(errStr, "UNIQUE constraint failed") ||
 		strings.Contains(errStr, "constraint failed")
 }
+
+// ClearNamespaceMessages deletes all messages from a namespace
+func (s *SQLiteStore) ClearNamespaceMessages(ctx context.Context, namespace string) (int64, error) {
+	handle, err := s.getNamespaceHandle(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	handle.writeMu.Lock()
+	defer handle.writeMu.Unlock()
+
+	// Delete all messages
+	result, err := handle.db.ExecContext(ctx, `DELETE FROM messages`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete messages: %w", err)
+	}
+
+	deleted, _ := result.RowsAffected()
+
+	// Reset autoincrement by deleting from sqlite_sequence
+	_, _ = handle.db.ExecContext(ctx, `DELETE FROM sqlite_sequence WHERE name = 'messages'`)
+
+	return deleted, nil
+}

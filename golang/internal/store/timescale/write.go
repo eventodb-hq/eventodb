@@ -200,3 +200,36 @@ func isTimescaleUniqueConstraintError(err error) bool {
 		strings.Contains(errStr, "unique constraint") ||
 		strings.Contains(errStr, "23505")
 }
+
+// ClearNamespaceMessages deletes all messages from a namespace
+func (s *TimescaleStore) ClearNamespaceMessages(ctx context.Context, namespace string) (int64, error) {
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return 0, err
+	}
+
+	// For TimescaleDB, use TRUNCATE for efficiency (drops chunks)
+	// First get count
+	var count int64
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM "%s".messages`, schemaName)).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count messages: %w", err)
+	}
+
+	// Truncate the hypertable
+	_, err = s.db.ExecContext(ctx, fmt.Sprintf(`TRUNCATE "%s".messages`, schemaName))
+	if err != nil {
+		return 0, fmt.Errorf("failed to truncate messages: %w", err)
+	}
+
+	// Reset the sequence
+	_, err = s.db.ExecContext(ctx, fmt.Sprintf(
+		`ALTER SEQUENCE "%s".messages_global_position_seq RESTART WITH 1`,
+		schemaName,
+	))
+	if err != nil {
+		return count, fmt.Errorf("failed to reset sequence: %w", err)
+	}
+
+	return count, nil
+}
