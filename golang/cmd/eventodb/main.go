@@ -305,6 +305,7 @@ USAGE:
 
 COMMANDS:
     serve                     Start the server (use for Docker/systemd)
+    export                    Export events as NDJSON (use --help for options)
     version, -v, --version    Show version information
     help, -h, --help          Show this help message
 
@@ -393,6 +394,17 @@ func main() {
 		// Remove "serve" from args so flag parsing works
 		os.Args = append(os.Args[:1], os.Args[2:]...)
 		// Continue to server startup below
+	case "export":
+		cfg, err := parseExportFlags(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := runExport(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	case "version", "--version", "-v":
 		full := len(os.Args) > 2 && (os.Args[2] == "--full" || os.Args[2] == "-f")
 		printVersion(full)
