@@ -304,6 +304,7 @@ USAGE:
     eventodb [COMMAND]
 
 COMMANDS:
+    serve                     Start the server (use for Docker/systemd)
     version, -v, --version    Show version information
     help, -h, --help          Show this help message
 
@@ -388,6 +389,10 @@ func main() {
 
 	// Handle commands before flag parsing
 	switch os.Args[1] {
+	case "serve":
+		// Remove "serve" from args so flag parsing works
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		// Continue to server startup below
 	case "version", "--version", "-v":
 		full := len(os.Args) > 2 && (os.Args[2] == "--full" || os.Args[2] == "-f")
 		printVersion(full)
