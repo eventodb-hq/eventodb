@@ -19,6 +19,7 @@ type ImportConfig struct {
 	Token string
 	Gzip  bool
 	Input string
+	Force bool
 }
 
 // ImportProgressEvent represents progress from the server
@@ -39,6 +40,7 @@ func parseImportFlags(args []string) (*ImportConfig, error) {
 	token := fs.String("token", "", "Namespace token (required)")
 	useGzip := fs.Bool("gzip", false, "Decompress input with gzip")
 	input := fs.String("input", "", "Input file path (default: stdin)")
+	force := fs.Bool("force", false, "Clear existing data before import (destructive!)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
@@ -53,6 +55,7 @@ Options:
 Examples:
   eventodb import --url http://localhost:8080 --token $TOKEN --input backup.ndjson
   eventodb import --url http://localhost:8080 --token $TOKEN --gzip --input backup.ndjson.gz
+  eventodb import --url http://localhost:8080 --token $TOKEN --force --input backup.ndjson
   cat backup.ndjson | eventodb import --url http://localhost:8080 --token $TOKEN
 `)
 	}
@@ -74,10 +77,30 @@ Examples:
 		Token: *token,
 		Gzip:  *useGzip,
 		Input: *input,
+		Force: *force,
 	}, nil
 }
 
 func runImport(cfg *ImportConfig) error {
+	// If force flag is set, prompt for confirmation
+	if cfg.Force {
+		fmt.Fprintf(os.Stderr, "WARNING: --force will DELETE ALL EXISTING DATA in the namespace before import.\n")
+		fmt.Fprintf(os.Stderr, "This action cannot be undone.\n\n")
+		fmt.Fprintf(os.Stderr, "Are you sure you want to continue? [y/N]: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read response: %w", err)
+		}
+
+		response = strings.TrimSpace(strings.ToLower(response))
+		if response != "y" && response != "yes" {
+			fmt.Fprintf(os.Stderr, "Import cancelled.\n")
+			return nil
+		}
+	}
+
 	// Set up input reader
 	var inputReader io.Reader = os.Stdin
 	var closeInput func() error
@@ -115,8 +138,14 @@ func runImport(cfg *ImportConfig) error {
 		copyErr <- err
 	}()
 
+	// Build URL with force parameter if set
+	importURL := cfg.URL + "/import"
+	if cfg.Force {
+		importURL += "?force=true"
+	}
+
 	// Create HTTP request
-	req, err := http.NewRequest("POST", cfg.URL+"/import", pr)
+	req, err := http.NewRequest("POST", importURL, pr)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
