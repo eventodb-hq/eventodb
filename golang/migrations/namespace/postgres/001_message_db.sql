@@ -213,7 +213,7 @@ BEGIN
         m.metadata,
         m.time
     FROM "{{SCHEMA_NAME}}".messages m
-    WHERE "{{SCHEMA_NAME}}".category(m.stream_name) = _category_name
+    WHERE (_category_name IS NULL OR _category_name = '' OR "{{SCHEMA_NAME}}".category(m.stream_name) = _category_name)
       AND m.global_position >= _position
       AND (_correlation IS NULL OR "{{SCHEMA_NAME}}".category(m.metadata->>'correlationStreamName') = _correlation)
       AND (
@@ -276,3 +276,12 @@ BEGIN
     RETURN _version;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+-- Schema version tracking table
+CREATE TABLE IF NOT EXISTS "{{SCHEMA_NAME}}"._schema_version (
+    version INTEGER PRIMARY KEY,
+    applied_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Record initial schema version
+INSERT INTO "{{SCHEMA_NAME}}"._schema_version (version) VALUES (1) ON CONFLICT DO NOTHING;

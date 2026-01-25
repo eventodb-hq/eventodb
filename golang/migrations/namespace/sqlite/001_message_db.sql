@@ -20,3 +20,12 @@ CREATE INDEX IF NOT EXISTS messages_category ON messages (
     substr(stream_name, 1, CASE WHEN instr(stream_name, '-') > 0 THEN instr(stream_name, '-') - 1 ELSE length(stream_name) END),
     global_position
 );
+
+-- Schema version tracking table
+CREATE TABLE IF NOT EXISTS _schema_version (
+    version INTEGER PRIMARY KEY,
+    applied_at INTEGER DEFAULT (strftime('%s', 'now'))
+);
+
+-- Record initial schema version
+INSERT OR IGNORE INTO _schema_version (version) VALUES (1);
