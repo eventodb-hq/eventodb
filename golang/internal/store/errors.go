@@ -12,6 +12,9 @@ var (
 	// ErrNamespaceNotFound occurs when namespace doesn't exist
 	ErrNamespaceNotFound = errors.New("namespace not found")
 
+	// ErrPositionExists occurs when trying to import a message with a global position that already exists
+	ErrPositionExists = errors.New("global position already exists")
+
 	// ErrNamespaceExists occurs when trying to create a namespace that already exists
 	ErrNamespaceExists = errors.New("namespace already exists")
 

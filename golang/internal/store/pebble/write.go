@@ -146,3 +146,88 @@ func getAndIncrementGlobalPosition(db *pebble.DB) (int64, error) {
 
 	return gp, nil
 }
+
+// ImportBatch writes messages with explicit positions (for import/restore)
+// All messages in batch are inserted in a single atomic batch
+func (s *PebbleStore) ImportBatch(ctx context.Context, namespace string, messages []*store.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	// Get namespace handle (lazy load if needed)
+	handle, err := s.getNamespaceDB(ctx, namespace)
+	if err != nil {
+		return err
+	}
+
+	// Serialize writes to maintain consistency
+	handle.writeMu.Lock()
+	defer handle.writeMu.Unlock()
+
+	// First pass: check for duplicate global positions
+	for _, msg := range messages {
+		key := formatMessageKey(msg.GlobalPosition)
+		_, closer, err := handle.db.Get(key)
+		if err == nil {
+			closer.Close()
+			return fmt.Errorf("%w: %d", store.ErrPositionExists, msg.GlobalPosition)
+		}
+		if err != pebble.ErrNotFound {
+			return fmt.Errorf("failed to check position existence: %w", err)
+		}
+	}
+
+	// Create atomic batch
+	batch := handle.db.NewBatch()
+	defer batch.Close()
+
+	// Track max global position for updating GP counter
+	var maxGlobalPosition int64 = 0
+
+	for _, msg := range messages {
+		// Serialize message to JSON
+		messageJSON, err := json.Marshal(msg)
+		if err != nil {
+			return fmt.Errorf("failed to serialize message: %w", err)
+		}
+
+		// Compress JSON using S2
+		compressedMessage := compressJSON(messageJSON)
+
+		// Extract category
+		category := extractCategory(msg.StreamName)
+
+		// 1. M:{gp} → compressed message JSON
+		batch.Set(formatMessageKey(msg.GlobalPosition), compressedMessage, nil)
+
+		// 2. SI:{stream}:{position} → global position
+		batch.Set(formatStreamIndexKey(msg.StreamName, msg.Position), []byte(encodeInt64(msg.GlobalPosition)), nil)
+
+		// 3. CI:{category}:{gp} → stream name
+		batch.Set(formatCategoryIndexKey(category, msg.GlobalPosition), []byte(msg.StreamName), nil)
+
+		// 4. VI:{stream} → update if this position is higher than current
+		currentVersion, _ := getStreamVersion(handle.db, msg.StreamName)
+		if msg.Position > currentVersion {
+			batch.Set(formatVersionIndexKey(msg.StreamName), []byte(encodeInt64(msg.Position)), nil)
+		}
+
+		// Track max for GP counter update
+		if msg.GlobalPosition > maxGlobalPosition {
+			maxGlobalPosition = msg.GlobalPosition
+		}
+	}
+
+	// 5. Update GP counter if imported positions exceed current
+	currentGP, _ := getAndIncrementGlobalPosition(handle.db)
+	if maxGlobalPosition >= currentGP {
+		batch.Set(formatGlobalPositionKey(), []byte(encodeInt64(maxGlobalPosition+1)), nil)
+	}
+
+	// Commit batch
+	if err := batch.Commit(pebble.NoSync); err != nil {
+		return fmt.Errorf("failed to commit import batch: %w", err)
+	}
+
+	return nil
+}

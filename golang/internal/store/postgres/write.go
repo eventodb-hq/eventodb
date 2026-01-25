@@ -135,3 +135,108 @@ func (s *PostgresStore) WriteMessage(ctx context.Context, namespace, streamName 
 		GlobalPosition: globalPosition,
 	}, nil
 }
+
+// ImportBatch writes messages with explicit positions (for import/restore)
+// All messages in batch are inserted in a single transaction
+func (s *PostgresStore) ImportBatch(ctx context.Context, namespace string, messages []*store.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Prepare statement for batch insert with explicit global_position
+	// Use OVERRIDING SYSTEM VALUE to allow explicit global_position on SERIAL column
+	stmt, err := tx.PrepareContext(ctx, fmt.Sprintf(`
+		INSERT INTO "%s".messages (id, stream_name, type, position, global_position, data, metadata, time)
+		OVERRIDING SYSTEM VALUE
+		VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)
+	`, schemaName))
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, msg := range messages {
+		var dataParam interface{} = nil
+		var metadataParam interface{} = nil
+
+		if msg.Data != nil {
+			dataJSON, err := json.Marshal(msg.Data)
+			if err != nil {
+				return fmt.Errorf("failed to marshal data: %w", err)
+			}
+			dataParam = string(dataJSON)
+		}
+		if msg.Metadata != nil {
+			metadataJSON, err := json.Marshal(msg.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
+			metadataParam = string(metadataJSON)
+		}
+
+		_, err = stmt.ExecContext(ctx,
+			msg.ID,
+			msg.StreamName,
+			msg.Type,
+			msg.Position,
+			msg.GlobalPosition,
+			dataParam,
+			metadataParam,
+			msg.Time,
+		)
+		if err != nil {
+			// Check for unique constraint violation (duplicate global_position)
+			if isPostgresUniqueConstraintError(err) {
+				return fmt.Errorf("%w: %d", store.ErrPositionExists, msg.GlobalPosition)
+			}
+			return fmt.Errorf("failed to insert message: %w", err)
+		}
+	}
+
+	// Update the sequence to ensure new writes get positions after imported ones
+	// Find the max global_position we just inserted
+	var maxGP int64
+	for _, msg := range messages {
+		if msg.GlobalPosition > maxGP {
+			maxGP = msg.GlobalPosition
+		}
+	}
+
+	// Set the sequence to max + 1 so next auto-generated value is correct
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(
+		`SELECT setval('"%s".messages_global_position_seq', $1, true)`,
+		schemaName,
+	), maxGP)
+	if err != nil {
+		return fmt.Errorf("failed to update sequence: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// isPostgresUniqueConstraintError checks if the error is a unique constraint violation
+func isPostgresUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// PostgreSQL unique constraint error patterns (pgx driver)
+	return strings.Contains(errStr, "duplicate key value") ||
+		strings.Contains(errStr, "unique constraint") ||
+		strings.Contains(errStr, "23505") // PostgreSQL error code for unique_violation
+}

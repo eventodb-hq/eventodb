@@ -52,6 +52,20 @@ type Store interface {
 	// Returns the position and global position where the message was written.
 	WriteMessage(ctx context.Context, namespace, streamName string, msg *Message) (*WriteResult, error)
 
+	// ImportBatch writes messages with explicit positions (for import/restore).
+	//
+	// Unlike WriteMessage, this method preserves the original Position and GlobalPosition
+	// from the messages. This is used for importing exported data from another namespace
+	// or restoring from backup.
+	//
+	// All messages in the batch are inserted in a single transaction. If any message
+	// has a GlobalPosition that already exists in the namespace, the entire batch
+	// fails with ErrPositionExists.
+	//
+	// Messages should have ID, StreamName, Type, Position, GlobalPosition, Data,
+	// Metadata, and Time already set.
+	ImportBatch(ctx context.Context, namespace string, messages []*Message) error
+
 	// GetStreamMessages retrieves messages from a specific stream.
 	//
 	// Use opts.Position to specify the starting stream position (default: 0).
