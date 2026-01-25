@@ -306,6 +306,7 @@ USAGE:
 COMMANDS:
     serve                     Start the server (use for Docker/systemd)
     export                    Export events as NDJSON (use --help for options)
+    import                    Import events from NDJSON (use --help for options)
     version, -v, --version    Show version information
     help, -h, --help          Show this help message
 
@@ -401,6 +402,17 @@ func main() {
 			os.Exit(1)
 		}
 		if err := runExport(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	case "import":
+		cfg, err := parseImportFlags(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := runImport(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
