@@ -165,12 +165,13 @@ func runExport(cfg *ExportConfig) error {
 
 	var exported int64
 
-	// Categories are required for export - the API requires a category name
-	if len(cfg.Categories) == 0 {
-		return fmt.Errorf("--categories is required (specify comma-separated list of categories to export)")
+	// If no categories specified, use empty string to fetch all messages
+	categories := cfg.Categories
+	if len(categories) == 0 {
+		categories = []string{""} // Empty = all messages
 	}
 
-	for _, category := range cfg.Categories {
+	for _, category := range categories {
 		var position int64
 
 		for {
