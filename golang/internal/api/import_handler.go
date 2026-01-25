@@ -74,6 +74,20 @@ func (h *ImportHandler) HandleImport(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	// Check for force flag (clear existing data before import)
+	forceImport := string(ctx.QueryArgs().Peek("force")) == "true"
+	if forceImport {
+		deleted, err := h.store.ClearNamespaceMessages(ctx, namespace)
+		if err != nil {
+			h.writeError(ctx, fasthttp.StatusInternalServerError, "CLEAR_FAILED", err.Error())
+			return
+		}
+		logger.Get().Info().
+			Str("namespace", namespace).
+			Int64("deleted", deleted).
+			Msg("Cleared namespace messages before import")
+	}
+
 	// Set up SSE response headers
 	ctx.SetContentType("text/event-stream")
 	ctx.Response.Header.Set("Cache-Control", "no-cache")
