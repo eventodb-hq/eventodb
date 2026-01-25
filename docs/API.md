@@ -554,12 +554,94 @@ eventSource.addEventListener('poke', (event) => {
 
 ---
 
+## Bulk Import
+
+### POST /import
+
+Import events from NDJSON format with preserved global positions. Used for restoring backups or migrating data between namespaces.
+
+**Request:**
+```http
+POST /import HTTP/1.1
+Authorization: Bearer <token>
+Content-Type: application/x-ndjson
+Transfer-Encoding: chunked
+
+{"id":"uuid-1","stream":"order-123","type":"Created","pos":0,"gpos":47,"data":{"amount":100},"meta":null,"time":"2025-01-15T10:00:00Z"}
+{"id":"uuid-2","stream":"order-123","type":"Updated","pos":1,"gpos":52,"data":{"amount":150},"meta":null,"time":"2025-01-15T10:01:00Z"}
+```
+
+**NDJSON Record Format:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Message UUID |
+| `stream` | string | Yes | Full stream name |
+| `type` | string | Yes | Event type |
+| `pos` | number | Yes | Stream position |
+| `gpos` | number | Yes | Global position (preserved exactly) |
+| `data` | object | Yes | Event payload |
+| `meta` | object | No | Metadata (null if empty) |
+| `time` | string | Yes | ISO 8601 timestamp |
+
+**Response (SSE stream):**
+
+Progress events are sent during import:
+```
+data: {"imported":1000,"gpos":1523}
+
+data: {"imported":2000,"gpos":3042}
+
+data: {"done":true,"imported":3456,"elapsed":"2.3s"}
+```
+
+**Error Response:**
+
+If an error occurs mid-stream:
+```
+data: {"error":"POSITION_EXISTS","message":"global position already exists: 47","line":15}
+```
+
+**Error Codes:**
+- `POSITION_EXISTS` - Global position already exists in namespace
+- `INVALID_JSON` - Malformed JSON line in import
+- `IMPORT_FAILED` - Database error during import
+- `AUTH_REQUIRED` - No authentication token provided
+
+**Example:**
+```bash
+# Import from file
+curl -X POST http://localhost:8080/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/x-ndjson" \
+  --data-binary @backup.ndjson
+
+# Import from stdin
+cat backup.ndjson | curl -X POST http://localhost:8080/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/x-ndjson" \
+  --data-binary @-
+```
+
+**Important Notes:**
+
+1. **Clean namespace required**: Import expects the namespace to be empty or have no conflicting global positions. Duplicate positions cause an error.
+
+2. **Preserved positions**: Unlike normal writes, imported events keep their original global positions. This allows restoring exact state from exports.
+
+3. **Batch processing**: Events are inserted in batches of 1000 for performance. Progress events are sent after each batch.
+
+4. **Memory efficient**: Streaming design ensures constant memory usage regardless of import size.
+
+---
+
 ## HTTP Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/rpc` | POST | RPC API endpoint |
 | `/subscribe` | GET | SSE subscription endpoint |
+| `/import` | POST | Bulk import with preserved positions |
 | `/health` | GET | Health check (returns `{"status":"ok"}`) |
 | `/version` | GET | Version info (returns `{"version":"1.3.0"}`) |
 
@@ -570,11 +652,14 @@ eventSource.addEventListener('poke', (event) => {
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
 | `INVALID_REQUEST` | 400 | Malformed request or invalid arguments |
+| `INVALID_JSON` | 400 | Malformed JSON (import) |
 | `AUTH_REQUIRED` | 401 | No authentication token provided |
 | `AUTH_INVALID` | 401 | Invalid or expired token |
 | `NAMESPACE_NOT_FOUND` | 404 | Namespace doesn't exist |
 | `NAMESPACE_EXISTS` | 409 | Namespace already exists |
 | `STREAM_VERSION_CONFLICT` | 409 | Optimistic locking conflict |
+| `POSITION_EXISTS` | 409 | Global position already exists (import) |
+| `IMPORT_FAILED` | 500 | Database error during import |
 | `BACKEND_ERROR` | 500 | Database or internal error |
 
 ---
