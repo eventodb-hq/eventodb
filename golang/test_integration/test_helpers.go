@@ -559,6 +559,57 @@ func SetupTestServer(t *testing.T) *TestServer {
 	}
 }
 
+// SetupIsolatedTestServer creates a test HTTP server with a unique namespace,
+// avoiding cross-test pollution on shared backends like PostgreSQL.
+func SetupIsolatedTestServer(t *testing.T) *TestServer {
+	t.Helper()
+
+	env := SetupTestEnv(t) // unique namespace per test
+
+	pubsub := api.NewPubSub()
+	rpcHandler := api.NewRPCHandler("1.4.0", env.Store, pubsub)
+	sseHandler := api.NewSSEHandler(env.Store, pubsub, true)
+	importHandler := api.NewImportHandler(env.Store)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"ok"}`)
+	})
+	rpcWithAuth := api.AuthMiddleware(env.Store, true)(rpcHandler)
+	mux.Handle("/rpc", api.LoggingMiddleware(rpcWithAuth))
+	mux.HandleFunc("/subscribe", sseHandler.HandleSubscribe)
+	importWithAuth := api.AuthMiddleware(env.Store, true)(importHandler)
+	mux.Handle("/import", api.LoggingMiddleware(importWithAuth))
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		env.Cleanup()
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	server := &http.Server{Handler: mux}
+	go server.Serve(listener)
+	time.Sleep(50 * time.Millisecond)
+
+	cleanup := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+		listener.Close()
+		env.Cleanup()
+	}
+
+	return &TestServer{
+		Port:    port,
+		Token:   env.Token,
+		Env:     env,
+		cleanup: cleanup,
+	}
+}
+
 // Helper functions
 
 func getEnvDefault(key, defaultValue string) string {

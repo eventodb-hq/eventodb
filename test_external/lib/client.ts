@@ -71,6 +71,24 @@ export interface NamespaceInfo {
   lastActivity: string | null;
 }
 
+export interface StreamInfo {
+  stream: string;
+  version: number;
+  lastActivity: string;
+}
+
+export interface CategoryInfo {
+  category: string;
+  streamCount: number;
+  messageCount: number;
+}
+
+export interface ListStreamsOptions {
+  prefix?: string;
+  limit?: number;
+  cursor?: string;
+}
+
 export interface SubscribeOptions {
   position?: number;
   consumerGroup?: {
@@ -224,6 +242,20 @@ export class EventoDBClient {
    */
   async getNamespaceInfo(namespaceId: string): Promise<NamespaceInfo> {
     return this.rpc('ns.info', namespaceId);
+  }
+
+  /**
+   * List streams in the current namespace.
+   */
+  async listStreams(opts?: ListStreamsOptions): Promise<StreamInfo[]> {
+    return this.rpc('ns.streams', opts || {});
+  }
+
+  /**
+   * List distinct categories in the current namespace with stream and message counts.
+   */
+  async listCategories(): Promise<CategoryInfo[]> {
+    return this.rpc('ns.categories');
   }
 
   // ===================

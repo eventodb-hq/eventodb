@@ -63,6 +63,8 @@ func NewRPCHandler(version string, st store.Store, pubsub *PubSub) *RPCHandler {
 	h.registerMethod("ns.delete", h.handleNamespaceDelete)
 	h.registerMethod("ns.list", h.handleNamespaceList)
 	h.registerMethod("ns.info", h.handleNamespaceInfo)
+	h.registerMethod("ns.streams", h.handleNamespaceStreams)
+	h.registerMethod("ns.categories", h.handleNamespaceCategories)
 
 	return h
 }

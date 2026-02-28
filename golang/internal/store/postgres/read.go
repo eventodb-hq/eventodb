@@ -174,6 +174,92 @@ func (s *PostgresStore) GetStreamVersion(ctx context.Context, namespace, streamN
 	return version, nil
 }
 
+// ListStreams returns streams in a namespace with optional prefix filtering and pagination.
+func (s *PostgresStore) ListStreams(ctx context.Context, namespace string, opts *store.ListStreamsOpts) ([]*store.StreamInfo, error) {
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts == nil {
+		opts = &store.ListStreamsOpts{Limit: 100}
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	query := fmt.Sprintf(`
+		SELECT stream_name, MAX(position) AS version, MAX(time) AS last_activity
+		FROM "%s".messages
+		WHERE ($1 = '' OR stream_name LIKE $1 || '%%')
+		  AND ($2 = '' OR stream_name > $2)
+		GROUP BY stream_name
+		ORDER BY stream_name ASC
+		LIMIT $3`, schemaName)
+
+	rows, err := s.db.QueryContext(ctx, query, opts.Prefix, opts.Cursor, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list streams: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*store.StreamInfo
+	for rows.Next() {
+		var si store.StreamInfo
+		var lastActivity sql.NullTime
+		if err := rows.Scan(&si.StreamName, &si.Version, &lastActivity); err != nil {
+			return nil, fmt.Errorf("failed to scan stream info: %w", err)
+		}
+		if lastActivity.Valid {
+			si.LastActivity = lastActivity.Time.UTC()
+		}
+		results = append(results, &si)
+	}
+	if results == nil {
+		results = []*store.StreamInfo{}
+	}
+	return results, rows.Err()
+}
+
+// ListCategories returns distinct categories in a namespace with stream and message counts.
+func (s *PostgresStore) ListCategories(ctx context.Context, namespace string) ([]*store.CategoryInfo, error) {
+	schemaName, err := s.getSchemaName(namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf(`
+		SELECT split_part(stream_name, '-', 1) AS category,
+		       COUNT(DISTINCT stream_name) AS stream_count,
+		       COUNT(*) AS message_count
+		FROM "%s".messages
+		GROUP BY category
+		ORDER BY category ASC`, schemaName)
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list categories: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*store.CategoryInfo
+	for rows.Next() {
+		var ci store.CategoryInfo
+		if err := rows.Scan(&ci.Category, &ci.StreamCount, &ci.MessageCount); err != nil {
+			return nil, fmt.Errorf("failed to scan category info: %w", err)
+		}
+		results = append(results, &ci)
+	}
+	if results == nil {
+		results = []*store.CategoryInfo{}
+	}
+	return results, rows.Err()
+}
+
 // scanMessages is a helper function to scan rows into Message structs
 func (s *PostgresStore) scanMessages(rows *sql.Rows, capacityHint int64) ([]*store.Message, error) {
 	// Pre-allocate slice with capacity hint to reduce allocations

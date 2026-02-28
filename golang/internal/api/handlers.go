@@ -929,6 +929,95 @@ func (h *RPCHandler) handleNamespaceInfo(ctx context.Context, args []interface{}
 	}, nil
 }
 
+// handleNamespaceStreams lists streams in the current namespace
+// Request: ["ns.streams", {opts}]
+// Response: [{"stream": "...", "version": 5, "lastActivity": "..."}, ...]
+func (h *RPCHandler) handleNamespaceStreams(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+
+	opts := &store.ListStreamsOpts{Limit: 100}
+
+	if len(args) > 0 {
+		optsObj, ok := args[0].(map[string]interface{})
+		if !ok {
+			return nil, &RPCError{Code: "INVALID_REQUEST", Message: "options must be an object"}
+		}
+
+		if v, exists := optsObj["prefix"]; exists {
+			s, ok := v.(string)
+			if !ok {
+				return nil, &RPCError{Code: "INVALID_REQUEST", Message: "prefix must be a string"}
+			}
+			opts.Prefix = s
+		}
+		if v, exists := optsObj["cursor"]; exists {
+			s, ok := v.(string)
+			if !ok {
+				return nil, &RPCError{Code: "INVALID_REQUEST", Message: "cursor must be a string"}
+			}
+			opts.Cursor = s
+		}
+		if v, exists := optsObj["limit"]; exists {
+			switch n := v.(type) {
+			case float64:
+				opts.Limit = int64(n)
+			case int:
+				opts.Limit = int64(n)
+			case int64:
+				opts.Limit = n
+			default:
+				return nil, &RPCError{Code: "INVALID_REQUEST", Message: "limit must be a number"}
+			}
+			if opts.Limit <= 0 || opts.Limit > 1000 {
+				return nil, &RPCError{Code: "INVALID_REQUEST", Message: "limit must be between 1 and 1000"}
+			}
+		}
+	}
+
+	streams, err := h.store.ListStreams(ctx, namespace, opts)
+	if err != nil {
+		return nil, &RPCError{Code: "BACKEND_ERROR", Message: fmt.Sprintf("Failed to list streams: %v", err)}
+	}
+
+	result := make([]interface{}, len(streams))
+	for i, s := range streams {
+		result[i] = map[string]interface{}{
+			"stream":       s.StreamName,
+			"version":      s.Version,
+			"lastActivity": s.LastActivity.UTC().Format(time.RFC3339),
+		}
+	}
+	return result, nil
+}
+
+// handleNamespaceCategories lists distinct categories in the current namespace
+// Request: ["ns.categories"]
+// Response: [{"category": "...", "streamCount": 42, "messageCount": 1500}, ...]
+func (h *RPCHandler) handleNamespaceCategories(ctx context.Context, args []interface{}) (interface{}, *RPCError) {
+	namespace, rpcErr := h.getNamespace(ctx)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+
+	categories, err := h.store.ListCategories(ctx, namespace)
+	if err != nil {
+		return nil, &RPCError{Code: "BACKEND_ERROR", Message: fmt.Sprintf("Failed to list categories: %v", err)}
+	}
+
+	result := make([]interface{}, len(categories))
+	for i, c := range categories {
+		result[i] = map[string]interface{}{
+			"category":     c.Category,
+			"streamCount":  c.StreamCount,
+			"messageCount": c.MessageCount,
+		}
+	}
+	return result, nil
+}
+
 // getNamespace extracts namespace from context, with auto-creation support in test mode
 func (h *RPCHandler) getNamespace(ctx context.Context) (string, *RPCError) {
 	// Try to get namespace from context (set by auth middleware)
