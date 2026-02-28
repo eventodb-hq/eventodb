@@ -231,6 +231,46 @@ defmodule EventodbEx do
     end
   end
 
+  @doc """
+  Lists streams in the current namespace with optional prefix filtering and pagination.
+
+  ## Options
+
+    * `:prefix` - Filter streams whose name starts with this string
+    * `:limit` - Max streams to return (default: 100, max: 1000)
+    * `:cursor` - Pagination cursor — return streams after this stream name (exclusive)
+
+  ## Examples
+
+      {:ok, streams, client} = EventodbEx.namespace_streams(client)
+      {:ok, streams, client} = EventodbEx.namespace_streams(client, %{prefix: "account", limit: 50})
+
+  """
+  @spec namespace_streams(Client.t(), map()) ::
+          {:ok, list(map()), Client.t()} | {:error, Error.t()}
+  def namespace_streams(client, opts \\ %{}) do
+    opts = normalize_options(opts)
+    with {:ok, result, client} <- Client.rpc(client, "ns.streams", [opts]) do
+      {:ok, Enum.map(result, &snake_case_keys/1), client}
+    end
+  end
+
+  @doc """
+  Lists distinct categories in the current namespace with stream and message counts.
+
+  ## Examples
+
+      {:ok, categories, client} = EventodbEx.namespace_categories(client)
+
+  """
+  @spec namespace_categories(Client.t()) ::
+          {:ok, list(map()), Client.t()} | {:error, Error.t()}
+  def namespace_categories(client) do
+    with {:ok, result, client} <- Client.rpc(client, "ns.categories", []) do
+      {:ok, Enum.map(result, &snake_case_keys/1), client}
+    end
+  end
+
   # =======================
   # Subscription Operations
   # =======================

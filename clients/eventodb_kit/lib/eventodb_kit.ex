@@ -150,4 +150,24 @@ defmodule EventodbKit do
         {:error, reason}
     end
   end
+
+  @doc """
+  Lists streams in the current namespace with optional prefix filtering and pagination.
+  """
+  def namespace_streams(%Client{} = kit, opts \\ %{}) do
+    case EventodbEx.namespace_streams(kit.eventodb_client, opts) do
+      {:ok, streams, client} -> {:ok, streams, %{kit | eventodb_client: client}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Lists distinct categories in the current namespace with stream and message counts.
+  """
+  def namespace_categories(%Client{} = kit) do
+    case EventodbEx.namespace_categories(kit.eventodb_client) do
+      {:ok, categories, client} -> {:ok, categories, %{kit | eventodb_client: client}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 end
