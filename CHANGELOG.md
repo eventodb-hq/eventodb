@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-03-01
+
+### Features
+
+- **Namespace stream and category listing** (ADR-011): New RPC methods for namespace introspection
+  - `ns.streams` — list streams in the current namespace with optional prefix filtering and cursor-based pagination
+  - `ns.categories` — list distinct categories with stream and message counts
+  - Enables browser/introspection UIs (e.g. EventodbWeb) to discover what streams and categories exist
+  - Both methods are namespace-scoped; reads in one namespace are invisible to another
+
+### API
+
+- `ns.streams` with optional `prefix`, `limit`, and `cursor` fields; results sorted lexicographically
+- `ns.categories` with no options; returns category name, `streamCount`, and `messageCount`
+
+### Store
+
+- `ListStreams(ctx, namespace, opts)` added to `store.Store` interface
+- `ListCategories(ctx, namespace)` added to `store.Store` interface
+- New types: `ListStreamsOpts`, `StreamInfo`, `CategoryInfo`
+
+### SDK
+
+- `EventodbEx` (`eventodb_ex`): `namespace_streams/2`, `namespace_categories/1`
+- `EventodbKit` (`eventodb_kit`): `namespace_streams/2`, `namespace_categories/1`
+- TypeScript client: `listStreams(opts?)`, `listCategories()`, `StreamInfo`, `CategoryInfo`, `ListStreamsOptions`
+
+---
+
 ## [0.6.0] - 2026-01-25
 
 ### Features
