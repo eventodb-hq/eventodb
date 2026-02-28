@@ -192,6 +192,96 @@ func (s *SQLiteStore) GetStreamVersion(ctx context.Context, namespace, streamNam
 	return version, nil
 }
 
+// ListStreams returns streams in a namespace with optional prefix filtering and pagination.
+func (s *SQLiteStore) ListStreams(ctx context.Context, namespace string, opts *store.ListStreamsOpts) ([]*store.StreamInfo, error) {
+	handle, err := s.getNamespaceHandle(namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts == nil {
+		opts = &store.ListStreamsOpts{Limit: 100}
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	query := `SELECT stream_name, MAX(position) AS version, MAX(time) AS last_activity
+		FROM messages
+		WHERE (? = '' OR stream_name LIKE ? || '%')
+		  AND (? = '' OR stream_name > ?)
+		GROUP BY stream_name
+		ORDER BY stream_name ASC
+		LIMIT ?`
+
+	rows, err := handle.db.QueryContext(ctx, query,
+		opts.Prefix, opts.Prefix,
+		opts.Cursor, opts.Cursor,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list streams: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*store.StreamInfo
+	for rows.Next() {
+		var si store.StreamInfo
+		var lastActivityUnix int64
+		if err := rows.Scan(&si.StreamName, &si.Version, &lastActivityUnix); err != nil {
+			return nil, fmt.Errorf("failed to scan stream info: %w", err)
+		}
+		si.LastActivity = time.Unix(lastActivityUnix, 0).UTC()
+		results = append(results, &si)
+	}
+	if results == nil {
+		results = []*store.StreamInfo{}
+	}
+	return results, rows.Err()
+}
+
+// ListCategories returns distinct categories in a namespace with stream and message counts.
+func (s *SQLiteStore) ListCategories(ctx context.Context, namespace string) ([]*store.CategoryInfo, error) {
+	handle, err := s.getNamespaceHandle(namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `SELECT
+		substr(stream_name, 1,
+			CASE WHEN instr(stream_name, '-') > 0
+				THEN instr(stream_name, '-') - 1
+				ELSE length(stream_name) END) AS category,
+		COUNT(DISTINCT stream_name) AS stream_count,
+		COUNT(*) AS message_count
+		FROM messages
+		GROUP BY category
+		ORDER BY category ASC`
+
+	rows, err := handle.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list categories: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*store.CategoryInfo
+	for rows.Next() {
+		var ci store.CategoryInfo
+		if err := rows.Scan(&ci.Category, &ci.StreamCount, &ci.MessageCount); err != nil {
+			return nil, fmt.Errorf("failed to scan category info: %w", err)
+		}
+		results = append(results, &ci)
+	}
+	if results == nil {
+		results = []*store.CategoryInfo{}
+	}
+	return results, rows.Err()
+}
+
 func scanMessages(rows *sql.Rows, capacityHint int64) ([]*store.Message, error) {
 	// Pre-allocate slice with capacity hint to reduce allocations
 	capacity := int(capacityHint)

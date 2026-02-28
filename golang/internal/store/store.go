@@ -147,6 +147,14 @@ type Store interface {
 	// Returns an error if the namespace doesn't exist.
 	GetNamespaceMessageCount(ctx context.Context, namespace string) (int64, error)
 
+	// ListStreams returns streams in a namespace with optional prefix filtering and pagination.
+	// Results are sorted lexicographically by stream name.
+	ListStreams(ctx context.Context, namespace string, opts *ListStreamsOpts) ([]*StreamInfo, error)
+
+	// ListCategories returns distinct categories in a namespace with stream and message counts.
+	// Results are sorted lexicographically by category name.
+	ListCategories(ctx context.Context, namespace string) ([]*CategoryInfo, error)
+
 	// Utility Functions (EventoDB compatible)
 
 	// Category extracts the category name from a stream name.
@@ -252,6 +260,27 @@ type Namespace struct {
 	// Backend-specific fields (not exposed in interface)
 	SchemaName string // Postgres: schema name
 	DBPath     string // SQLite: database file path
+}
+
+// ListStreamsOpts specifies options for listing streams in a namespace
+type ListStreamsOpts struct {
+	Prefix string // filter by stream name prefix (empty = no filter)
+	Limit  int64  // max results (default 100, max 1000)
+	Cursor string // pagination: return streams after this name (exclusive)
+}
+
+// StreamInfo holds summary information about a stream
+type StreamInfo struct {
+	StreamName   string
+	Version      int64
+	LastActivity time.Time
+}
+
+// CategoryInfo holds summary information about a category
+type CategoryInfo struct {
+	Category     string
+	StreamCount  int64
+	MessageCount int64
 }
 
 // NewGetOpts creates GetOpts with default values

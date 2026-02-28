@@ -3,6 +3,7 @@ package pebble
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cockroachdb/pebble"
 	"github.com/eventodb/eventodb/internal/store"
@@ -528,6 +529,198 @@ func (s *PebbleStore) GetStreamVersion(ctx context.Context, namespace, streamNam
 	}
 
 	return version, nil
+}
+
+// ListStreams returns streams in a namespace with optional prefix filtering and pagination.
+// It iterates the version index (VI:{stream}) for stream names, then looks up
+// the last message for version and lastActivity.
+func (s *PebbleStore) ListStreams(ctx context.Context, namespace string, opts *store.ListStreamsOpts) ([]*store.StreamInfo, error) {
+	handle, err := s.getNamespaceDB(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts == nil {
+		opts = &store.ListStreamsOpts{Limit: 100}
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	// Iterate VI: prefix to find all streams
+	viStart := []byte(prefixVersionIndex)
+	viEnd := []byte(prefixVersionIndex + "\xff")
+
+	iter, err := handle.db.NewIter(&pebble.IterOptions{
+		LowerBound: viStart,
+		UpperBound: viEnd,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create version index iterator: %w", err)
+	}
+	defer iter.Close()
+
+	results := make([]*store.StreamInfo, 0, limit)
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		if int64(len(results)) >= limit {
+			break
+		}
+
+		// Extract stream name: key = VI:{stream}
+		key := string(iter.Key())
+		streamName := strings.TrimPrefix(key, prefixVersionIndex)
+
+		// Apply prefix filter
+		if opts.Prefix != "" && !strings.HasPrefix(streamName, opts.Prefix) {
+			continue
+		}
+
+		// Apply cursor (exclusive)
+		if opts.Cursor != "" && streamName <= opts.Cursor {
+			continue
+		}
+
+		// Get version from VI value
+		version, err := decodeInt64(iter.Value())
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode version for stream %s: %w", streamName, err)
+		}
+
+		// Look up last message to get lastActivity: SI:{stream}:{version}
+		siKey := formatStreamIndexKey(streamName, version)
+		gpData, closer, err := handle.db.Get(siKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get stream index for %s: %w", streamName, err)
+		}
+		gp, err := decodeInt64(gpData)
+		closer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode global position for stream %s: %w", streamName, err)
+		}
+
+		// Get message to find time
+		msgKey := formatMessageKey(gp)
+		compressedData, closer, err := handle.db.Get(msgKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get message at gp=%d for stream %s: %w", gp, streamName, err)
+		}
+		msgData, err := decompressJSON(compressedData)
+		closer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress message: %w", err)
+		}
+
+		var msg store.Message
+		if err := json.Unmarshal(msgData, &msg); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+		}
+
+		results = append(results, &store.StreamInfo{
+			StreamName:   streamName,
+			Version:      version,
+			LastActivity: msg.Time.UTC(),
+		})
+	}
+
+	if err := iter.Error(); err != nil {
+		return nil, fmt.Errorf("iterator error: %w", err)
+	}
+
+	return results, nil
+}
+
+// ListCategories returns distinct categories in a namespace with stream and message counts.
+// It iterates the version index (VI:{stream}) to enumerate streams, derives categories,
+// then counts messages via the category index (CI:{category}:*).
+func (s *PebbleStore) ListCategories(ctx context.Context, namespace string) ([]*store.CategoryInfo, error) {
+	handle, err := s.getNamespaceDB(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// First pass: collect distinct streams grouped by category from the version index
+	type catAccum struct {
+		streams map[string]struct{}
+	}
+	catMap := map[string]*catAccum{}
+
+	viStart := []byte(prefixVersionIndex)
+	viEnd := []byte(prefixVersionIndex + "\xff")
+
+	iter, err := handle.db.NewIter(&pebble.IterOptions{
+		LowerBound: viStart,
+		UpperBound: viEnd,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create version index iterator: %w", err)
+	}
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := string(iter.Key())
+		streamName := strings.TrimPrefix(key, prefixVersionIndex)
+		cat := extractCategory(streamName)
+		if _, ok := catMap[cat]; !ok {
+			catMap[cat] = &catAccum{streams: map[string]struct{}{}}
+		}
+		catMap[cat].streams[streamName] = struct{}{}
+	}
+	iterErr := iter.Error()
+	iter.Close()
+	if iterErr != nil {
+		return nil, fmt.Errorf("iterator error: %w", iterErr)
+	}
+
+	if len(catMap) == 0 {
+		return []*store.CategoryInfo{}, nil
+	}
+
+	// Second pass: count messages per category using the category index (CI:{cat}:*)
+	results := make([]*store.CategoryInfo, 0, len(catMap))
+	for cat, accum := range catMap {
+		ciStart := formatCategoryIndexKey(cat, 0)
+		// End key: CI:{cat}0 (0x30 is '0', which is the first digit; use '\xff' suffix)
+		ciEnd := []byte(fmt.Sprintf("%s%s\xff", prefixCategoryIndex, cat+":"))
+
+		ciIter, err := handle.db.NewIter(&pebble.IterOptions{
+			LowerBound: ciStart,
+			UpperBound: ciEnd,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create category index iterator: %w", err)
+		}
+
+		var msgCount int64
+		for ciIter.First(); ciIter.Valid(); ciIter.Next() {
+			msgCount++
+		}
+		ciIterErr := ciIter.Error()
+		ciIter.Close()
+		if ciIterErr != nil {
+			return nil, fmt.Errorf("category iterator error: %w", ciIterErr)
+		}
+
+		results = append(results, &store.CategoryInfo{
+			Category:     cat,
+			StreamCount:  int64(len(accum.streams)),
+			MessageCount: msgCount,
+		})
+	}
+
+	// Sort lexicographically by category
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[i].Category > results[j].Category {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+
+	return results, nil
 }
 
 // extractGlobalPositionFromCategoryKey extracts global position from category index key
