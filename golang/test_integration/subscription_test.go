@@ -14,6 +14,7 @@ import (
 	"github.com/eventodb/eventodb/internal/api"
 	"github.com/eventodb/eventodb/internal/auth"
 	"github.com/eventodb/eventodb/internal/store"
+	"github.com/google/uuid"
 )
 
 // Poke represents an SSE poke event
@@ -804,12 +805,13 @@ func TestMDB002_6A_T16_AllSubscriptionNamespaceIsolation(t *testing.T) {
 	testCtx := setupSSETestServer(t)
 	defer testCtx.Cleanup()
 
-	// Create a second namespace
-	ns2 := "ns2_test"
+	// Create a second namespace (unique to avoid leftover state from previous runs)
+	ns2 := fmt.Sprintf("ns2_test_%s", uuid.New().String()[:8])
 	token2, err := createSSENamespace(ctx, testCtx.Env.Store, ns2)
 	if err != nil {
 		t.Fatalf("Failed to create second namespace: %v", err)
 	}
+	defer testCtx.Env.Store.DeleteNamespace(ctx, ns2)
 
 	// Subscribe to all events in first namespace
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)

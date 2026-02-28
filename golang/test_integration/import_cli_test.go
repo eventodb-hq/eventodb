@@ -644,7 +644,7 @@ func TestMDB004_4A_ImportInvalidJSONLineNumber(t *testing.T) {
 
 // TestMDB004_4A_ImportPreservesStreamPosition tests that stream position is preserved
 func TestMDB004_4A_ImportPreservesStreamPosition(t *testing.T) {
-	server := SetupTestServer(t)
+	server := SetupIsolatedTestServer(t)
 	defer server.Cleanup()
 
 	// Import messages with specific stream positions
@@ -662,11 +662,34 @@ func TestMDB004_4A_ImportPreservesStreamPosition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
+	// Read until done event so the import is fully committed before we query.
+	// SSE stream stays open, so we scan line-by-line and stop once we see done.
+	scanner := bufio.NewScanner(resp.Body)
+	importDone := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "data: ") {
+			data := strings.TrimPrefix(line, "data: ")
+			var msg map[string]interface{}
+			if json.Unmarshal([]byte(data), &msg) == nil {
+				if done, ok := msg["done"].(bool); ok && done {
+					importDone = true
+					break
+				}
+				if errCode, ok := msg["error"].(string); ok {
+					t.Fatalf("Import error: %s - %v", errCode, msg["message"])
+				}
+			}
+		}
+	}
 	resp.Body.Close()
+	if !importDone {
+		t.Fatal("Did not receive done event from import")
+	}
 
 	// Retrieve and verify positions
 	ctx := context.Background()
-	msgs, err := server.Env.Store.GetStreamMessages(ctx, server.Env.Namespace, "ordered", &store.GetOpts{})
+	msgs, err := server.Env.Store.GetStreamMessages(ctx, server.Env.Namespace, "ordered", store.NewGetOpts())
 	if err != nil {
 		t.Fatalf("Failed to get stream: %v", err)
 	}
