@@ -56,7 +56,7 @@ defmodule EventodbKit.MixProject do
     if local_exists and not use_hex do
       {:eventodb_ex, path: "../eventodb_ex"}
     else
-      {:eventodb_ex, "~> 0.2.3"}
+      {:eventodb_ex, "~> 0.2.4"}
     end
   end
 
