@@ -405,6 +405,110 @@ curl -X POST http://localhost:8080/rpc \
 
 ---
 
+### ns.streams
+
+List streams in the current namespace with optional prefix filtering and cursor-based pagination.
+
+**Request:**
+```json
+["ns.streams", {
+  "prefix": "account",
+  "limit": 100,
+  "cursor": "account-122"
+}]
+```
+
+**Arguments:**
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `options.prefix` | string | No | `""` | Filter streams whose name starts with this string |
+| `options.limit` | number | No | 100 | Max streams to return (max 1000) |
+| `options.cursor` | string | No | `""` | Pagination cursor — return streams after this name (exclusive) |
+
+**Response:**
+```json
+[
+  {"stream": "account-123", "version": 5, "lastActivity": "2026-01-15T10:30:00Z"},
+  {"stream": "account-456", "version": 2, "lastActivity": "2026-01-16T09:12:00Z"}
+]
+```
+
+**Response fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `stream` | string | Full stream name |
+| `version` | number | Current stream version (position of last message, 0-based) |
+| `lastActivity` | string | ISO 8601 UTC timestamp of last write |
+
+Results are sorted lexicographically by stream name. An empty array means no streams match.
+
+**Error Codes:**
+- `INVALID_REQUEST` — invalid options
+- `AUTH_REQUIRED` — no token
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/rpc \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '["ns.streams", {"prefix": "account", "limit": 50}]'
+```
+
+**Pagination example:**
+```bash
+# First page
+curl ... -d '["ns.streams", {"limit": 100}]'
+
+# Next page (cursor = last stream name from previous page)
+curl ... -d '["ns.streams", {"limit": 100, "cursor": "account-999"}]'
+```
+
+---
+
+### ns.categories
+
+List distinct categories in the current namespace with stream and message counts.
+
+**Request:**
+```json
+["ns.categories"]
+```
+
+No options. Returns all categories in the namespace.
+
+**Response:**
+```json
+[
+  {"category": "account", "streamCount": 42, "messageCount": 1500},
+  {"category": "order",   "streamCount": 8,  "messageCount": 230},
+  {"category": "user",    "streamCount": 200, "messageCount": 4100}
+]
+```
+
+**Response fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `category` | string | Category name (portion of stream name before first `-`) |
+| `streamCount` | number | Number of distinct streams in this category |
+| `messageCount` | number | Total messages across all streams in this category |
+
+Results are sorted lexicographically by category name.
+
+Category extraction follows `category.get` semantics: the category is the portion of the stream name before the first `-`. A stream with no `-` (e.g. `account`) is its own category.
+
+**Error Codes:**
+- `AUTH_REQUIRED` — no token
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/rpc \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '["ns.categories"]'
+```
+
+---
+
 ### ns.info
 
 Get detailed information about a namespace.
