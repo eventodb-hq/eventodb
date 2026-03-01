@@ -153,6 +153,14 @@ defmodule EventodbKit do
 
   @doc """
   Lists streams in the current namespace with optional prefix filtering and pagination.
+
+  ## Options
+
+    * `:prefix` - Filter streams whose name starts with this string
+    * `:limit` - Max streams to return (default: 100, max: 1000)
+    * `:cursor` - Pagination cursor — return streams after this name (exclusive)
+
+  See `EventodbEx.namespace_streams/2` for full details.
   """
   def namespace_streams(%Client{} = kit, opts \\ %{}) do
     case EventodbEx.namespace_streams(kit.eventodb_client, opts) do
@@ -163,6 +171,11 @@ defmodule EventodbKit do
 
   @doc """
   Lists distinct categories in the current namespace with stream and message counts.
+
+  Takes no options. Returns all categories sorted lexicographically.
+  Each entry has `:category`, `:stream_count`, and `:message_count`.
+
+  See `EventodbEx.namespace_categories/1` for full details.
   """
   def namespace_categories(%Client{} = kit) do
     case EventodbEx.namespace_categories(kit.eventodb_client) do

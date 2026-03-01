@@ -234,16 +234,32 @@ defmodule EventodbEx do
   @doc """
   Lists streams in the current namespace with optional prefix filtering and pagination.
 
+  Results are sorted lexicographically by stream name.
+
   ## Options
 
-    * `:prefix` - Filter streams whose name starts with this string
+    * `:prefix` - Filter streams whose name starts with this string (default: `""` = no filter)
     * `:limit` - Max streams to return (default: 100, max: 1000)
-    * `:cursor` - Pagination cursor — return streams after this stream name (exclusive)
+    * `:cursor` - Pagination cursor — return streams after this name (exclusive, default: `""`)
+
+  ## Response fields
+
+  Each entry in the returned list is a map with:
+
+    * `:stream` - Full stream name
+    * `:version` - Current stream version (position of last message, 0-based)
+    * `:last_activity` - ISO 8601 UTC timestamp of last write
 
   ## Examples
 
       {:ok, streams, client} = EventodbEx.namespace_streams(client)
+
       {:ok, streams, client} = EventodbEx.namespace_streams(client, %{prefix: "account", limit: 50})
+
+      # Paginate: pass last stream name as cursor
+      {:ok, page1, client} = EventodbEx.namespace_streams(client, %{limit: 100})
+      last = List.last(page1)[:stream]
+      {:ok, page2, client} = EventodbEx.namespace_streams(client, %{limit: 100, cursor: last})
 
   """
   @spec namespace_streams(Client.t(), map()) ::
@@ -258,9 +274,23 @@ defmodule EventodbEx do
   @doc """
   Lists distinct categories in the current namespace with stream and message counts.
 
+  Takes no options. Returns all categories sorted lexicographically.
+
+  The category is the portion of the stream name before the first `-`.
+  A stream with no `-` (e.g. `"account"`) is its own category.
+
+  ## Response fields
+
+  Each entry in the returned list is a map with:
+
+    * `:category` - Category name
+    * `:stream_count` - Number of distinct streams in this category
+    * `:message_count` - Total messages across all streams in this category
+
   ## Examples
 
       {:ok, categories, client} = EventodbEx.namespace_categories(client)
+      # => {:ok, [%{category: "account", stream_count: 42, message_count: 1500}, ...], client}
 
   """
   @spec namespace_categories(Client.t()) ::
