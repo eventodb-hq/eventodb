@@ -126,4 +126,154 @@ defmodule EventodbEx.NamespaceTest do
 
     assert error.code == "NAMESPACE_NOT_FOUND"
   end
+
+  test "NS-009: namespace_streams returns empty list for empty namespace" do
+    {client, namespace_id, _token} = create_test_namespace("streams-empty")
+
+    assert {:ok, streams, _client} = EventodbEx.namespace_streams(client)
+    assert streams == []
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-010: namespace_streams returns streams after writes" do
+    {client, namespace_id, _token} = create_test_namespace("streams-after-writes")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "Created", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-2", %{type: "Created", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "order-1", %{type: "Created", data: %{}})
+
+    assert {:ok, streams, _client} = EventodbEx.namespace_streams(client)
+    assert length(streams) == 3
+
+    first = List.first(streams)
+    assert Map.has_key?(first, :stream)
+    assert Map.has_key?(first, :version)
+    assert Map.has_key?(first, :last_activity)
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-011: namespace_streams sorted lexicographically" do
+    {client, namespace_id, _token} = create_test_namespace("streams-sorted")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "order-1", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "user-1", %{type: "E", data: %{}})
+
+    assert {:ok, streams, _client} = EventodbEx.namespace_streams(client)
+    names = Enum.map(streams, & &1.stream)
+    assert names == ["account-1", "order-1", "user-1"]
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-012: namespace_streams prefix filter" do
+    {client, namespace_id, _token} = create_test_namespace("streams-prefix")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-2", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "order-1", %{type: "E", data: %{}})
+
+    assert {:ok, streams, _client} = EventodbEx.namespace_streams(client, %{prefix: "account"})
+    assert length(streams) == 2
+    assert Enum.all?(streams, &String.starts_with?(&1.stream, "account"))
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-013: namespace_streams cursor pagination" do
+    {client, namespace_id, _token} = create_test_namespace("streams-cursor")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "stream-a", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "stream-b", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "stream-c", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "stream-d", %{type: "E", data: %{}})
+
+    assert {:ok, page1, client} = EventodbEx.namespace_streams(client, %{limit: 2})
+    assert length(page1) == 2
+
+    cursor = List.last(page1).stream
+    assert {:ok, page2, _client} = EventodbEx.namespace_streams(client, %{limit: 2, cursor: cursor})
+    assert length(page2) == 2
+
+    # No overlap
+    page1_names = MapSet.new(page1, & &1.stream)
+    page2_names = MapSet.new(page2, & &1.stream)
+    assert MapSet.disjoint?(page1_names, page2_names)
+    assert MapSet.size(MapSet.union(page1_names, page2_names)) == 4
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-014: namespace_streams version reflects last position" do
+    {client, namespace_id, _token} = create_test_namespace("streams-version")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "A", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "B", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "C", data: %{}})
+
+    assert {:ok, [stream], _client} = EventodbEx.namespace_streams(client)
+    assert stream.version == 2
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-015: namespace_categories returns empty list for empty namespace" do
+    {client, namespace_id, _token} = create_test_namespace("cats-empty")
+
+    assert {:ok, categories, _client} = EventodbEx.namespace_categories(client)
+    assert categories == []
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-016: namespace_categories derives categories from stream names" do
+    {client, namespace_id, _token} = create_test_namespace("cats-derive")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-2", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "order-1", %{type: "E", data: %{}})
+
+    assert {:ok, categories, _client} = EventodbEx.namespace_categories(client)
+    assert length(categories) == 2
+
+    names = Enum.map(categories, & &1.category)
+    assert names == ["account", "order"]
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-017: namespace_categories counts are accurate" do
+    {client, namespace_id, _token} = create_test_namespace("cats-counts")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-2", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "order-1", %{type: "E", data: %{}})
+
+    assert {:ok, categories, _client} = EventodbEx.namespace_categories(client)
+    cat_map = Map.new(categories, &{&1.category, &1})
+
+    assert cat_map["account"].stream_count == 2
+    assert cat_map["account"].message_count == 3
+    assert cat_map["order"].stream_count == 1
+    assert cat_map["order"].message_count == 1
+
+    cleanup_namespace(client, namespace_id)
+  end
+
+  test "NS-018: namespace_categories stream with no dash is its own category" do
+    {client, namespace_id, _token} = create_test_namespace("cats-no-dash")
+
+    {:ok, _, client} = EventodbEx.stream_write(client, "account", %{type: "E", data: %{}})
+    {:ok, _, client} = EventodbEx.stream_write(client, "account-1", %{type: "E", data: %{}})
+
+    assert {:ok, [cat], _client} = EventodbEx.namespace_categories(client)
+    assert cat.category == "account"
+    assert cat.stream_count == 2
+    assert cat.message_count == 2
+
+    cleanup_namespace(client, namespace_id)
+  end
 end
